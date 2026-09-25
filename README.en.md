@@ -2,6 +2,8 @@
 
 [中文](README.md) ｜ **English**
 
+> **Current version: v0.1.0-beta** ｜ Release branch: `beta` ｜ Beta stage: features and interfaces may still change.
+
 A **self-hosted** QQ sticker generator bot plus a web workbench. Hook it up to NapCat (OneBot V11) and your group chats can generate memes with a single message — while the web UI gives you a pairing-card generator, quote-image composer, asset browser, API debugger and a plugin system.
 
 No third-party cloud service required. Everything runs on your own machine.
@@ -28,7 +30,7 @@ No third-party cloud service required. Everything runs on your own machine.
 
 | Module | Description |
 | --- | --- |
-| Meme generation `/meme` | 3,400+ assets. Send a command plus text (optionally with an image, an `@mention` or a QQ number) and get a sticker back. Supports per-meme preset arguments |
+| Meme generation `/meme` | 282 memes, 3,400+ asset files. Send a command plus text (optionally with an image, an `@mention` or a QQ number) and get a sticker back. Supports per-meme preset arguments |
 | Pairing card `/pair` | QQ-style pairing cards with three templates (classic / dark / paper); custom title, background and button labels |
 | Quote image `/quote` | Random web background + dark overlay + avatar + speech bubble + signature, exported as JPG |
 | Image menu `/help` | Every command rendered as a clean, phone-friendly image |
@@ -66,11 +68,11 @@ On first launch a random admin password is generated and **printed to the termin
 ### 2. Get the code
 
 ```bash
-git clone https://github.com/<your-user>/<your-repo>.git
+git clone -b beta https://github.com/<your-user>/<your-repo>.git
 cd <your-repo>
 ```
 
-> The repository **does not include the meme assets** (~254 MB). The setup wizard downloads them on first run.
+> Releases live on the **`beta`** branch; the repository **does not include the meme assets** (~254 MB). The setup wizard downloads them on first run.
 
 ### 3. Create a virtual environment and install dependencies
 
@@ -241,7 +243,6 @@ Chinese versions: [Windows](docs/zh/deploy-windows.md) ｜ [Linux](docs/zh/deplo
 ├── _serve.py              # Production-style entry point (reads WEB_HOST / WEB_PORT / WEB_THREADED)
 ├── .env.example           # Commented config template; copy to .env
 ├── LICENSE                # MIT
-├── 部署说明.md            # Local deployment notes (Chinese)
 ├── core/                  # Core logic
 │   ├── config.py          # Config loading (.env → constants)
 │   ├── ws_server.py       # OneBot V11 reverse-WS server + API debug metadata
@@ -299,9 +300,6 @@ Check in order: WS server running → NapCat reverse-WS connected (the event str
 
 **I forgot the admin password.**
 Remove the password hash from `api_keys.json` and restart — a new one is generated and printed. Deleting the whole file also works.
-
-**What are `node_modules` / `package.json`?**
-Leftovers from a dev-time puppeteer screenshot helper. They are unrelated to running the project and safe to delete.
 
 ---
 

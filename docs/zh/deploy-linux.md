@@ -55,11 +55,11 @@ uv --version
 ```bash
 sudo mkdir -p /opt/ilbb-bot
 sudo chown "$USER" /opt/ilbb-bot
-git clone https://github.com/<你的用户名>/<仓库名>.git /opt/ilbb-bot
+git clone -b beta https://github.com/<你的用户名>/<仓库名>.git /opt/ilbb-bot
 cd /opt/ilbb-bot
 ```
 
-> 只拷代码时，需要带上：`app.py`、`_serve.py`、`core/`、`vendor/`、`templates/`、`static/`、`font/`、`plugins/`、`.env.example`。跳过 `.venv`、`node_modules`、`cache`、`temp`。
+> 只拷代码时，需要带上：`app.py`、`_serve.py`、`core/`、`vendor/`、`templates/`、`static/`、`font/`、`plugins/`、`.env.example`。跳过 `.venv`、`cache`、`temp`。
 
 ---
 

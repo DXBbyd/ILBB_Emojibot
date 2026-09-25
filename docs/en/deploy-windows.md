@@ -37,9 +37,11 @@ It should output `Python 3.13.x`. If it says the command cannot be found, PATH w
 ## 3. Get the code
 
 ```powershell
-git clone https://github.com/<your-username>/<repo-name>.git
+git clone -b beta https://github.com/<your-username>/<repo-name>.git
 cd <repo-name>
 ```
+
+> Current release lives on the **`beta`** branch (v0.1.0-beta). The repository does not include the meme assets (~254 MB); the setup wizard downloads them on first run.
 
 If you don't have git, you can also just click `Code → Download ZIP` on the GitHub page and extract it.
 
@@ -184,9 +186,6 @@ Delete it; it doesn't affect running — the program attaches `vendor/meme-gener
 
 **Forgot the admin password**
 Delete `api_keys.json` and restart; it will be regenerated and printed to the terminal.
-
-**What are `node_modules` / `package.json`?**
-Leftovers from a small puppeteer screenshot tool used during development; unrelated to running and safe to delete.
 
 ---
 

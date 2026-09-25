@@ -55,11 +55,11 @@ uv --version
 ```bash
 sudo mkdir -p /opt/ilbb-bot
 sudo chown "$USER" /opt/ilbb-bot
-git clone https://github.com/<your-username>/<repo-name>.git /opt/ilbb-bot
+git clone -b beta https://github.com/<your-username>/<repo-name>.git /opt/ilbb-bot
 cd /opt/ilbb-bot
 ```
 
-> When copying only the code, you need to bring along: `app.py`, `_serve.py`, `core/`, `vendor/`, `templates/`, `static/`, `font/`, `plugins/`, `.env.example`. Skip `.venv`, `node_modules`, `cache`, `temp`.
+> When copying only the code, you need to bring along: `app.py`, `_serve.py`, `core/`, `vendor/`, `templates/`, `static/`, `font/`, `plugins/`, `.env.example`. Skip `.venv`, `cache`, `temp`.
 
 ---
 

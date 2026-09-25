@@ -62,7 +62,7 @@ uv --version
 
 ```bash
 mkdir -p /opt/ilbb-bot && cd /opt/ilbb-bot
-git clone https://github.com/<你的用户名>/<仓库名>.git .
+git clone -b beta https://github.com/<你的用户名>/<仓库名>.git .
 
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
@@ -102,7 +102,7 @@ Without a container, use Termux's own Python directly:
 ```bash
 pkg install -y python git
 termux-wake-lock
-git clone https://github.com/<你的用户名>/<仓库名>.git ~/ilbb && cd ~/ilbb
+git clone -b beta https://github.com/<你的用户名>/<仓库名>.git ~/ilbb && cd ~/ilbb
 pip install flask requests pillow websockets numpy
 pip install "skia-python~=144.0"      # 这一步大概率失败
 ```

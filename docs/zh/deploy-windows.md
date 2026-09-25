@@ -37,9 +37,11 @@ python --version
 ## 三、获取代码
 
 ```powershell
-git clone https://github.com/<你的用户名>/<仓库名>.git
+git clone -b beta https://github.com/<你的用户名>/<仓库名>.git
 cd <仓库名>
 ```
+
+> 当前发布在 `beta` 分支（v0.1.0-beta）。仓库不含 meme 素材（约 254MB），首次启动由引导页联网补全。
 
 没有 git 的话，直接在 GitHub 页面点 `Code → Download ZIP` 解压也行。
 
@@ -184,9 +186,6 @@ pause
 
 **忘了管理密码**
 把 `api_keys.json` 删掉再重启，会重新生成并打印到终端。
-
-**`node_modules` / `package.json` 是什么？**
-开发期用 puppeteer 截图的小工具留下的，跟运行无关，可以删。
 
 ---
 

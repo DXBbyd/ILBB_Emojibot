@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>示例插件控制台</title>
+<style>
+  :root {
+    --brand: #c96442;
+    --brand-deep: #8f4227;
+    --brand-soft: #f7e7e0;
+    --ink: #2d2620;
+    --ink-2: #6b6157;
+    --ink-3: #9a9089;
+    --bg: #faf7f3;
+    --line: #ece5dd;
+    --ok: #6f8a4a;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 22px 24px 30px; background: var(--bg); color: var(--ink);
+    font: 14px/1.65 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: .2px; }
+  .ver { font-family: var(--mono); font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-deep); font-weight: 700; }
+  .rbtn {
+    margin-left: auto; font: 600 12.5px/1 inherit; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: var(--ink-2);
+    transition: background .18s, color .18s, transform .18s, border-color .18s;
+  }
+  .rbtn:hover { background: var(--brand-soft); color: var(--brand-deep); border-color: var(--brand-soft); }
+  .rbtn:active { transform: scale(.97); }
+  .rbtn.spin { opacity: .6; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); transition: background .3s, box-shadow .3s; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(111,138,74,.18); }
+  .lede { margin: 0 0 18px; color: var(--ink-2); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px 16px;
+    box-shadow: 0 1px 2px rgba(45,38,32,.04); animation: rise .4s cubic-bezier(.2,.9,.28,1.05) backwards;
+  }
+  .card:nth-child(2) { animation-delay: .07s; }
+  .card:nth-child(3) { animation-delay: .14s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  .card h2 { margin: 0 0 12px; font-size: 13px; font-weight: 800; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+  .card h2::before { content: ''; width: 3px; height: 12px; border-radius: 2px; background: var(--brand); }
+  .big { font-family: var(--mono); font-size: 34px; font-weight: 700; line-height: 1.1; color: var(--brand-deep); }
+  .big small { font-size: 12px; color: var(--ink-3); font-weight: 600; margin-left: 6px; font-family: inherit; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+  .row:last-child { border-bottom: 0; }
+  .row .k { color: var(--ink-2); flex-shrink: 0; }
+  .row .v { font-weight: 600; text-align: right; word-break: break-all; font-family: var(--mono); font-size: 11.5px; }
+  .feed { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .feed li {
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); padding: 7px 10px;
+    background: #fbf9f6; border: 1px solid var(--line); border-radius: 9px;
+    animation: rise .3s ease backwards; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .empty { color: var(--ink-3); font-size: 12.5px; padding: 4px 0; }
+  footer { margin-top: 20px; color: var(--ink-3); font-size: 11.5px; }
+  code { font-family: var(--mono); background: var(--brand-soft); color: var(--brand-deep); padding: 1px 6px; border-radius: 6px; font-size: 11.5px; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="dot" id="dot"></span>
+    <h1 id="title">示例插件控制台</h1>
+    <span class="ver" id="ver">v—</span>
+    <button type="button" class="rbtn" id="refreshBtn" title="不会自动刷新，点这里重新拉一次 /api/stats">刷新数据</button>
+  </header>
+  <p class="lede">这是插件自己的 HTTP 服务，由 ILBB 用内嵌网页显示。下面的数据<b>不会自动刷新</b>，点右上角「刷新数据」才会重新从 <code>/api/stats</code> 拉一次。</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>运行状态</h2>
+      <div class="big"><span id="hits">0</span><small>条群消息</small></div>
+      <div style="margin-top:12px">
+        <div class="row"><span class="k">插件 ID</span><span class="v" id="pid">—</span></div>
+        <div class="row"><span class="k">版本</span><span class="v" id="ver2">—</span></div>
+        <div class="row"><span class="k">最后刷新</span><span class="v" id="tick">—</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>当前配置</h2>
+      <div id="cfg"><div class="empty">读取中…</div></div>
+    </section>
+
+    <section class="card">
+      <h2>最近消息</h2>
+      <ul class="feed" id="feed"><li>暂无数据</li></ul>
+    </section>
+  </div>
+
+  <footer>在 ILBB 的「插件」页改配置并保存，这里会立刻反映出来；改本页文件也会触发热重载。</footer>
+
+<script>
+(function () {
+  var LABEL = {
+    greet: '打招呼文本', intro: '自我介绍', limit: '最多处理条数', silent: '安静模式',
+    mode: '运行模式', owner: '通知好友', admins: '管理员', watch_groups: '统计群',
+    notify_group: '通知群', watch_user: '重点成员', watch_users: '重点名单'
+  };
+  function $(id) { return document.getElementById(id); }
+  function fmt(v) {
+    if (v === true) return '开';
+    if (v === false) return '关';
+    if (Array.isArray(v)) return v.length ? v.join(', ') : '（空）';
+    if (v === '' || v === null || v === undefined) return '（空）';
+    return String(v);
+  }
+  function paintCfg(cfg) {
+    var keys = Object.keys(cfg || {});
+    if (!keys.length) { $('cfg').innerHTML = '<div class="empty">还没有配置项</div>'; return; }
+    var h = '';
+    keys.forEach(function (k) {
+      h += '<div class="row"><span class="k">' + (LABEL[k] || k) + '</span><span class="v">'
+         + fmt(cfg[k]).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></div>';
+    });
+    $('cfg').innerHTML = h;
+  }
+  function paintFeed(list) {
+    if (!list || !list.length) { $('feed').innerHTML = '<li>暂无数据</li>'; return; }
+    $('feed').innerHTML = list.map(function (t) { return '<li>' + String(t).replace(/</g, '&lt;') + '</li>'; }).join('');
+  }
+  function pull(btn) {
+    if (btn) btn.classList.add('spin');
+    fetch('/api/stats', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        $('dot').className = 'dot on';
+        $('title').textContent = d.name || '示例插件控制台';
+        $('ver').textContent = 'v' + (d.version || '—');
+        $('ver2').textContent = d.version || '—';
+        $('pid').textContent = d.id || '—';
+        $('hits').textContent = d.hits || 0;
+        $('tick').textContent = new Date().toLocaleTimeString();
+        paintCfg(d.config);
+        paintFeed(d.recent);
+      })
+      .catch(function () { $('dot').className = 'dot'; })
+      .then(function () { if (btn) btn.classList.remove('spin'); });
+  }
+  $('refreshBtn').addEventListener('click', function () { pull(this); });
+  pull();
+})();
+</script>
+</body>
+</html>

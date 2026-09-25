@@ -1,0 +1,159 @@
+<!-- 视图：插件（plugins/ 下一个文件夹 = 一个插件；支持热重载 / 热禁用 / 网页内嵌） -->
+<div class="console-layout">
+    <h2 class="panel-title">插件 · Plugins</h2>
+    <div class="panel-sub">
+        <b>一个文件夹 = 一个插件</b>：把插件文件夹丢进 <code class="ws-code">plugins/</code> 就算装好了，不用重启服务。
+        每个插件用 <code class="ws-code">plugin.json</code> 介绍自己（名称、版本、作者、配置项、要不要独立网页），
+        入口是 <code class="ws-code">main.py</code> 里的 <code class="ws-code">setup(ctx)</code>。
+        这里可以改配置（改完立刻通知插件，不必重载代码）、热启用 / 热禁用、热重载；
+        插件里写了 <code class="ws-code">"web": true</code> 时，ILBB 会<b>自动分配端口</b>，它的页面在下面的
+        <b>「独立页面」</b>子选项里统一查看。
+        配置项类型写 <code class="ws-code">friend</code> / <code class="ws-code">group</code> / <code class="ws-code">group_member</code> 时，
+        会自动变成 ILBB 的下拉栏，选项来自 NapCat 当前登录 QQ。
+    </div>
+
+    <!-- ============ 二级切换：插件列表 / 独立页面 ============ -->
+    <div class="ws-tabs" id="pgTabs">
+        <span class="ws-tabs-pill" id="pgTabsPill" aria-hidden="true"></span>
+        <button type="button" class="ws-tab active" data-pg-tab="list">插件列表</button>
+        <button type="button" class="ws-tab" data-pg-tab="web">独立页面</button>
+        <span class="ws-tabs-hint" id="pgTabsHint">一个文件夹 = 一个插件</span>
+    </div>
+
+    <!-- ============ 子页 1：插件列表 ============ -->
+    <div class="ws-pane active" id="pgPaneList">
+        <!-- 概况条（一行式，替代原来的三张大卡） -->
+        <div class="pg-overview" id="pgStats">
+            <div class="pg-ov-state">
+                <span class="pg-ov-dot" id="pgSysDot"></span>
+                <b id="pgSysEnabled">—</b>
+            </div>
+            <div class="pg-ov-facts">
+                <span class="pg-ov-fact"><span class="k">已装 / 已载</span><b id="pgSysCount">—</b></span>
+                <span class="pg-ov-fact"><span class="k">热重载</span><b id="pgSysHot">—</b></span>
+                <span class="pg-ov-fact"><span class="k">扫描间隔</span><b id="pgSysPoll">—</b></span>
+            </div>
+            <div class="pg-ov-paths">
+                <span class="pg-ov-path"><span class="k">目录</span><code class="pg-mono" id="pgRoot" title="">—</code></span>
+                <span class="pg-ov-path"><span class="k">配置</span><code class="pg-mono" id="pgCfgPath" title="">—</code></span>
+                <span class="pg-ov-path"><span class="k">上次刷新</span><b id="pgRefreshedAt">—</b></span>
+            </div>
+        </div>
+
+        <!-- 装错了的文件夹 -->
+        <div class="pg-bad hidden" id="pgBad">
+            <div class="pg-bad-head">
+                <h3>这些文件夹没被当成插件</h3>
+                <span class="bot-block-hint" id="pgBadHint">—</span>
+            </div>
+            <div class="pg-bad-list" id="pgBadList"></div>
+        </div>
+
+        <!-- 主体：左列表 + 右详情 -->
+        <div class="pg-wrap">
+            <section class="pg-col-list">
+                <div class="bot-block">
+                    <div class="bot-block-head">
+                        <h3>已安装插件</h3>
+                        <span class="bot-block-hint" id="pgCountHint">正在读取…</span>
+                    </div>
+                    <div class="pg-toolbar">
+                        <label class="pg-search">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><path d="M10.5 10.5L14 14"></path></svg>
+                            <input type="text" id="pgSearch" placeholder="搜索插件名 / id / 作者…" autocomplete="off">
+                        </label>
+                        <button type="button" class="ws-btn" id="pgRefreshBtn" title="插件列表与状态不会自动刷新，点这里重新读取">手动刷新</button>
+                        <button type="button" class="ws-btn" id="pgRescanBtn" title="重新扫描 plugins/ 目录，识别新增 / 删除的插件">重扫目录</button>
+                        <button type="button" class="ws-btn" id="pgReloadAllBtn" title="卸载并重新加载所有插件">全部重载</button>
+                    </div>
+                    <div class="pg-tip-inline pg-toolbar-tip">本页不自动刷新，需要最新状态请点「手动刷新」；下方列表点一下卡片即可在右侧改配置。</div>
+
+                    <details class="pg-guide">
+                        <summary>怎么加一个插件</summary>
+                        <div class="pg-steps">
+                            <div class="pg-step"><b>1</b><span>在 <code class="ws-code">plugins/</code> 下新建文件夹，例如 <code class="ws-code">plugins/mybot/</code></span></div>
+                            <div class="pg-step"><b>2</b><span>写 <code class="ws-code">plugin.json</code>（名称 / 版本 / 配置项）与 <code class="ws-code">main.py</code>（<code class="ws-code">setup(ctx)</code>）</span></div>
+                            <div class="pg-step"><b>3</b><span>回到本页刷新即可，之后改代码会<b>自动热重载</b></span></div>
+                        </div>
+                    </details>
+                    <div class="pg-list" id="pgList">
+                        <div class="console-empty">正在读取插件列表…</div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="pg-col-detail">
+                <div class="bot-block" id="pgDetailBlock">
+                    <div class="bot-block-head">
+                        <h3 id="pgDetailTitle">插件详情</h3>
+                        <span class="bot-block-hint" id="pgDetailHint">从左边的列表里选一个插件</span>
+                    </div>
+                    <div class="pg-empty" id="pgDetailEmpty">
+                        还没选中插件。左侧点一下卡片，这里会显示它的运行状态、能响应的指令，以及可以改的配置。
+                    </div>
+
+                    <div class="pg-detail hidden" id="pgDetail">
+                        <div class="pg-meta" id="pgMeta"></div>
+
+                        <div class="pg-actions" id="pgActions"></div>
+
+                        <div class="pg-cfg-head">
+                            <h4>配置</h4>
+                            <span class="pg-tip-inline" id="pgCfgHint">改动保存后立即生效，不需要重载插件</span>
+                        </div>
+                        <div class="pg-cfg" id="pgCfg"></div>
+
+                        <div class="pg-cfg-foot">
+                            <button type="button" class="ws-btn pg-btn-primary" id="pgSaveBtn">保存配置</button>
+                            <button type="button" class="ws-btn" id="pgResetBtn">还原</button>
+                            <span class="pg-tip-inline" id="pgSaveTip"></span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- ============ 子页 2：独立页面 ============ -->
+    <div class="ws-pane" id="pgPaneWeb">
+        <div class="pg-wrap">
+            <section class="pg-col-list">
+                <div class="bot-block">
+                    <div class="bot-block-head">
+                        <h3>拥有独立页面的插件</h3>
+                        <span class="bot-block-hint" id="pgWebCountHint">正在读取…</span>
+                    </div>
+                    <div class="pg-tip-inline pg-web-note">
+                        只列出 <code class="ws-code">plugin.json</code> 里写了 <code class="ws-code">"web": true</code> 的插件。
+                        端口由 ILBB 自动分配，点一个卡片就能在右边直接打开它的页面。
+                    </div>
+                    <div class="pg-list" id="pgWebList">
+                        <div class="console-empty">正在读取插件列表…</div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="pg-col-detail">
+                <div class="pg-empty" id="pgWebEmpty">
+                    左边点一个插件，这里就会嵌出它的独立页面（自动匹配当前访问地址和插件端口）。
+                </div>
+
+                <div class="bot-block hidden" id="pgWebBlock">
+                    <div class="bot-block-head">
+                        <h3 id="pgWebTitle">独立页面</h3>
+                        <span class="bot-block-hint" id="pgWebHint">—</span>
+                    </div>
+                    <div class="pg-web-bar">
+                        <input type="text" id="pgWebUrl" readonly>
+                        <button type="button" class="ws-btn" id="pgWebOpenBtn">新窗口打开</button>
+                        <button type="button" class="ws-btn" id="pgWebReloadBtn">重新加载</button>
+                    </div>
+                    <div class="pg-web-frame">
+                        <iframe id="pgWebFrame" title="插件独立页面" referrerpolicy="no-referrer"></iframe>
+                    </div>
+                    <div class="pg-tip-inline" id="pgWebTip"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>

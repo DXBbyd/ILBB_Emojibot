@@ -1,0 +1,56 @@
+# ============================================================
+#  ILBB · Git 忽略规则
+#  原则：可运行的最小代码 + 配置模板入库；密钥、运行时数据、
+#        体积巨大的第三方素材不进仓库。
+# ============================================================
+
+# ---------- 本地私有配置（含密钥 / 管理密码，禁止提交）----------
+.env
+.env.local
+
+# ---------- 运行时数据（首次启动自动生成）----------
+ws_config.json
+api_keys.json
+bg_config.json
+setup_state.json
+plugins_config.json
+cache/
+temp/
+*.log
+
+# ---------- 用户上传的背景图（运行时数据，目录由 app.py 自动创建）----------
+static/bg/custom_*
+
+# ---------- Python 产物 ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---------- 虚拟环境 / 前端依赖 ----------
+.venv/
+venv/
+env/
+node_modules/
+
+# ---------- vendor 素材库分层 ----------
+# 入库：meme 引擎源码、字体（resources/fonts）、素材清单（resource_list.json）
+# 忽略：meme 素材本体（~254MB / 3000+ 文件），克隆后由引导页 /setup 联网补全
+vendor/meme-generator-main/meme_generator/memes/
+vendor/**/__pycache__/
+vendor/meme-generator-main/output/
+vendor/meme-generator-main/result.*
+vendor/meme-generator-main/avatar.jpg
+
+# ---------- 本机开发遗留（截图 / 与项目无关的临时目录）----------
+.shots/
+qq_studio_shots/
+无关文件/
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store

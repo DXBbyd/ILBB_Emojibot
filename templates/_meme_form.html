@@ -1,0 +1,62 @@
+<!-- Meme 表情生成器表单：主页面视图与「导入生成器预设」弹窗(embed)共用 -->
+<div class="meme-layout">
+    <!-- 左侧：表情列表 + 参数 -->
+    <div class="meme-left">
+        <div class="panel-title">Meme 表情包</div>
+        <div class="panel-sub">用 QQ头像 / 上传图 生成沙雕 GIF · 官方 meme-generator 引擎</div>
+
+        <div class="form-group">
+            <label>QQ号（供填充头像）</label>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="memeQQ" placeholder="输入QQ号，用于填充头像" maxlength="11" style="flex:1;padding:10px 14px;border:2px solid #e8ecf2;border-radius:10px;font-size:14px;outline:none;background:#fafbfc;">
+                <button type="button" class="btn-ghost" id="memeFetchQQ">获取头像</button>
+            </div>
+            <div class="meme-qq-status hidden" id="memeQQStatus"></div>
+        </div>
+
+        <div class="form-group">
+            <label>条件过滤</label>
+            <div class="meme-filter-row">
+                <button type="button" class="meme-filter active" data-ft="all">全部</button>
+                <button type="button" class="meme-filter" data-ft="img">需要图片</button>
+                <button type="button" class="meme-filter" data-ft="text">无需图片</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>搜索表情</label>
+            <input type="text" id="memeSearch" placeholder="输入关键词，如 摸头 / 亲亲 / petpet">
+        </div>
+
+        <div class="meme-search-actions">
+            <button type="button" class="btn-ghost" id="memeFillAvatar">填入QQ头像(空位)</button>
+        </div>
+
+        <div class="meme-list-wrap">
+            <div class="meme-list" id="memeList"></div>
+        </div>
+    </div>
+
+    <!-- 右侧：参数 + 预览 -->
+    <div class="meme-right">
+        <div class="meme-form-head" id="memeFormHead">
+            <span class="meme-key" id="memeSelKey">-</span>
+            <span class="meme-desc" id="memeSelDesc">请在左侧选择一个表情</span>
+        </div>
+
+        <div class="meme-form" id="memeForm"></div>
+
+        <button type="button" class="btn-primary" id="memeGenerateBtn">生成</button>
+        <div id="memeLoading" class="loading-bar hidden">
+            <div class="spinner"></div><span>正在生成 GIF，请稍候...</span>
+        </div>
+
+        <div class="meme-preview-block hidden" id="memeResult">
+            <span class="preview-label">结果</span>
+            <div class="meme-result-box">
+                <img id="memeResultImg" alt="结果">
+            </div>
+            <a id="memeDownloadLink" class="btn-download" download>下载结果</a>
+        </div>
+    </div>
+</div>

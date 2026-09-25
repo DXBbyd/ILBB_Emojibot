@@ -1,0 +1,164 @@
+<!-- 配对卡生成器表单：主页面视图与「导入生成器预设」弹窗(embed)共用 -->
+<div class="main-panel">
+    <!-- 左侧控制面板 -->
+    <div class="control-panel">
+        <div class="panel-title">生成配对弹窗</div>
+        <div class="panel-sub">输入QQ号，自动获取头像和昵称</div>
+
+        <div class="form-group">
+            <label>QQ号码</label>
+            <input type="text" id="qqInput" placeholder="例如：3157037483" maxlength="11" pattern="\d*">
+        </div>
+
+        <!-- 字体选择 -->
+        <div class="form-group">
+            <label>字体</label>
+            <select id="fontSelect">
+                {% for key, name in font_options.items() %}
+                <option value="{{ key }}" {% if loop.first %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <div style="font-size:12px;color:#b0b4c0;margin-top:4px;">
+                字体文件存放在 <code style="background:#f0f2f5;padding:1px 8px;border-radius:4px;">font/</code> 文件夹
+            </div>
+        </div>
+
+        <!-- 卡片模板 -->
+        <div class="form-group">
+            <label>卡片模板</label>
+            <div class="tpl-grid">
+                {% for t in templates %}
+                <button type="button" class="tpl-item {% if loop.first %}active{% endif %}"
+                        data-key="{{ t.key }}" data-colors='{{ t.colors | tojson }}'>
+                    <span class="tpl-name">{{ t.name }}</span>
+                    <span class="tpl-desc">{{ t.desc }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 背景自定义 -->
+        <div class="form-group">
+            <label>背景</label>
+            <div class="bg-type-row">
+                <button type="button" class="bg-type active" data-bgtype="gradient">渐变</button>
+                <button type="button" class="bg-type" data-bgtype="color">纯色</button>
+                <button type="button" class="bg-type" data-bgtype="image">图片</button>
+            </div>
+
+            <!-- 渐变编辑器 -->
+            <div class="bg-editor" id="bgEditorGradient">
+                <div class="bg-color-row">
+                    <input type="color" class="bg-color" id="gColor1" value="#bcc9f0">
+                    <span class="color-arrow">→</span>
+                    <input type="color" class="bg-color" id="gColor2" value="#eef4ff">
+                </div>
+                <div class="bg-dir-row">
+                    <button type="button" class="bg-dir active" data-dir="vertical">垂直</button>
+                    <button type="button" class="bg-dir" data-dir="diagonal">对角</button>
+                </div>
+            </div>
+
+            <!-- 纯色编辑器 -->
+            <div class="bg-editor hidden" id="bgEditorColor">
+                <input type="color" class="bg-color" id="solidColor" value="#dce6f5">
+            </div>
+
+            <!-- 图片编辑器 -->
+            <div class="bg-editor hidden" id="bgEditorImage">
+                <label class="bg-upload">
+                    <input type="file" id="bgImageInput" accept="image/*" hidden>
+                    <span id="bgUploadLabel">选择背景图片</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 弹窗文字（分段） -->
+        <div class="form-group">
+            <label>弹窗文字（分段自定义）</label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="textPart1" placeholder="前半段" 
+                       value="要与 " style="flex:1;min-width:80px;padding:10px 14px;border:2px solid #e8ecf2;border-radius:10px;font-size:14px;outline:none;background:#fafbfc;transition:all 0.25s;">
+                <span style="color:#2d7aff;font-weight:600;font-size:15px;background:#eef4ff;padding:4px 12px;border-radius:8px;">{name}</span>
+                <input type="text" id="textPart2" placeholder="后半段" 
+                       value=" 配对吗？" style="flex:1;min-width:80px;padding:10px 14px;border:2px solid #e8ecf2;border-radius:10px;font-size:14px;outline:none;background:#fafbfc;transition:all 0.25s;">
+            </div>
+            <div style="font-size:12px;color:#b0b4c0;margin-top:6px;">
+                <code style="background:#f0f2f5;padding:1px 8px;border-radius:4px;color:#2d7aff;">{name}</code> 固定为QQ昵称
+            </div>
+        </div>
+
+        <!-- 选项按钮（单/多） -->
+        <div class="form-group">
+            <label>选项按钮</label>
+            <div class="btnmode-row">
+                <button type="button" class="btnmode active" data-mode="single">单按钮</button>
+                <button type="button" class="btnmode" data-mode="multi">多按钮</button>
+            </div>
+
+            <div id="btnSingle">
+                <input type="text" id="btnTextInput" placeholder="按钮文字" value="配对">
+            </div>
+
+            <div id="btnMulti" class="hidden">
+                <div class="btnslot-grid" id="btnSlotGrid"></div>
+                <div style="font-size:12px;color:#b0b4c0;margin-top:8px;">
+                    一行两个，最多四个（两行）。纯图片按钮需上传图片。
+                </div>
+            </div>
+        </div>
+
+        <button id="fetchBtn" class="btn-primary">
+            获取信息并生成
+        </button>
+
+        <div id="loadingBar" class="loading-bar hidden">
+            <div class="spinner"></div>
+            <span>正在获取用户信息...</span>
+        </div>
+
+        <!-- 用户信息简览 -->
+        <div id="userInfoPreview" class="user-info-preview hidden">
+            <div class="info-row">
+                <span class="label">QQ</span>
+                <span id="previewQQ">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">昵称</span>
+                <span id="previewName">-</span>
+            </div>
+            <div class="info-row" id="cacheStatusRow" style="display:none;">
+                <span class="label">缓存</span>
+                <span id="previewCache" style="color:#34c759;">已缓存</span>
+            </div>
+            <div class="info-row" id="filenameRow" style="display:none;">
+                <span class="label">文件名</span>
+                <span id="previewFilename" style="color:#2d7aff;font-size:13px;">-</span>
+            </div>
+        </div>
+
+        <button id="downloadBtn" class="btn-download hidden">
+            下载图片
+        </button>
+    </div>
+
+    <!-- 右侧预览面板 - 显示真实图片 -->
+    <div class="preview-panel">
+        <span class="preview-label">预览</span>
+
+        <div id="placeholder" class="preview-placeholder">
+            <span class="icon">＋</span>
+            输入QQ号后点击生成<br>
+            <span style="font-size:13px;color:#d0d4de;">配对弹窗将在这里预览</span>
+        </div>
+
+        <!-- 图片预览区 -->
+        <div id="previewImageContainer" style="display:none;width:100%;max-width:300px;">
+            <img id="previewImage" src="" alt="预览图片" 
+                 style="width:100%;max-height:480px;object-fit:contain;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,0.10);">
+            <div style="text-align:center;margin-top:12px;font-size:13px;color:#8c8f9c;">
+                生成的真实图片预览
+            </div>
+        </div>
+    </div>
+</div>

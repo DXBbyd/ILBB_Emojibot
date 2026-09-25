@@ -1,0 +1,87 @@
+<!-- 视图：指令中心（Bot 指令 /help · /meme · /pair） -->
+<div class="console-layout">
+    <h2 class="panel-title">指令中心 · Bot Commands</h2>
+    <div class="panel-sub">
+        在 QQ 私聊或群聊里发送 <code class="ws-code" id="botPrefixHint">/help</code> 就能触发。
+        这里可以查看指令目录、meme 素材索引，并「干跑」任意指令，预览机器人会回什么图（只在本页渲染，不会真的发到聊天里）。
+    </div>
+
+    <!-- 二级切换：指令目录 / 指令预览 / 素材索引 -->
+    <div class="ws-tabs" id="botTabs">
+        <span class="ws-tabs-pill" id="botTabsPill" aria-hidden="true"></span>
+        <button type="button" class="ws-tab active" data-bot-tab="catalog">指令目录</button>
+        <button type="button" class="ws-tab" data-bot-tab="preview">指令预览</button>
+        <button type="button" class="ws-tab" data-bot-tab="memes">素材索引</button>
+        <span class="ws-tabs-hint" id="botTabsHint">正在读取指令框架状态…</span>
+    </div>
+
+    <!-- 面板一：指令目录 -->
+    <div class="ws-pane active" id="botPaneCatalog">
+        <div id="botWarn" class="hidden"></div>
+
+        <div class="status-grid" id="botStatusGrid"></div>
+
+        <div class="bot-block">
+            <div class="bot-block-head">
+                <h3>指令目录</h3>
+                <span class="bot-block-hint">点击任意一行可跳到「指令预览」干跑</span>
+            </div>
+            <div id="botCatalogList" class="bot-cmd-list">
+                <p class="console-empty">加载中...</p>
+            </div>
+        </div>
+
+        <div class="bot-block">
+            <div class="bot-block-head">
+                <h3>使用说明</h3>
+            </div>
+            <ol class="bot-guide">
+                <li>根指令 <code class="ws-code">/help</code> 返回一张<b>图片菜单</b>，列出机器人全部玩法。</li>
+                <li><code class="ws-code">/meme</code> 返回 meme 生图帮助图；<code class="ws-code">/meme list</code> 获取素材列表（带列表 ID）。</li>
+                <li><code class="ws-code">/meme help &lt;列表ID&gt;</code> 按 ID 返回一张详情图：meme 名字、支持的预设、使用示例与教程。</li>
+                <li><code class="ws-code">/meme &lt;素材&gt; &lt;文本&gt;</code> 直接生成表情；图片可取消息里的图片、被引用的图片，或 <code class="ws-code">@某人</code> 的头像。</li>
+                <li><code class="ws-code">/pair @某人 标题=...</code> 调用配对卡渲染器生成配对卡片，与「配对卡」页面同源。</li>
+                <li>预设参数用 <code class="ws-code">键=值</code> 追加在指令后面，例如 <code class="ws-code">/meme 挠头 摸头=是的</code>。</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- 面板二：指令预览 -->
+    <div class="ws-pane" id="botPanePreview">
+        <div class="bot-block">
+            <div class="bot-block-head">
+                <h3>干跑预览</h3>
+                <span class="bot-block-hint">不发送、不联网取图，仅渲染机器人将要回复的内容（缺图时用本地占位图顶替）</span>
+            </div>
+            <div class="bot-quick" id="botQuickCmds"></div>
+            <div class="key-toolbar">
+                <input type="text" id="botPreviewInput" placeholder="输入指令，例如：meme help 12" autocomplete="off">
+                <button id="botPreviewBtn">生成预览</button>
+                <button id="botPreviewClearBtn" class="key-refresh-btn">清空</button>
+            </div>
+            <div class="bot-preview-stage" id="botPreviewStage">
+                <div class="bot-preview-empty">
+                    <div class="bot-preview-empty-ico">🖼</div>
+                    <div>输入一条指令后点击「生成预览」，这里会显示机器人回复的图片与文字。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 面板三：素材索引 -->
+    <div class="ws-pane" id="botPaneMemes">
+        <div class="bot-block">
+            <div class="bot-block-head">
+                <h3>meme 素材索引</h3>
+                <span class="bot-block-hint" id="botMemeCount">加载中…</span>
+            </div>
+            <div class="key-toolbar">
+                <input type="text" id="botMemeSearch" placeholder="搜索素材名 / 关键词，例如：摸" autocomplete="off">
+                <button id="botMemeRefreshBtn" class="key-refresh-btn">刷新</button>
+            </div>
+            <div class="bot-meme-grid" id="botMemeGrid">
+                <p class="console-empty">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>

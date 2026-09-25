@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ILBB Emoji Bot</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260926a') }}">
+</head>
+<body>
+    <div class="bg-wall" id="bgWall"></div>
+
+    <div class="workspace">
+        <!-- 顶部栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <span class="logo">我在哔哩学习 Emoji Bot</span>
+                <span class="badge">ILBB</span>
+                <span class="badge cache-badge" id="cacheBadge">缓存: 0</span>
+                <span class="toolbar-center">
+                    <button type="button" class="view-switch active" data-view="compose">合成</button>
+                    <button type="button" class="view-switch" data-view="bot">指令中心</button>
+                    <button type="button" class="view-switch" data-view="webchat">Web 会话</button>
+                    <button type="button" class="view-switch" data-view="status">状态</button>
+                    <button type="button" class="view-switch" data-view="usage">接口统计</button>
+                    <button type="button" class="view-switch" data-view="api">接口测试</button>
+                    <button type="button" class="view-switch" data-view="ws">WS 服务器</button>
+                    <button type="button" class="view-switch" data-view="keys">API Key</button>
+                    <button type="button" class="view-switch" data-view="settings">设置</button>
+                    <button type="button" class="view-switch" data-view="plugins">插件</button>
+                </span>
+            </div>
+            <div class="toolbar-right">
+                <button id="logoutBtn" class="btn-clear-cache" style="background:#eef0f5;color:#44506b;">退出登录</button>
+                <button id="clearCacheBtn" class="btn-clear-cache">清空缓存</button>
+                <span class="dot"></span>
+                服务运行中
+            </div>
+        </div>
+
+        <!-- 内容区 -->
+        <div class="shell">
+            <div class="views">
+
+        <!-- 视图：合成（大类）→ 子选项：Meme 表情 / 配对卡 / 名言图 -->
+        <div class="view active" id="view-compose">
+            <div class="ws-tabs" id="composeTabs">
+                <span class="ws-tabs-pill" id="composeTabsPill" aria-hidden="true"></span>
+                <button type="button" class="ws-tab active" data-compose-tab="meme">Meme 表情</button>
+                <button type="button" class="ws-tab" data-compose-tab="pair">配对卡</button>
+                <button type="button" class="ws-tab" data-compose-tab="quote">名言图</button>
+                <span class="ws-tabs-hint" id="composeTabsHint">表情合成 · 配对生图 · 名言图</span>
+            </div>
+
+            <!-- 子选项一：Meme 表情 -->
+            <div class="ws-pane active" id="composePaneMeme">
+
+            {% include '_meme_form.html' %}
+            </div>
+
+            <!-- 子选项二：配对卡 -->
+            <div class="ws-pane" id="composePanePair">
+
+            {% include '_card_form.html' %}
+            </div>
+
+            <!-- 子选项三：名言图 -->
+            <div class="ws-pane" id="composePaneQuote">
+
+            {% include '_quote_form.html' %}
+            </div>
+        </div>
+
+        <!-- 视图：指令中心（Bot 指令 /help · /meme · /pair） -->
+        <div class="view" id="view-bot">
+
+        {% include '_bot_panel.html' %}
+        </div>
+
+        <!-- 视图：Web 会话（模拟私聊，实测指令是否可用） -->
+        <div class="view" id="view-webchat">
+
+        {% include '_webchat_panel.html' %}
+        </div>
+
+        <!-- 视图：插件（plugins/ 一个文件夹 = 一个插件；含独立插件页面内嵌） -->
+        <div class="view" id="view-plugins">
+
+        {% include '_plugins_panel.html' %}
+        </div>
+
+        <!-- 视图：状态 -->
+        <div class="view" id="view-status">
+            <div class="console-layout">
+                <h2 class="panel-title">状态检查</h2>
+                <div id="statusBlock"><p class="console-empty">加载中...</p></div>
+            </div>
+        </div>
+
+        <!-- 视图：接口统计 -->
+        <div class="view" id="view-usage">
+            <div class="console-layout">
+                <h2 class="panel-title">接口统计</h2>
+                <div id="usageBlock"><p class="console-empty">加载中...</p></div>
+            </div>
+        </div>
+
+        <!-- 视图：接口测试 -->
+        <div class="view" id="view-api">
+            <div class="console-layout">
+                <h2 class="panel-title">接口测试</h2>
+                <div id="endpointsBlock"><p class="console-empty">加载中...</p></div>
+            </div>
+        </div>
+
+        <!-- 视图：API Key 管理 -->
+        <div class="view" id="view-keys">
+            <div class="console-layout">
+                <h2 class="panel-title">API Key 管理</h2>
+                <div class="panel-sub" style="margin-bottom:20px">调用 /v1 接口时在 Header 携带 <code style="background:#f0f2f5;padding:2px 8px;border-radius:5px;">Authorization: Bearer &lt;key&gt;</code></div>
+                <div id="newKeyWrap" class="hidden"></div>
+                <div class="key-toolbar">
+                    <input type="text" id="newKeyName" placeholder="Key 名称（可选）">
+                    <button id="createKeyBtn">创建 Key</button>
+                    <button id="refreshKeysBtn" class="key-refresh-btn">刷新</button>
+                </div>
+                <div id="keysContent"><p class="console-empty">加载中...</p></div>
+            </div>
+        </div>
+
+        <!-- 视图：WS 服务器（OneBot V11 / NapCat） -->
+        <div class="view" id="view-ws">
+            <div class="console-layout">
+                <h2 class="panel-title">WS 服务器 · OneBot V11</h2>
+
+                <!-- 二级切换：运行概览 / 接口调试 -->
+                <div class="ws-tabs" id="wsTabs">
+                    <span class="ws-tabs-pill" id="wsTabsPill" aria-hidden="true"></span>
+                    <button type="button" class="ws-tab active" data-ws-tab="overview">运行概览</button>
+                    <button type="button" class="ws-tab" data-ws-tab="debug">接口调试</button>
+                    <span class="ws-tabs-hint" id="wsTabsHint">连接状态 · 服务器配置 · 实时事件</span>
+                </div>
+
+                <!-- 面板一：运行概览 -->
+                <div class="ws-pane active" id="wsPaneOverview">
+                <div class="panel-sub" style="margin-bottom:18px">
+                    NapCat 以「反向 WebSocket」方式连入本服务。把地址
+                    <code id="wsAddrHint" style="background:#f0f2f5;padding:2px 8px;border-radius:5px;">ws://&lt;本机IP&gt;:&lt;端口&gt;/onebot/v11/ws</code>
+                    填进 NapCat 的网络配置即可，收到的 JSON 事件会实时解析并打印到终端。
+                    <br>监听地址等默认值来自项目根目录的 <code class="ws-code">.env</code>。
+                </div>
+
+                <div id="wsLibWarn" class="hidden"></div>
+
+                <!-- 运行状态总览 -->
+                <div id="wsStatusBlock"><p class="console-empty">加载中...</p></div>
+
+                <!-- 服务器配置 -->
+                <div class="bg-card" style="margin-top:16px;">
+                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:14px;">服务器配置</h3>
+                    <div id="wsCfgSource" class="ws-notice info" style="margin-bottom:14px;display:none;"></div>
+                    <div class="ws-form-grid">
+                        <div class="form-group">
+                            <label>监听地址</label>
+                            <input type="text" id="wsHost" autocomplete="off" placeholder="0.0.0.0">
+                        </div>
+                        <div class="form-group">
+                            <label>端口</label>
+                            <input type="number" id="wsPort" min="1" max="65535" autocomplete="off" placeholder="6700">
+                        </div>
+                        <div class="form-group">
+                            <label>路径</label>
+                            <input type="text" id="wsPath" autocomplete="off" placeholder="/onebot/v11/ws">
+                        </div>
+                        <div class="form-group">
+                            <label>Access Token</label>
+                            <input type="text" id="wsToken" autocomplete="off" placeholder="留空则不校验">
+                        </div>
+                    </div>
+                    <label class="ws-check" style="margin-top:4px;">
+                        <input type="checkbox" id="wsAutoStart"> 随 ILBB 一起自动启动
+                    </label>
+                    <div class="bg-actions" style="margin-top:14px;">
+                        <button id="wsSaveBtn" class="btn-primary" style="padding:10px 16px;width:auto;">保存配置</button>
+                        <button id="wsStartBtn" class="ws-btn">启动</button>
+                        <button id="wsStopBtn" class="ws-btn">停止</button>
+                        <button id="wsRestartBtn" class="ws-btn">重启</button>
+                        <span class="bg-saved-tip" id="wsSaveTip">已保存 ✓</span>
+                    </div>
+                </div>
+
+                <!-- 已连接客户端 -->
+                <div class="bg-card" style="margin-top:16px;">
+                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:14px;">已连接客户端 <span class="ws-count" id="wsClientCount">0</span></h3>
+                    <div id="wsClientsBlock"><p class="console-empty">暂无连接</p></div>
+                </div>
+
+                <!-- 实时事件日志 -->
+                <div class="bg-card" style="margin-top:16px;">
+                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:14px;">实时事件日志</h3>
+                    <div class="ws-log-toolbar">
+                        <label class="ws-check"><input type="checkbox" id="wsAutoScroll" checked> 自动滚动到最新</label>
+                        <label class="ws-check"><input type="checkbox" id="wsShowRaw"> 显示原始 JSON</label>
+                        <label class="ws-check"><input type="checkbox" id="wsPausePoll"> 暂停刷新</label>
+                        <button id="wsClearEventsBtn" class="ws-btn ws-btn-sm">清空日志</button>
+                    </div>
+                    <div id="wsEventsBlock" class="ws-events"><p class="console-empty">等待 NapCat 连接…</p></div>
+                </div>
+
+                </div><!-- /wsPaneOverview -->
+
+                <!-- 面板二：接口调试 -->
+                <div class="ws-pane" id="wsPaneDebug">
+                    <div class="panel-sub" style="margin-bottom:16px">
+                        选择左侧任意 OneBot V11 接口，右侧会自动列出它需要的参数；
+                        直接按提示填写即可，无需手写 JSON。调用前请确保上方「已连接客户端」至少有一个在线。
+                    </div>
+
+                    <div id="wsDebugWarn" class="hidden"></div>
+
+                    <div class="ws-debug-layout">
+                        <!-- 左栏：接口选择 -->
+                        <aside class="ws-api-picker">
+                            <div class="ws-api-search">
+                                <input type="text" id="wsApiSearch" autocomplete="off" placeholder="搜索接口，如 send_group_msg / 群">
+                            </div>
+                            <div class="ws-api-list" id="wsApiList">
+                                <p class="console-empty">加载中…</p>
+                            </div>
+                        </aside>
+
+                        <!-- 右栏：参数表单 -->
+                        <section class="ws-api-detail">
+                            <div class="ws-api-head">
+                                <div>
+                                    <h3 id="wsApiTitle">请选择左侧接口</h3>
+                                    <code class="ws-mono" id="wsApiAction">-</code>
+                                </div>
+                                <button type="button" id="wsApiResetBtn" class="ws-btn ws-btn-sm hidden">重置参数</button>
+                            </div>
+                            <p class="ws-api-desc" id="wsApiDesc">选择接口后，这里会说明它的用途并列出参数。</p>
+
+                            <div class="ws-param-list" id="wsApiParams">
+                                <p class="console-empty">尚未选择接口</p>
+                            </div>
+
+                            <details class="ws-preview" id="wsPreviewBox">
+                                <summary>将发送的请求（实时预览）</summary>
+                                <pre id="wsApiPreview">{}</pre>
+                            </details>
+
+                            <div class="bg-actions" style="margin-top:14px;">
+                                <button id="wsSendBtn" class="btn-primary" style="padding:10px 16px;width:auto;" disabled>调用接口</button>
+                                <span class="ws-send-tip" id="wsSendTip">请先选择一个接口</span>
+                            </div>
+
+                            <pre id="wsSendResult" class="ws-result hidden"></pre>
+                        </section>
+                    </div>
+                </div><!-- /wsPaneDebug -->
+            </div>
+        </div>
+
+        <!-- 视图：设置 -->
+        <div class="view" id="view-settings">
+            <div class="console-layout">
+                <h2 class="panel-title">设置 · 背景</h2>
+                <div class="panel-sub" style="margin-bottom:20px">背景图全局生效，可在下方刷新/更换或上传自定义图片。</div>
+                <div class="bg-card">
+                    <div class="bg-preview" id="bgPreview">
+                        <span class="bg-preview-empty">当前背景预览</span>
+                    </div>
+                    <div class="bg-link-row">
+                        <label for="bgCurrentLink">当前图片链接</label>
+                        <input id="bgCurrentLink" readonly placeholder="点击下拉可选中复制" onclick="this.select()">
+                    </div>
+                    <div class="bg-actions">
+                        <button id="bgRefreshBtn" class="btn-primary" style="padding:10px 14px;width:auto;">刷新图片</button>
+                        <div class="bg-upload">
+                            <input type="file" id="bgFile" accept="image/*">
+                            <button id="bgUploadBtn" class="btn-primary" style="padding:10px 14px;width:auto;">上传自定义</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 磨砂模糊度滑块（控制 .workspace 的 backdrop-filter 模糊程度） -->
+                <div class="bg-card" style="margin-top:16px;">
+                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:14px;">磨砂模糊度</h3>
+                    <div class="panel-sub" style="margin-bottom:14px;">控制工作台玻璃面板的模糊程度。0 = 纯透明（壁纸清晰），值越大越磨砂。</div>
+                    <div class="blur-slider-wrap">
+                        <input type="range" id="blurSlider" min="0" max="40" step="1" value="0" class="blur-slider">
+                        <span class="blur-value" id="blurValue">0</span><span class="blur-unit">px</span>
+                    </div>
+                    <div class="blur-presets">
+                        <button type="button" class="blur-preset" data-val="0">透明</button>
+                        <button type="button" class="blur-preset" data-val="8">轻磨</button>
+                        <button type="button" class="blur-preset" data-val="18">标准</button>
+                        <button type="button" class="blur-preset" data-val="30">强磨砂</button>
+                    </div>
+                    <span class="bg-saved-tip" id="blurSavedTip" style="margin-top:8px;display:inline-block;">已保存 ✓</span>
+                </div>
+
+                <!-- 修改管理密码（持久化，重启不变） -->
+                <div class="bg-card" style="margin-top:16px;">
+                    <h3 style="font-size:15px;color:#1a1a2e;margin-bottom:14px;">修改管理密码</h3>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>当前密码</label>
+                        <input type="password" id="pwdCurrent" autocomplete="off" placeholder="输入当前密码">
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>新密码</label>
+                        <input type="password" id="pwdNew" autocomplete="off" placeholder="至少 4 位">
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label>确认新密码</label>
+                        <input type="password" id="pwdNew2" autocomplete="off" placeholder="再次输入新密码">
+                    </div>
+                    <div class="bg-actions" style="margin-top:0;">
+                        <button id="chgPwdBtn" class="btn-primary" style="padding:10px 16px;width:auto;">保存新密码</button>
+                        <span class="bg-saved-tip" id="chgPwdTip">已保存 ✓</span>
+                    </div>
+                </div>
+
+                <!-- 服务配置（.env）：可直接编辑，保存后写回 .env 并热重载 -->
+                <div class="bg-card" style="margin-top:16px;max-width:100%;">
+                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:8px;">服务配置（.env）</h3>
+                    <div class="panel-sub" style="margin-bottom:12px;">
+                        下列配置来自项目根目录的 <code class="ws-code">.env</code>（系统环境变量优先级更高）。
+                        改完点「保存并生效」即写回 <code class="ws-code">.env</code>：
+                        <span class="env-tag hot">热生效</span> 立即生效，
+                        <span class="env-tag cold">需重启</span> 需重启主服务，
+                        <span class="env-tag lock">系统环境变量</span> 表示该项被系统环境接管、本页改不动。
+                    </div>
+                    <div class="status-row" style="border-bottom:1px solid var(--border-weak);padding-bottom:8px;margin-bottom:14px;">
+                        <span class="k">配置文件</span>
+                        <span class="v ws-mono" id="envCfgPath">加载中…</span>
+                    </div>
+                    <div id="envCfgState" class="ws-notice info" style="margin-bottom:12px;">正在读取配置…</div>
+                    <div class="bg-actions" style="margin-top:0;margin-bottom:4px;">
+                        <button id="envCfgSaveBtn" class="btn-primary" style="width:auto;padding:10px 16px;">保存并生效</button>
+                        <button id="envCfgResetBtn" class="btn-ghost" style="padding:10px 14px;">放弃改动</button>
+                        <span class="env-dirty" id="envCfgDirty"></span>
+                    </div>
+                    <div id="envCfgSaveTip" class="ws-notice info" style="margin-top:12px;display:none;"></div>
+                    <div class="status-grid" id="envCfgGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/bg.js', v='20260926a') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/meme.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/compose.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/quote.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/console.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/ws.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/bot.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/webchat.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/plugins.js', v='20260925e') }}"></script>
+    <script src="{{ url_for('static', filename='js/effects.js', v='20260924b') }}"></script>
+    <script>
+        var logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.addEventListener('click', function () {
+            // 用 sendBeacon 发 logout，不等响应，避免页面卸载时中断请求
+            try {
+                navigator.sendBeacon('/admin/api/logout', new Blob([''], { type: 'application/json' }));
+            } catch (e) {
+                // sendBeacon 失败时静默忽略，session 会在浏览器关闭时自动清除
+            }
+            // 立即通知父页面降回锁屏，不等 logout 完成
+            if (window.self !== window.top && window.parent) {
+                try { window.parent.postMessage('ilbb:show-lock', '*'); } catch (e) {}
+            } else {
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>

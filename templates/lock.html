@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ILBB Emoji Bot</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            background-color: #faf9f5;
+            font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+            overflow: hidden;
+            color: #3d3929;
+        }
+        /* 背景图层：独立 div 置底，保证壁纸清晰可见 */
+        .bg-wall {
+            position: fixed; inset: 0; z-index: 0;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            opacity: 1; transition: opacity .5s ease;
+            pointer-events: none;
+        }
+        body.bg-loading .bg-wall { opacity: 0; }
+
+        /* ===== Windows 锁屏布局 ===== */
+        .lock-wrap { position: fixed; inset: 0; z-index: 3; display: flex; flex-direction: column; justify-content: center; align-items: center; padding-bottom: 6vh; }
+
+        /* 大时钟（居中，Windows 深色投影保证任意壁纸可读） */
+        .clock, .date {
+            transition: transform .6s cubic-bezier(.2,.8,.3,1), opacity .5s ease;
+            will-change: transform, opacity;
+        }
+        .clock { font-size: 128px; font-weight: 200; line-height: 1; letter-spacing: 4px; color: #fff; text-shadow: 0 4px 40px rgba(0,0,0,.55); margin: 20px 0 4px; font-variant-numeric: tabular-nums; }
+        .date { font-size: 24px; font-weight: 400; letter-spacing: 1px; color: #fff; text-shadow: 0 2px 24px rgba(0,0,0,.5); }
+
+        /* ===== Windows 用户头像 + 用户名（底部居中，白字投影） ===== */
+        .user {
+            margin-top: 10vh;
+            text-align: center;
+            cursor: pointer;
+            outline: none;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: transform .55s cubic-bezier(.2,.8,.3,1);
+        }
+        .user:active { transform: scale(.96); }
+
+        /* 点击头像后（opened）：时钟缩小上移淡出隐藏，头像上移，密码框独立浮出 */
+        .lock-wrap.opened .date    { transform: translateY(-58vh) scale(.45); opacity: 0; }
+        .lock-wrap.opened .clock   { transform: translateY(-52vh) scale(.45); opacity: 0; }
+        .lock-wrap.opened .user    { transform: translateY(-13vh) scale(.94); }
+        .user-avatar {
+            width: 116px; height: 116px; margin: 0 auto 14px;
+            border-radius: 50%;
+            border: 2.5px solid rgba(255,255,255,.85);
+            box-shadow: 0 14px 44px rgba(0,0,0,.42), 0 0 0 6px rgba(255,255,255,.18);
+            background-size: cover; background-position: center;
+            background-image: url('{{ url_for("static", filename="favicon.jpg") }}');
+            transition: transform .3s cubic-bezier(.2,.9,.3,1.5), box-shadow .3s ease;
+        }
+        .user:hover .user-avatar { transform: scale(1.05); box-shadow: 0 18px 52px rgba(0,0,0,.5), 0 0 0 8px rgba(255,255,255,.28); }
+        .user-name { font-size: 22px; font-weight: 600; color: #fff; text-shadow: 0 2px 24px rgba(0,0,0,.55); letter-spacing: .5px; }
+
+        /* 提示（悬停 / 点击头像后） */
+        .user-hint { font-size: 13px; margin-top: 10px; color: #fff; text-shadow: 0 1px 14px rgba(0,0,0,.6); opacity: 0; transition: opacity .4s ease; }
+        .lock-wrap.opened .user-hint { visibility: hidden; }
+        .user-hint::after { content: "点击头像登录"; }
+
+        /* ===== 点击头像后：标题/头像/名字上移到上部，输入框独立浮出（Windows 锁屏） ===== */
+        .pwd-box {
+            /* 纯输入行，无卡片背景/边框，Windows 风格 */
+            margin-top: 26px;
+            width: 360px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity .5s cubic-bezier(.2,.8,.3,1), transform .5s cubic-bezier(.34,1.1,.3,1);
+        }
+        .lock-wrap.opened .pwd-box { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+        /* Windows 输入行：玻璃输入框 + 右侧圆形箭头按钮，整行为一体玻璃条 */
+        .pwd-wrap {
+            display: flex; align-items: center; gap: 10px;
+            padding: 5px 5px 5px 18px;
+            border-radius: 32px;
+            background: rgba(30, 30, 44, 0.62);
+            border: 1px solid rgba(255,255,255,0.22);
+            backdrop-filter: blur(24px) saturate(160%);
+            -webkit-backdrop-filter: blur(24px) saturate(160%);
+            box-shadow: 0 18px 50px rgba(0,0,0,.45);
+        }
+        .pwd-wrap:focus-within { border-color: rgba(138,180,255,.75); background: rgba(30,30,44,.74); }
+        .pwd-lock {
+            width: 18px; height: 18px; flex-shrink: 0;
+            stroke: rgba(255,255,255,.7); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+        }
+        input[type="password"] {
+            flex: 1; padding: 12px 4px; min-width: 0;
+            border: none; background: transparent;
+            color: #fff; font-size: 15px; outline: none;
+            font-family: inherit;
+        }
+        input[type="password"]::placeholder { color: rgba(255,255,255,.5); }
+        button#enterBtn {
+            width: 40px; height: 40px; flex-shrink: 0;
+            border: none; border-radius: 50%;
+            background: linear-gradient(135deg, #5aa4ff, #7a6bff);
+            color: #fff; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 18px rgba(80,130,255,.35);
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+        button#enterBtn:hover { transform: scale(1.07); box-shadow: 0 8px 22px rgba(80,130,255,.5); }
+        button#enterBtn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+        button#enterBtn svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+        .pwd-err { font-size: 12.5px; color: #ff9e9e; min-height: 18px; margin-top: 14px; letter-spacing: .3px; visibility: hidden; }
+        .pwd-err.show { visibility: visible; }
+
+        /* 右下角系统信息 */
+        .sysinfo { position: fixed; right: 26px; bottom: 18px; font-size: 12px; color: #fff; text-shadow: 0 1px 12px rgba(0,0,0,.6); z-index: 4; }
+
+        /* ===== 主页容器（后台 iframe） ===== */
+        .app-frame-wrap {
+            position: fixed; inset: 0; z-index: 1;
+            background: #faf9f5;
+            visibility: hidden; opacity: 0;
+            transition: opacity .6s ease;
+        }
+        .app-frame-wrap.ready { visibility: visible; opacity: 1; }
+        .app-frame-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+
+        /* 锁屏层：登录上滑进入主页；退出时自上而下降回，均为"从快到慢"的减速缓冲曲线 */
+        .lock-wrap {
+            transform: translateY(0); /* 显式基准态，保证从 slide-up(-100%) 降回时有可过渡的起点 */
+            will-change: transform, opacity;
+            filter: none;
+            transition: transform .95s cubic-bezier(0.22, 1, 0.32, 1), opacity .6s ease;
+        }
+        .lock-wrap.slide-up {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+        .lock-wrap.hide { display: none; }
+
+        @media (max-width: 600px) {
+            .clock { font-size: 72px; }
+            .user-avatar { width: 96px; height: 96px; }
+            .pwd-box { width: 90vw; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-wall" id="bgWall"></div>
+
+    <!-- 主页后台容器（登录成功后展示） -->
+    <div class="app-frame-wrap" id="appWrap">
+        <iframe id="appFrame" src="about:blank" title="ILBB 工作台"></iframe>
+    </div>
+
+    <!-- 锁屏层（Windows 风格） -->
+    <div class="lock-wrap" id="lockWrap">
+        <div class="date" id="date"></div>
+        <div class="clock" id="clock">--:--</div>
+
+        <div class="user" id="user" tabindex="0" title="点击进入密码登录">
+            <div class="user-avatar"></div>
+            <div class="user-name">ILBB-EB管理员</div>
+            <div class="user-hint"></div>
+        </div>
+
+        <!-- 纯 Windows 输入行：点击头像后独立浮出，无卡片边框 -->
+        <form class="pwd-box" id="lockForm" autocomplete="off">
+            <div class="pwd-wrap">
+                <svg class="pwd-lock" viewBox="0 0 24 24">
+                    <rect x="5" y="11" width="14" height="9" rx="2"></rect>
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+                </svg>
+                <input type="password" id="pwd" placeholder="请输入管理密码" autocomplete="off">
+                <button type="submit" id="enterBtn" aria-label="登录">
+                    <svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+                </button>
+            </div>
+            <div class="pwd-err" id="err"></div>
+        </form>
+    </div>
+
+    <div class="sysinfo">ILBB Emoji Bot · 工作台受密码保护</div>
+
+    <script src="{{ url_for('static', filename='js/bg.js') }}"></script>
+    <script>
+        // 锁屏大时钟 + 日期（逐秒刷新，Windows 锁屏效果）
+        (function () {
+            var clk = document.getElementById('clock'), dat = document.getElementById('date');
+            var WEEK = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+            function tick() {
+                var n = new Date();
+                var h = ('0' + n.getHours()).slice(-2), m = ('0' + n.getMinutes()).slice(-2);
+                clk.textContent = h + ':' + m;
+                dat.textContent = n.getFullYear() + '年' + (n.getMonth() + 1) + '月' + n.getDate() + '日 ' + WEEK[n.getDay()];
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+
+        // 点击用户名/头像展开密码（再次点击收起）
+        var userBox = document.getElementById('user');
+        var pwdInput = document.getElementById('pwd');
+        var lockForm = document.getElementById('lockForm');
+        var lockWrap = document.getElementById('lockWrap');
+        userBox.addEventListener('click', function () {
+            var opened = lockWrap.classList.toggle('opened');
+            if (opened) { setTimeout(function () { pwdInput.focus(); }, 320); }
+        });
+        userBox.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { lockWrap.classList.add('opened'); setTimeout(function () { pwdInput.focus(); }, 320); }
+        });
+
+        // 收到 iframe 内的退出消息：锁屏层自上方降回并重新进入待登录状态
+        window.addEventListener('message', function (e) {
+            if (e.data === 'ilbb:show-lock') {
+                var lw = document.getElementById('lockWrap');
+                var wrap = document.getElementById('appWrap');
+                var frame = document.getElementById('appFrame');
+                // 立即隐藏主页容器，避免其任意 loading 动画在锁屏下透出"转圈"
+                wrap.classList.remove('ready');
+                // iframe 复位为 about:blank，保证下次登录从空文档干净加载
+                frame.src = 'about:blank';
+                // 立即清空密码和错误提示，避免用户新输入被后续清空覆盖
+                pwdInput.value = '';
+                var errEl = document.getElementById('err');
+                errEl.textContent = '';
+                errEl.classList.remove('show');
+                // 恢复登录按钮为可点击状态
+                var btn = document.getElementById('enterBtn');
+                if (btn) btn.disabled = false;
+                // 锁屏自上方降回：分两次操作，先让锁屏由 display:none 变为可见但仍停在上方，
+                // 下一帧再移除 slide-up，确保 .95s 的"从快到慢"下滑过渡动画真正触发（不丢动画）
+                lw.classList.remove('hide');
+                void lw.offsetWidth; // 强制重排：此时锁屏 display:block 且保持 translateY(-100%)
+                requestAnimationFrame(function () {
+                    lw.classList.remove('slide-up');
+                });
+                // 动画降回到位后展开密码框并聚焦，提示再次登录
+                setTimeout(function () {
+                    lockWrap.classList.add('opened');
+                    pwdInput.focus();
+                }, 950);
+            }
+        });
+
+        lockForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var pwd = pwdInput.value;
+            var err = document.getElementById('err');
+            var btn = document.getElementById('enterBtn');
+            if (!pwd) { err.textContent = '请输入密码'; err.classList.add('show'); return; }
+            btn.disabled = true; err.textContent = ''; err.classList.remove('show');
+            // 请求超时护栏：10 秒未返回则恢复按钮并提示，避免"一直转圈"无限等待
+            var timedOut = false;
+            var to = setTimeout(function () {
+                timedOut = true;
+                btn.disabled = false;
+                err.textContent = '登录请求超时，请重试';
+                err.classList.add('show');
+            }, 10000);
+            fetch('/admin/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pwd })
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (res) {
+                if (timedOut) return;
+                clearTimeout(to);
+                if (res.ok) {
+                    btn.disabled = true;
+                    err.textContent = '';
+                    var wrap = document.getElementById('appWrap');
+                    var frame = document.getElementById('appFrame');
+                    var lw = document.getElementById('lockWrap');
+                    var entered = false;
+                    function enterApp() {
+                        if (entered) return;
+                        entered = true;
+                        wrap.classList.remove('ready'); // 重设，确保首次就能显示
+                        requestAnimationFrame(function () { wrap.classList.add('ready'); });
+                        // 立即滑出锁屏（不依赖 iframe onload 时序），从根上杜绝卡死
+                        requestAnimationFrame(function () {
+                            lw.classList.add('slide-up');
+                            setTimeout(function () { lw.classList.add('hide'); }, 850);
+                        });
+                    }
+                    // 无论 iframe 是否加载成功，都保证进入主页；iframe 在后台尽力加载
+                    frame.src = '/?_=' + Date.now();
+                    setTimeout(enterApp, 600);
+                    return;
+                }
+                btn.disabled = false;
+                err.textContent = res.d.error || '操作失败，请重试';
+            }).catch(function (ex) {
+                if (timedOut) return;
+                clearTimeout(to);
+                btn.disabled = false;
+                err.textContent = '网络错误：' + ex.message;
+            });
+        });
+    </script>
+</body>
+</html>

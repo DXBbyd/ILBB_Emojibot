@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ILBB Emoji Bot</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f0f2f5; min-height: 100vh; padding: 32px;
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+.head {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 20px;
+}
+.head h1 { font-size: 22px; color: #1a1a2e; display: flex; align-items: center; gap: 10px; }
+.head .dot { width: 10px; height: 10px; border-radius: 50%; background: #34c759; display: inline-block; }
+.head .dot.err { background: #e05555; }
+.head-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+    border: none; cursor: pointer; padding: 9px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    background: #2d7aff; color: #fff; transition: all .2s ease; font-family: inherit;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(45,122,255,.3); }
+.btn:active { transform: scale(.95); }
+.btn.ghost { background: #eef2fb; color: #5b6b88; }
+.btn.ghost:hover { background: #e3edff; box-shadow: none; }
+.link-back { color: #5b6b88; text-decoration: none; font-size: 14px; font-weight: 600; }
+.resp-time { font-size: 13px; color: #8c8f9c; }
+
+.overview { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px; }
+.stat {
+    background: #1a2547; color: #eef4ff; border-radius: 16px; padding: 18px 20px; text-align: center;
+    box-shadow: 0 10px 30px rgba(26,37,71,.2);
+}
+.stat .n { font-size: 30px; font-weight: 800; color: #fff; }
+.stat .l { font-size: 12px; color: #9fb0e0; margin-top: 6px; letter-spacing: .3px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 16px; }
+.card {
+    background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 6px 20px rgba(0,0,0,.05);
+    border: 1px solid #eef0f4;
+}
+.card h3 { font-size: 15px; color: #1a1a2e; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+.badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+.badge.ok { background: #e8f5e9; color: #2e7d32; }
+.badge.bad { background: #ffebee; color: #c62828; }
+.badge.warn { background: #fff8e1; color: #f9a825; }
+.kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px dashed #f0f2f7; }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: #8c8f9c; }
+.kv .v { color: #26324a; font-weight: 500; word-break: break-all; text-align: right; }
+.kv .v.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.dir-grid { display: flex; flex-direction: column; gap: 8px; }
+.dir { display: flex; align-items: center; justify-content: space-between; background: #f8f9fc; border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.dir .nm { color: #5b6b88; font-weight: 600; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+.tag.ok { background: #e8f5e9; color: #2e7d32; }
+.tag.bad { background: #ffebee; color: #c62828; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: #f6f8fb; border: 1px solid #eef0f4; border-radius: 8px; padding: 5px 10px; font-size: 12px; color: #5b6b88; }
+.err-box { background: #fff8f8; border: 1px solid #f8d7d7; color: #c0392b; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 8px; }
+.empty { color: #b0b4c0; font-size: 13px; padding: 8px 0; }
+.hidden { display: none; }
+#loading { text-align: center; color: #8c8f9c; padding: 60px 0; font-size: 15px; }
+.spinner { width: 26px; height: 26px; border: 3px solid #e8ecf2; border-top-color: #2d7aff; border-radius: 50%; margin: 0 auto 14px; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#errBanner { display: none; background: #ffebee; color: #c62828; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="head">
+        <h1><span class="dot" id="headDot"></span>系统状态检查</h1>
+        <div class="head-actions">
+            <span class="resp-time" id="respTime"></span>
+            <a class="link-back" href="/">← 返回工作台</a>
+            <button class="btn ghost" id="autoBtn" type="button">自动刷新:开</button>
+            <button class="btn" id="refreshBtn" type="button">刷新</button>
+        </div>
+    </div>
+
+    <div id="errBanner"></div>
+
+    <div id="loading"><div class="spinner"></div>正在读取系统状态...</div>
+
+    <div id="content" class="hidden">
+        <div class="overview" id="overview"></div>
+
+        <div class="grid">
+            <div class="card" id="card-server"><h3>服务器 <span class="badge" id="srvBadge"></span></h3><div id="srvBody"></div></div>
+            <div class="card" id="card-meme"><h3>Meme 表情服务 <span class="badge" id="memeBadge"></span></h3><div id="memeBody"></div></div>
+            <div class="card" id="card-cache"><h3>缓存 <span class="badge" id="cacheBadge"></span></h3><div id="cacheBody"></div></div>
+            <div class="card" id="card-dir"><h3>目录权限</h3><div class="dir-grid" id="dirBody"></div></div>
+            <div class="card"><h3>字体</h3><div id="fontBody"></div></div>
+            <div class="card"><h3>QQ 接口</h3><div id="qqBody"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function badge(cls,txt){ return '<span class="badge '+cls+'">'+esc(txt)+'</span>'; }
+function fmtUptime(sec){
+    sec = Math.max(0, sec|0);
+    var d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60), s=sec%60;
+    var p='';
+    if(d>0)p+=d+'天 ';
+    if(h>0||p)p+=h+'时 ';
+    if(p||m>0)p+=m+'分 ';
+    p+=s+'秒';
+    return p;
+}
+
+function renderStatus(d){
+    // 顶部圆点
+    var healthy = d.ok && d.dirs.every(function(x){return x.exists&&x.writable;}) && d.meme.total>0;
+    $('headDot').className='dot'+(healthy?'':' err');
+
+    // 概览卡片
+    $('overview').innerHTML =
+        '<div class="stat"><div class="n">'+ d.meme.total +'</div><div class="l">Meme 表情总数</div></div>'+
+        '<div class="stat"><div class="n">'+ d.meme.with_image +'</div><div class="l">需要/支持图片</div></div>'+
+        '<div class="stat"><div class="n">'+ d.cache.count +'</div><div class="l">缓存文件数</div></div>'+
+        '<div class="stat"><div class="n">'+ d.cache.size_kb.toFixed(1) +'</div><div class="l">缓存大小 (KB)</div></div>'+
+        '<div class="stat"><div class="n">'+ d.fonts.count +'</div><div class="l">可用字体</div></div>';
+
+    // 服务器
+    var s=d.server;
+    $('srvBadge').outerHTML = (function(){ $('srvBadge').className='badge ok'; $('srvBadge').textContent='运行中'; return $('srvBadge').outerHTML; })();
+    $('srvBody').innerHTML =
+        kv('监听地址', s.host)+
+        kv('Debug 模式', s.debug ? '开' : '关')+
+        kv('Python', s.python, true)+
+        kv('启动时间', s.started_at)+
+        kv('运行时长', fmtUptime(s.uptime_sec))+
+        kv('当前时间', d.datetime);
+
+    // Meme
+    var m=d.meme;
+    var mb = m.preview_ok ? badge('ok','正常') : (m.error? badge('bad','异常') : badge('warn','预览异常'));
+    $('memeBadge').innerHTML = mb;
+    $('memeBody').innerHTML =
+        kv('总数', m.total)+
+        kv('需要/支持图片', m.with_image)+
+        kv('纯文字', m.no_image)+
+        kv('预览生成', m.preview_ok ? '可用' : '不可用')+
+        (m.error ? errBox(m.error) : '');
+
+    // 缓存
+    var c=d.cache;
+    $('cacheBadge').innerHTML = c.error? badge('bad','异常') : badge('ok','正常');
+    $('cacheBody').innerHTML =
+        kv('文件数', c.count)+
+        kv('大小', c.size_kb.toFixed(1)+' KB')+
+        (c.error ? errBox(c.error) : '');
+
+    // 目录
+    $('dirBody').innerHTML = d.dirs.map(function(x){
+        var ok = x.exists && x.writable;
+        return '<div class="dir"><span class="nm">'+esc(x.name)+'</span>'+
+            (ok? '<span class="tag ok">可写</span>'
+               : (!x.exists? '<span class="tag bad">不存在</span>'
+                            : '<span class="tag bad">不可写</span>'))+'</div>';
+    }).join('');
+
+    // 字体
+    var f=d.fonts;
+    $('fontBody').innerHTML = f.count ? ('<div class="chips">'+f.files.map(function(x){return '<span class="chip">'+esc(x)+'</span>';}).join('')+'</div>') : '<div class="empty">未检测到字体文件</div>';
+
+    // QQ 接口
+    var qq=d.qq_api, b;
+    if(qq.reachable===true) b=badge('ok','可达');
+    else if(qq.reachable===false) b=badge('bad','不可达');
+    else b=badge('warn','未知');
+    $('qqBody').innerHTML = b +
+        '<div style="height:8px"></div>'+
+        kv('HTTP 状态', qq.http==null?'--':String(qq.http))+
+        (qq.error? errBox(qq.error) : '');
+}
+
+function kv(k,v,mono){
+    return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v'+(mono?' mono':'')+'">'+esc(v)+'</span></div>';
+}
+function errBox(t){ return '<div class="err-box">⚠ '+esc(t)+'</div>'; }
+
+var autoTimer=null;
+function autoToggle(){
+    if(autoTimer){ clearInterval(autoTimer); autoTimer=null; $('autoBtn').textContent='自动刷新:关'; }
+    else { autoTimer=setInterval(load, 10000); $('autoBtn').textContent='自动刷新:开'; }
+}
+async function load(){
+    $('content').classList.add('hidden');
+    $('loading').classList.remove('hidden');
+    $('errBanner').style.display='none';
+    try{
+        var t0=performance.now();
+        var r=await fetch('/api/status');
+        var d=await r.json();
+        $('respTime').textContent='响应 '+((performance.now()-t0))|0 +' ms';
+        if(!d.ok){ throw new Error('状态接口返回异常'); }
+        renderStatus(d);
+        $('loading').classList.add('hidden');
+        $('content').classList.remove('hidden');
+    }catch(e){
+        $('loading').classList.add('hidden');
+        $('errBanner').textContent='无法读取状态：'+e.message;
+        $('errBanner').style.display='block';
+    }
+}
+$('refreshBtn').addEventListener('click', load);
+$('autoBtn').addEventListener('click', autoToggle);
+autoToggle();      // 默认开启自动刷新
+load();
+</script>
+</body>
+</html>

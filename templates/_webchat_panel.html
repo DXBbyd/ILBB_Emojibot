@@ -1,0 +1,79 @@
+<!-- 视图：Web 会话（模拟私聊，用来实测指令是否可用） -->
+<div class="console-layout">
+    <h2 class="panel-title">Web 会话 · Chat Console</h2>
+    <div class="panel-sub">
+        这里是一个<b>模拟私聊窗口</b>：发出去的消息会真的走一遍机器人指令管线，
+        机器人要回什么图、回什么话，就原样显示在会话里（只是不会发到 QQ）。
+        用它可以直接验证 <code class="ws-code">/help</code>、<code class="ws-code">/meme</code>、<code class="ws-code">/pair</code> 是否可用。
+    </div>
+
+    <div class="wc-wrap">
+        <!-- ============ 左：会话窗 ============ -->
+        <section class="wc-chat">
+            <header class="wc-chat-head">
+                <div class="wc-avatar wc-avatar-bot" id="wcPeerAvatar"><img class="wc-avatar-img" src="{{ url_for('static', filename='favicon.jpg') }}" alt=""></div>
+                <div class="wc-peer">
+                    <div class="wc-peer-name" id="wcPeerName">我在哔哩学习</div>
+                    <div class="wc-peer-sub" id="wcPeerSub">私聊调试 · 正在读取状态…</div>
+                </div>
+                <div class="wc-head-actions">
+                    <button type="button" class="ws-btn" id="wcSeedBtn" title="塞入一张示例图，方便测试需要图片素材的表情">示例图</button>
+                    <button type="button" class="ws-btn" id="wcClearBtn">清空会话</button>
+                </div>
+            </header>
+
+            <div class="wc-stream" id="wcStream">
+                <div class="wc-daybreak"><span>今天</span></div>
+            </div>
+
+            <!-- 待发送附件 -->
+            <div class="wc-attach hidden" id="wcAttach">
+                <span class="bot-block-hint">待发送素材</span>
+                <div class="wc-attach-list" id="wcAttachList"></div>
+            </div>
+
+            <footer class="wc-compose">
+                <label class="wc-plus" for="wcFile" title="附带图片素材（可多选）">＋</label>
+                <input type="file" id="wcFile" accept="image/*" multiple class="hidden">
+                <input type="text" id="wcInput" placeholder="发送指令，例如：/help    /meme list    /pair 10001" autocomplete="off">
+                <button type="button" id="wcSendBtn" class="wc-send">发送</button>
+            </footer>
+        </section>
+
+        <!-- ============ 右：侧栏 ============ -->
+        <aside class="wc-side">
+            <div class="bot-block">
+                <div class="bot-block-head">
+                    <h3>常用指令</h3>
+                    <span class="bot-block-hint">点一下直接发</span>
+                </div>
+                <div class="bot-quick" id="wcQuick"></div>
+            </div>
+
+            <div class="bot-block">
+                <div class="bot-block-head"><h3>模拟身份</h3></div>
+                <label class="wc-field">
+                    <span>QQ 号</span>
+                    <input type="text" id="wcUid" value="10001" autocomplete="off">
+                </label>
+                <label class="wc-field">
+                    <span>昵称</span>
+                    <input type="text" id="wcUname" value="调试用户" autocomplete="off">
+                </label>
+                <div class="bot-block-hint">用于 <code class="ws-code">/pair</code> 取昵称头像，以及 <code class="ws-code">@</code> 时的头像素材。</div>
+            </div>
+
+            <div class="bot-block">
+                <div class="bot-block-head"><h3>会话信息</h3></div>
+                <div class="wc-info" id="wcInfo">
+                    <div class="wc-info-row"><span>已发送</span><b id="wcStatTotal">0</b></div>
+                    <div class="wc-info-row"><span>回图</span><b id="wcStatImages">0</b></div>
+                    <div class="wc-info-row"><span>回文</span><b id="wcStatTexts">0</b></div>
+                    <div class="wc-info-row"><span>上次耗时</span><b id="wcStatMs">—</b></div>
+                    <div class="wc-info-row"><span>会话素材</span><b id="wcStatMem">0</b></div>
+                </div>
+                <div class="bot-block-hint" id="wcLastCmd">还没有发过指令。</div>
+            </div>
+        </aside>
+    </div>
+</div>

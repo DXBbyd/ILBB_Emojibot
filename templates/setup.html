@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>首次运行引导 · ILBB Emoji Bot</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/setup.css', v='20260926b') }}">
+</head>
+<body>
+<div class="wrap">
+
+    <!-- 页头 -->
+    <div class="hd">
+        <img class="hd-logo" src="{{ url_for('static', filename='favicon.jpg') }}" alt="我在哔哩学习">
+        <div class="hd-txt">
+            <h1>我在哔哩学习 Emoji Bot <span class="badge">首次运行引导</span></h1>
+            <p id="hdSub">正在读取引导状态…</p>
+        </div>
+        <div class="hd-side">
+            <span class="who" id="hdWho"></span>
+        </div>
+    </div>
+
+    <!-- 步骤条 -->
+    <div class="steps" id="steps">
+        <div class="step active" data-step="1">
+            <div class="step-top"><span class="step-dot">1</span><span class="step-name">环境自检</span></div>
+        </div>
+        <div class="step" data-step="2">
+            <div class="step-top"><span class="step-dot">2</span><span class="step-name">Meme 素材</span></div>
+        </div>
+        <div class="step" data-step="3">
+            <div class="step-top"><span class="step-dot">3</span><span class="step-name">基础配置</span></div>
+        </div>
+        <div class="step" data-step="4">
+            <div class="step-top"><span class="step-dot">4</span><span class="step-name">完成</span></div>
+        </div>
+    </div>
+
+    <!-- ============ 第 1 步：环境自检 ============ -->
+    <div class="panel active" id="panel1">
+        <div class="card">
+            <div class="card-h">
+                <h2>环境自检</h2>
+                <p>检查运行依赖、Meme 引擎与必要的目录是否就绪。依赖若缺失，可先按提示补齐后点「重新检测」。</p>
+            </div>
+            <div id="envBox"><div class="loading"><span class="spin"></span>正在检测依赖与目录…</div></div>
+            <div class="foot">
+                <button class="btn ghost" id="btnEnvReload">重新检测</button>
+                <span class="spacer"></span>
+                <button class="btn primary" id="btnToAssets">下一步：检查素材</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 第 2 步：Meme 素材 ============ -->
+    <div class="panel" id="panel2">
+        <div class="card">
+            <div class="card-h">
+                <h2>Meme 素材</h2>
+                <p>对照引擎的资源清单核对本地素材文件，缺失的可在此一键补全下载（支持断点续跑，重复执行只补缺的）。</p>
+            </div>
+
+            <div id="assetBox"><div class="loading"><span class="spin"></span>正在核对本地素材…</div></div>
+
+            <div class="prog" id="progWrap" style="display:none;">
+                <div class="prog-hd">
+                    <span id="progText">准备中…</span>
+                    <b id="progPct">0%</b>
+                </div>
+                <div class="bar" id="progBar"><i id="progInner"></i></div>
+                <div class="prog-note" id="progNote"></div>
+            </div>
+
+            <div class="foot">
+                <button class="btn ghost sm" id="btnScan">重新体检</button>
+                <button class="btn ghost sm" id="btnScanDeep">深度校验（慢）</button>
+                <button class="btn ghost sm" id="btnScanRefresh">联网刷新清单</button>
+                <span class="spacer"></span>
+                <button class="btn danger sm" id="btnSkipAssets">素材先跳过</button>
+                <button class="btn primary" id="btnDownload">补全下载</button>
+                <button class="btn ghost" id="btnCancelDl" style="display:none;">取消下载</button>
+                <button class="btn primary" id="btnToConfig" style="display:none;">下一步：基础配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 第 3 步：基础配置 ============ -->
+    <div class="panel" id="panel3">
+        <div class="card">
+            <div class="card-h">
+                <h2>基础配置</h2>
+                <p>这些是让机器人跑起来最关键的几项；保存后会写回 <span class="k">.env</span> 并热重载，其余设置可稍后在「设置」页里改。</p>
+            </div>
+            <div id="cfgBox"><div class="loading"><span class="spin"></span>正在读取配置项…</div></div>
+            <div class="foot">
+                <button class="btn ghost" id="btnCfgBack">上一步</button>
+                <span class="spacer"></span>
+                <span class="foot-note" id="cfgSaved"></span>
+                <button class="btn ghost" id="btnCfgSave">保存配置</button>
+                <button class="btn primary" id="btnCfgNext">下一步：完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 第 4 步：完成 ============ -->
+    <div class="panel" id="panel4">
+        <div class="card">
+            <div class="done-hero">
+                <div class="done-ic">✓</div>
+                <h2>就差最后一步</h2>
+                <p id="doneSub">确认下面的信息，然后完成引导。</p>
+            </div>
+
+            <div id="pwdWrap" style="display:none;">
+                <div class="sec-t">设置管理密码</div>
+                <div class="tip warn">
+                    <span class="ic">!</span>
+                    <span>首次运行还没有管理密码。这里设置一个，之后进入后台 / 设置页时用它登录；留空则沿用启动时在控制台打印的随机密码。</span>
+                </div>
+                <div class="fgrid" style="margin-top:12px;">
+                    <div class="field">
+                        <label>管理密码</label>
+                        <input type="password" class="inp" id="pwd1" placeholder="至少 4 位" autocomplete="new-password">
+                    </div>
+                    <div class="field">
+                        <label>再输一次</label>
+                        <input type="password" class="inp" id="pwd2" placeholder="重复上面的密码" autocomplete="new-password">
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-t">本次引导结果</div>
+            <div class="sum" id="doneSum"></div>
+
+            <div class="foot">
+                <button class="btn ghost" id="btnDoneBack">上一步</button>
+                <span class="spacer"></span>
+                <span class="foot-note" id="doneNote"></span>
+                <button class="btn primary" id="btnFinish">完成引导</button>
+                <button class="btn primary" id="btnEnter" style="display:none;">进入工作台</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/setup.js', v='20260926b') }}"></script>
+</body>
+</html>

@@ -294,7 +294,7 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 .user-info-preview .info-row .value { color: var(--ink); font-weight: 600; }
 
 /* ===== Meme 页 ===== */
-.meme-layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 20px; padding: 22px; height: 100%; min-height: 0; overflow: hidden; margin: 0 auto; max-width: 1240px; width: 100%; }
+.meme-layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 20px; padding: 22px; flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; margin: 0 auto; max-width: 1240px; width: 100%; }
 .meme-left, .meme-right { display: flex; flex-direction: column; background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--border-weak); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow); min-height: 0; overflow: hidden; }
 .meme-right { overflow-y: auto; }
 .meme-left .panel-title, .meme-right .panel-title { margin-bottom: 4px; }
@@ -732,6 +732,8 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 .ws-tabs-hint { position: relative; z-index: 1; margin: 0 12px 0 8px; font-size: 12px; color: var(--ink-3); letter-spacing: .2px; }
 .ws-pane { display: none; }
 .ws-pane.active { display: block; animation: wsPaneIn .3s cubic-bezier(.22,.9,.28,1.2); }
+/* 合成页：当前面板吃满剩余高度，内部列表才有可滚动的高度 */
+#view-compose > .ws-pane.active { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 /* 面板内的块按顺序依次浮起 */
 .ws-pane.active > * { animation: wsRise .46s cubic-bezier(.2,.9,.28,1.1) backwards; }
 .ws-pane.active > *:nth-child(1) { animation-delay: .02s; }

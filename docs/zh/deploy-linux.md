@@ -16,7 +16,7 @@
 | Python | **3.10 – 3.13，推荐 3.13** | 版本写死：`skia-python`、`Pillow` 等只发预编译 wheel，版本对不上直接装不上。**3.14 暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，10.x 没有 3.14 的 wheel） |
 | 磁盘 | ≥ 2 GB | 项目 + venv + 素材 |
 | 系统库 | fontconfig、libGL、libjpeg | 缺了运行时会报缺 `.so` |
-| 路径 | **无空格、无中文** | 推荐 `/opt/ilbb-bot` |
+| 路径 | **无空格、无中文** | 推荐 `/root/ilbb-bot` |
 | 端口 | 5000、6700 | 5000 = 工作台，6700 = OneBot V11 |
 
 ---
@@ -57,11 +57,11 @@ uv --version
 ## 四、获取代码
 
 ```bash
-sudo mkdir -p /opt/ilbb-bot
-sudo chown "$USER" /opt/ilbb-bot
-git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git /opt/ilbb-bot
-cd /opt/ilbb-bot
+mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 ```
+
+`/root` 是 root 的专属家目录，权限 700，普通用户连进都进不去，所以这段命令要用 root 身份执行：`sudo -i` 切进去，或者你的 VPS 本来就是 root 登录。项目落在 `/root/ilbb-bot` 之后，代码和 `.venv` 都归 root 所有，后面的 `uv venv`、启动命令、systemd 单元也都按 root 来配。这么做的代价是服务权限和系统一样大，单人自用的机器没什么问题；如果是多人共用的机器，更稳妥的选择是放 `/opt/ilbb-bot`，建一个专用运行用户，再让 systemd 的 `User=` 指向它。
 
 > 只拷代码时，需要带上：`app.py`、`_serve.py`、`core/`、`vendor/`、`templates/`、`static/`、`font/`、`plugins/`、`.env.example`。跳过 `.venv`、`cache`、`temp`。
 
@@ -70,7 +70,7 @@ cd /opt/ilbb-bot
 ## 五、创建环境并安装依赖
 
 ```bash
-cd /opt/ilbb-bot
+cd /root/ilbb-bot
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
@@ -103,7 +103,7 @@ Linux 上通常要动的两项：
 ## 七、启动并跑引导页
 
 ```bash
-cd /opt/ilbb-bot
+cd /root/ilbb-bot
 ./.venv/bin/python app.py
 ```
 
@@ -136,9 +136,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ilbb
-WorkingDirectory=/opt/ilbb-bot
-ExecStart=/opt/ilbb-bot/.venv/bin/python app.py
+User=root
+WorkingDirectory=/root/ilbb-bot
+ExecStart=/root/ilbb-bot/.venv/bin/python app.py
 Restart=always
 RestartSec=5
 
@@ -146,7 +146,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-`WorkingDirectory` **必须**是项目根目录，否则会报找不到 `cache` / `temp` / `font`。
+`WorkingDirectory` **必须**是项目根目录，否则会报找不到 `cache` / `temp` / `font`。`User=root` 是为了配 `/root/ilbb-bot` —— 那个目录权限 700，换个用户身份的 systemd 服务根本读不进去。如果你把项目改放到了别处，记得把 `User=`、`WorkingDirectory`、`ExecStart` 三行一起改。
 
 启用：
 
@@ -199,7 +199,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py` 的那层）跑的 `uv pip install ...`，然后 `uv pip list` 复查。
 
 **路径带空格或中文导致 import 报错**
-把项目换到 `/opt/ilbb-bot` 这类干净路径。
+把项目换到 `/root/ilbb-bot` 这类干净路径。
 
 **systemd 启动失败、日志报找不到目录**
 `WorkingDirectory` 没设成项目根目录。

@@ -16,7 +16,7 @@ Applies to: common distributions such as Debian / Ubuntu / CentOS / Arch, on bot
 | Python | **3.10 – 3.13, 3.13 recommended** | The version is fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version mismatch fails outright. **3.14 is not supported** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel) |
 | Disk | ≥ 2 GB | Project + venv + assets |
 | System libraries | fontconfig, libGL, libjpeg | Missing them causes missing `.so` errors at runtime |
-| Path | **No spaces, no Chinese characters** | `/opt/ilbb-bot` is recommended |
+| Path | **No spaces, no Chinese characters** | `/root/ilbb-bot` is recommended |
 | Ports | 5000, 6700 | 5000 = workbench, 6700 = OneBot V11 |
 
 ---
@@ -57,11 +57,11 @@ uv --version
 ## 4. Get the code
 
 ```bash
-sudo mkdir -p /opt/ilbb-bot
-sudo chown "$USER" /opt/ilbb-bot
-git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git /opt/ilbb-bot
-cd /opt/ilbb-bot
+mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 ```
+
+`/root` is the home directory reserved for root, with permissions 700, so an ordinary user cannot even enter it. Run the commands above as root: `sudo -i` into a root shell, or log in as root directly if that is how your VPS is set up. Once the project sits at `/root/ilbb-bot`, the code and the `.venv` both belong to root, and the later `uv venv` step, the startup command and the systemd unit are all configured for root as well. The trade-off is that the service runs with the same privileges as the system, which is fine on a single-user machine; on a shared machine, the safer choice is `/opt/ilbb-bot` plus a dedicated run user named in the unit's `User=`.
 
 > When copying only the code, you need to bring along: `app.py`, `_serve.py`, `core/`, `vendor/`, `templates/`, `static/`, `font/`, `plugins/`, `.env.example`. Skip `.venv`, `cache`, `temp`.
 
@@ -70,7 +70,7 @@ cd /opt/ilbb-bot
 ## 5. Create the environment and install dependencies
 
 ```bash
-cd /opt/ilbb-bot
+cd /root/ilbb-bot
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
@@ -103,7 +103,7 @@ All the other items have default values; you can leave them as is and configure 
 ## 7. Start and run the setup wizard
 
 ```bash
-cd /opt/ilbb-bot
+cd /root/ilbb-bot
 ./.venv/bin/python app.py
 ```
 
@@ -136,9 +136,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ilbb
-WorkingDirectory=/opt/ilbb-bot
-ExecStart=/opt/ilbb-bot/.venv/bin/python app.py
+User=root
+WorkingDirectory=/root/ilbb-bot
+ExecStart=/root/ilbb-bot/.venv/bin/python app.py
 Restart=always
 RestartSec=5
 
@@ -146,7 +146,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-`WorkingDirectory` **must** be the project root directory, otherwise it will report that `cache` / `temp` / `font` cannot be found.
+`WorkingDirectory` **must** be the project root directory, otherwise it will report that `cache` / `temp` / `font` cannot be found. `User=root` is what pairs with `/root/ilbb-bot`: that directory is mode 700, so a systemd service running as any other user cannot read into it at all. If you move the project elsewhere, remember to change `User=`, `WorkingDirectory` and `ExecStart` together.
 
 Enable it:
 
@@ -199,7 +199,7 @@ Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillo
 The packages did not land in this project's `.venv`. Run `uv pip list` in the project root to check what is actually there, then reinstall the six packages with `uv pip install`.
 
 **The path has spaces or Chinese characters, causing import errors**
-Move the project to a clean path like `/opt/ilbb-bot`.
+Move the project to a clean path like `/root/ilbb-bot`.
 
 **systemd fails to start, and the log reports a missing directory**
 `WorkingDirectory` was not set to the project root directory.

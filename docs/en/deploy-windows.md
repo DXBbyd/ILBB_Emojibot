@@ -191,6 +191,13 @@ Change `WEB_PORT` in `.env` (for example to `5001`), or find the process occupyi
 **There is a `meme_generator.pth` in `.venv\Lib\site-packages\` pointing to another computer**
 Delete it; it doesn't affect running — the program attaches `vendor/meme-generator-main` to the module search path by itself at startup.
 
+**Startup reports `FileNotFoundError: …\meme_generator\memes`**
+Meme assets are not committed, so a fresh clone has no `meme_generator\memes` folder — and the engine walks that folder on import, which fails the startup outright and leaves the wizard that downloads those assets unreachable. The app creates the empty folder on boot; on an older checkout, create it yourself and start again:
+
+```powershell
+New-Item -ItemType Directory -Force vendor\meme-generator-main\meme_generator\memes
+```
+
 **Forgot the admin password**
 Delete `api_keys.json` and restart; it will be regenerated and printed to the terminal.
 

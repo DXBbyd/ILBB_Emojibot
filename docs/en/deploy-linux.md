@@ -202,6 +202,13 @@ sudo apt-get update
 sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri
 ```
 
+**Startup reports `FileNotFoundError: …/meme_generator/memes`**
+Meme assets are not committed, so a fresh clone has no `meme_generator/memes/` directory — and the engine walks that directory on import, which fails the startup outright and leaves the wizard that downloads those assets unreachable. The app creates the empty directory on boot; on an older checkout, create it yourself and start again:
+
+```bash
+mkdir -p vendor/meme-generator-main/meme_generator/memes
+```
+
 **`uv pip install skia-python` reports no matching version**
 Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no 3.14 wheel); ② the Python running is 32-bit (`./.venv/bin/python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available, in which case you have to switch to arm64 or x86_64. As a last resort, rebuild the environment with `uv venv --python 3.13 --clear` and reinstall.
 

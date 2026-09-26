@@ -202,6 +202,13 @@ sudo apt-get update
 sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri
 ```
 
+**启动报 `FileNotFoundError: …/meme_generator/memes`**
+素材本体不入库，克隆下来的仓库里没有 `meme_generator/memes/` 这个目录，而引擎导入时会去遍历它——起服务当场失败，那个负责下素材的引导页也就进不去。启动时程序会自己补出这个空目录；手上是旧代码还报这个错，就手动建一个再启动：
+
+```bash
+mkdir -p vendor/meme-generator-main/meme_generator/memes
+```
+
 **`uv pip install skia-python` 报找不到匹配版本**
 排查：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 3.14 的 wheel）；② 环境是 32 位的（`./.venv/bin/python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。版本选错就钉死重来：`uv venv --python 3.13 --clear`。
 

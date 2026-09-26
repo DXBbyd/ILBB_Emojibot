@@ -193,6 +193,13 @@ pause
 **`.venv\Lib\site-packages\` 里有个 `meme_generator.pth` 指向别的电脑**
 删掉它，不影响运行——程序启动时会自己把 `vendor/meme-generator-main` 挂到模块搜索路径上。
 
+**启动报 `FileNotFoundError: …\meme_generator\memes`**
+素材本体不入库，克隆下来的仓库里没有 `meme_generator\memes` 这个文件夹，而引擎导入时会去遍历它——起服务当场失败，那个负责下素材的引导页也就进不去。启动时程序会自己补出这个空目录；手上是旧代码还报这个错，就手动建一个再启动：
+
+```powershell
+New-Item -ItemType Directory -Force vendor\meme-generator-main\meme_generator\memes
+```
+
 **忘了管理密码**
 把 `api_keys.json` 删掉再重启，会重新生成并打印到终端。
 

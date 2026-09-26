@@ -2,37 +2,40 @@
 
 **English** ｜ [中文](../zh/index.md)
 
-This directory contains the complete documentation for "I Learning Bilibili Emoji Bot (ILBB)". The README only covers "what it is and how to get it running as fast as possible"; the details are all here.
+This directory holds the complete documentation for "I Learning Bilibili Emoji Bot (ILBB)". The [README](../../README.md) in the root directory only covers what the project is; deployment and usage details all live here.
 
 ---
 
 ## Start here
 
-**New to this project** → Read the [README](../../README.md) in the root directory first, use "Quick Start" to get the service running on your machine, then come back to the docs.
+**Deploying for the first time** → Go to [Choose a deployment](deploy.md) and pick the route that matches your machine. All three routes use uv to create the environment and install dependencies, and that page covers the parts they share.
 
-**Already up and running** → Pick what you want to do from the table below.
-
-| I want to... | Read this | English version |
-| --- | --- | --- |
-| Deploy on Windows | [deploy-windows.md](deploy-windows.md) | [English](../en/deploy-windows.md) |
-| Deploy on Linux | [deploy-linux.md](deploy-linux.md) | [English](../en/deploy-linux.md) |
-| Deploy on an Android phone | [deploy-android.md](deploy-android.md) | [English](../en/deploy-android.md) |
-| Figure out how to use every command | [commands.md](commands.md) | [English](../en/commands.md) |
-| Write my own plugin | [plugin-dev.md](plugin-dev.md) | [English](../en/plugin-dev.md) |
-| Connect QQ (NapCat) | [platform-integration.md](platform-integration.md) | [English](../en/platform-integration.md) |
-| Look up what a given config option does | [configuration.md](configuration.md) | [English](../en/configuration.md) |
+**Already up and running** → Pick what you need from the categories below.
 
 ---
 
-## How to choose among the three deployment routes
+## Deployment
 
-| Scenario | Recommended route | Reason |
+| What | Entry | Chinese version |
 | --- | --- | --- |
-| Tinkering and debugging on a personal computer | **Windows** | One command to start; finish the setup wizard and it's ready to use |
-| Running long-term, for use in a group | **Linux** | Stable and resource-efficient; can be set up with systemd daemon and auto-restart |
-| No server, only an old phone | **Android** | It can run under Termux, but it is **not fully verified** — treat it as an experimental option |
+| Choosing among the three routes, shared prerequisites, uv usage | [Choose a deployment](deploy.md) | [中文](../zh/deploy.md) |
+| Deploy on Windows | [deploy-windows.md](deploy-windows.md) | [中文](../zh/deploy-windows.md) |
+| Deploy on Linux | [deploy-linux.md](deploy-linux.md) | [中文](../zh/deploy-linux.md) |
+| Deploy on an Android phone | [deploy-android.md](deploy-android.md) | [中文](../zh/deploy-android.md) |
 
-> Whichever route you take, it is recommended to first get the `/setup` wizard working and finish downloading the assets on Windows or Linux before considering a migration.
+## Usage
+
+| What | Entry | Chinese version |
+| --- | --- | --- |
+| How every command works | [commands.md](commands.md) | [中文](../zh/commands.md) |
+| What each config option does | [configuration.md](configuration.md) | [中文](../zh/configuration.md) |
+| Connecting QQ (NapCat) | [platform-integration.md](platform-integration.md) | [中文](../zh/platform-integration.md) |
+
+## Development
+
+| What | Entry | Chinese version |
+| --- | --- | --- |
+| Writing your own plugin | [plugin-dev.md](plugin-dev.md) | [中文](../zh/plugin-dev.md) |
 
 ---
 

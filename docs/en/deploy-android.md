@@ -48,7 +48,7 @@ proot-distro login ubuntu
 
 From here on, all commands are executed inside this Ubuntu environment (the prompt will change). Use `exit` to leave; next time you come back it is still `proot-distro login ubuntu`.
 
-### 4. Install System Dependencies and Python 3.13
+### 4. Install System Dependencies and uv
 
 ```bash
 apt-get update
@@ -58,11 +58,13 @@ source $HOME/.local/bin/env
 uv --version
 ```
 
+Installing uv is how the environment and the dependencies get built, and it pulls down Python 3.13 along the way, so there is no need to install a Python of your own inside the container. If the script is blocked by the network, run `apt-get install -y python3-pip` first and fall back to `pip install uv`.
+
 ### 5. Get the Code, Create the Environment, Install Dependencies
 
 ```bash
 mkdir -p /opt/ilbb-bot && cd /opt/ilbb-bot
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git .
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
@@ -89,9 +91,9 @@ The phone and the machine running NapCat must be on the same LAN. Look up the ph
 ip -4 addr show | grep inet
 ```
 
-Then point the reverse WS in NapCat to `ws://<手机IP>:6700/onebot/v11/ws`.
+Then point the reverse WS in NapCat to `ws://<phone-IP>:6700/onebot/v11/ws`.
 
-> To access port 5000 from outside the phone, use `http://<手机IP>:5000`.
+> To access port 5000 from outside the phone, use `http://<phone-IP>:5000`.
 
 ---
 
@@ -102,9 +104,13 @@ Without a container, use Termux's own Python directly:
 ```bash
 pkg install -y python git
 termux-wake-lock
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git ~/ilbb && cd ~/ilbb
-pip install flask requests pillow websockets numpy
-pip install "skia-python~=144.0"      # 这一步大概率失败
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git ~/ILBB_Emojibot && cd ~/ILBB_Emojibot
+uv venv --python 3.13
+uv pip install flask requests pillow websockets numpy
+uv pip install "skia-python~=144.0"      # this step very likely fails
 ```
 
 **If `skia-python` fails to install**, that means this route does not work on your machine, so go back to Option A. Some alternative ideas for pure-text scenarios (for example, running only the WebUI without emoji composition) require code changes and are outside the scope of this document.
@@ -124,17 +130,17 @@ If `/meme` often times out, you can lower `BOT_MAX_IMAGE_MB` and raise `BOT_COOL
 
 ---
 
-## 5. Self-Check List
+## 5. Post-Deployment Confirmation
 
-Confirm each item after deployment is complete:
+Run through the following after deployment; all of them should hold:
 
 - [ ] `uname -m` outputs `aarch64`
-- [ ] `python -c "import platform;print(platform.architecture())"` outputs 64bit
+- [ ] `./.venv/bin/python -c "import platform;print(platform.architecture())"` outputs 64bit
 - [ ] `./.venv/bin/python -c "import skia; print('skia OK')"` succeeds
 - [ ] `./.venv/bin/python -c "from meme_generator import get_memes; print(len(get_memes()))"` can print the number of assets
 - [ ] The phone browser can open `http://127.0.0.1:5000/setup`
 - [ ] All four steps of the wizard page pass
-- [ ] Another device on the LAN can open `http://<手机IP>:5000`
+- [ ] Another device on the LAN can open `http://<phone-IP>:5000`
 - [ ] After NapCat's reverse WS connects, the "live event stream" in the admin panel shows logs scrolling
 
 ---
@@ -148,7 +154,7 @@ You are using the Play Store version of Termux. Uninstall it and reinstall from 
 It is a network problem; switch networks and retry; you can also try `pkg install -y wget` first.
 
 **`skia-python` fails halfway through compilation**
-It means pip is trying to build from source, usually because the architecture is wrong (not aarch64) or the Python version is outside 3.10 – 3.13.
+It means uv is trying to build from source, usually because the architecture is wrong (not aarch64) or the Python version is outside 3.10 – 3.13.
 
 **The service disconnects after running for a while**
 The system has frozen Termux. Run `termux-wake-lock` and set Termux's battery optimization to "not optimized / unrestricted" in the system settings.

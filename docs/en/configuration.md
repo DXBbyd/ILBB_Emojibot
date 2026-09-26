@@ -90,17 +90,18 @@ If you change configuration in the panel but it does not take effect, check this
 | `QUOTE_ENABLED` | `true` | Switch for the `/quote` command |
 | `QUOTE_WIDTH` | `1280` | Landscape canvas width (pixels); keep it at 16:9 with the height |
 | `QUOTE_HEIGHT` | `720` | Landscape canvas height (pixels) |
-| `QUOTE_MASK_ALPHA` | `0.05` | Opacity of the grey mask between the background and the foreground; `0.05` = 95% transparent (background stays clear) |
+| `QUOTE_MASK_ALPHA` | `0.35` | Opacity of the grey mask over the background; `0.35` = 35% grey (the background stays recognisable). The glass panel, avatar and text are all drawn above the mask |
 | `QUOTE_JPG_QUALITY` | `92` | JPG output quality for static images (60–100) |
-| `QUOTE_AVATAR` | `236` | Side length of the square rounded avatar in the left half (pixels) |
-| `QUOTE_TEXT_MAX` | `56` | Upper limit of the auto font size for text inside the bubble (pixels) |
-| `QUOTE_TEXT_MIN` | `22` | Lower limit of the auto font size for text inside the bubble |
-| `QUOTE_MAX_BODY` | `500` | Maximum height of the bubble content area; beyond it the font shrinks, and at the bottom line it is truncated with an ellipsis |
-| `QUOTE_NAME_SIZE` | `40` | Font size of the signature "—— username" at the bottom right |
-| `QUOTE_NAME_FONT` | `inherit` | Font of the signature; `inherit` = follow the global font `FONT_FAMILY` |
+| `QUOTE_AVATAR` | `236` | Width of the standalone rounded avatar on the left (pixels); its height is about 1.32× the width |
+| `QUOTE_TRAY_BLUR` | `30` | Gaussian blur radius of the glass panel (the frosted core — higher is blurrier) |
+| `QUOTE_TRAY_GLASS` | `0.58` | Strength of the warm white glass layered on top of the blur (0.2–0.96; higher is whiter and less transparent) |
+| `QUOTE_TEXT_MAX` | `56` | Upper limit of the auto font size for text inside the panel (pixels) |
+| `QUOTE_TEXT_MIN` | `22` | Lower limit of the auto font size for text inside the panel |
+| `QUOTE_MAX_BODY` | `500` | Maximum height of the panel content area; beyond it the font shrinks, and at the bottom line it is truncated with an ellipsis |
+| `QUOTE_NAME_SIZE` | `40` | Font size of the signature "—— username" at the bottom right (the font follows the global `FONT_FAMILY`) |
 | `QUOTE_NAME` | `无名氏` | Placeholder name used when no nickname can be obtained |
 | `QUOTE_NAME_MAX` | `16` | Maximum number of characters shown in the signature name |
-| `QUOTE_GIF_MAX_FRAMES` | `60` | When the bubble holds an animated emoji the output is a GIF; frames beyond this count are sampled evenly |
+| `QUOTE_GIF_MAX_FRAMES` | `60` | When the panel content is an animated emoji the output is a GIF; frames beyond this count are sampled evenly |
 | `QUOTE_GIF_MIN_MS` | `40` | Minimum duration of a single GIF frame (milliseconds) |
 
 ---

@@ -14,15 +14,14 @@
 
 - [功能一览](#功能一览)
 - [效果与界面](#效果与界面)
-- [快速开始](#快速开始)
+- [部署](#部署)
 - [指令速查](#指令速查)
 - [配置与接入](#配置与接入)
 - [插件系统](#插件系统)
-- [三种部署方式](#三种部署方式)
 - [目录结构](#目录结构)
-- [文档索引](#文档索引)
+- [文档](#文档)
 - [常见问题](#常见问题)
-- [致谢与许可](#致谢与许可)
+- [许可与来源](#许可与来源)
 
 ---
 
@@ -32,7 +31,7 @@
 | --- | --- |
 | 表情合成 `/meme` | 282 款表情、3400+ 个素材文件。发指令 + 文字（可带图 / @人 / 写 QQ 号）即出表情包，支持按表情预设传参 |
 | 配对卡片 `/pair` | 生成 QQ 风格配对卡片，三种模板（classic / dark / paper），标题、背景、按钮文字可自定义 |
-| 名言图 `/quote` | 横屏 16:9 版式：左半方形圆角头像、右半磨砂玻璃气泡（可放动图表情包），随机二次元背景 + 灰色蒙版，右下署名；静态出 JPG，动图出 GIF，字体可切换 |
+| 名言图 `/quote` | 横屏 16:9 版式：随机二次元背景 + 灰色蒙版（默认不透明度 35%），画面正中一块全模糊托盘，托盘内左圆形头像、右文字或表情包（可放动图），右下署名；静态出 JPG，动图出 GIF，字体可切换 |
 | 图片菜单 `/help` | 全部指令以图片形式返回，排版清晰，手机端也能看清 |
 | Web 工作台 | 配对卡生成器、表情预览与调试、指令中心干跑预览、Web 会话（不开 QQ 也能试指令） |
 | 对接面板 | OneBot V11 反向 WS 服务器的启停、配置、实时事件流、原始 JSON、30+ 接口调试面板 |
@@ -57,71 +56,13 @@
 
 ---
 
-## 快速开始
+## 部署
 
-### 1. 准备环境
+本项目自托管运行，不依赖任何第三方云服务。环境要求、依赖安装、配置、启动、开机自启与故障排查按平台分开，写在 [选择部署方式](docs/zh/deploy.md) 里，照着你的机器选一条路线进去即可。
 
-- **Python 3.10 – 3.13（64 位），推荐 3.13** —— 版本与位数是写死的：`skia-python`、`Pillow` 等依赖只发预编译 wheel，对不上直接装不上。**3.14 及更高暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，而 10.x 没有 3.14 的 wheel）。
-- Windows：从 [python.org](https://www.python.org/downloads/) 或 Microsoft Store 安装，安装时勾选 `Add to PATH`。
-- Linux：用发行版包管理器或 `uv`（见 [Linux 部署](docs/zh/deploy-linux.md)）。
+动手之前有三件事值得先知道。Python 需要 **3.10 – 3.13（64 位），推荐 3.13**，`skia-python`、`Pillow` 这类依赖只发预编译 wheel，版本或位数对不上会直接装不上，3.14 同样不行（原因见下方 [常见问题](#常见问题)）。依赖统一交给 [uv](https://docs.astral.sh/uv/) 管理：装好 uv 之后用 `uv venv --python 3.13` 建虚拟环境，用 `uv pip install` 装依赖，不必再碰 pip。仓库里**不含 meme 素材**（约 254MB），克隆下来首次启动时由引导页联网补全。
 
-### 2. 获取代码
-
-```bash
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git
-cd <仓库名>
-```
-
-> 当前发布在 **`beta`** 分支；仓库**不含 meme 素材**（约 254MB），克隆后首次启动由引导页自动联网补全。
-
-### 3. 创建虚拟环境并装依赖
-
-Windows：
-
-```powershell
-python -m venv .venv
-& .venv\Scripts\python.exe -m pip install -U pip
-& .venv\Scripts\python.exe -m pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
-
-Linux / macOS：
-
-```bash
-python3.13 -m venv .venv
-./.venv/bin/pip install -U pip
-./.venv/bin/pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
-
-### 4. 配置
-
-```bash
-cp .env.example .env      # Windows: copy .env.example .env
-```
-
-`.env` 里每一项都有默认值，**可以先不改**，直接用引导页在浏览器里配。
-
-### 5. 启动
-
-**必须在项目根目录启动**（`cache`、`temp`、`font` 走的是相对路径）：
-
-```powershell
-# Windows
-& .venv\Scripts\python.exe app.py
-```
-
-```bash
-# Linux
-./.venv/bin/python app.py
-```
-
-看到日志里打印管理密码后，浏览器打开 `http://127.0.0.1:5000/setup` 走一遍引导页：
-
-1. **环境自检** —— 检查 7 项依赖是否齐
-2. **Meme 素材** —— 一键联网下载素材库（也可以跳过，之后在设置里补）
-3. **基础配置** —— 机器人昵称、指令前缀、端口等
-4. **完成** —— 进入工作台
-
-接着按 [消息平台对接](docs/zh/platform-integration.md) 把 NapCat 连上来，机器人就能在 QQ 里干活了。
+服务**必须在项目根目录启动**，`cache`、`temp`、`font` 走的是相对路径。启动后浏览器打开 `http://127.0.0.1:5000/setup`，引导页会把环境自检、素材下载和基础配置一次走完；接着按 [消息平台对接](docs/zh/platform-integration.md) 把 NapCat 连上来，机器人就能在 QQ 里干活了。
 
 ---
 
@@ -221,20 +162,6 @@ def setup(ctx):
 
 ---
 
-## 三种部署方式
-
-| 平台 | 文档 | 要点 |
-| --- | --- | --- |
-| **Windows** | [deploy-windows.md](docs/zh/deploy-windows.md) | Python 3.10 – 3.13（64 位）；`icudtl.dat` 需拷到 Python 安装目录；注意防火墙放行 5000 / 6700 端口 |
-| **Linux** | [deploy-linux.md](docs/zh/deploy-linux.md) | Python 3.10 – 3.13；注意 `libfontconfig1` / `libgl1` 等系统库；路径别带空格和中文 |
-| **Android** | [deploy-android.md](docs/zh/deploy-android.md) | 用 Termux 装 Python 3.10 – 3.13 + 依赖，手机端跑；**未做充分验证，请自行测试** |
-
-英文版：[Windows](docs/en/deploy-windows.md) ｜ [Linux](docs/en/deploy-linux.md) ｜ [Android](docs/en/deploy-android.md)
-
-> 部署顺序建议：先在本机把 `/setup` 引导页跑通、素材下载完，再考虑迁移到 Linux / 服务器 / 手机。
-
----
-
 ## 目录结构
 
 ```
@@ -269,18 +196,17 @@ def setup(ctx):
 
 ---
 
-## 文档索引
+## 文档
 
-| 主题 | 中文 | English |
-| --- | --- | --- |
-| 文档总览 | [docs/zh/index.md](docs/zh/index.md) | [docs/en/index.md](docs/en/index.md) |
-| 部署 · Windows | [docs/zh/deploy-windows.md](docs/zh/deploy-windows.md) | [docs/en/deploy-windows.md](docs/en/deploy-windows.md) |
-| 部署 · Linux | [docs/zh/deploy-linux.md](docs/zh/deploy-linux.md) | [docs/en/deploy-linux.md](docs/en/deploy-linux.md) |
-| 部署 · Android | [docs/zh/deploy-android.md](docs/zh/deploy-android.md) | [docs/en/deploy-android.md](docs/en/deploy-android.md) |
-| 指令手册 | [docs/zh/commands.md](docs/zh/commands.md) | [docs/en/commands.md](docs/en/commands.md) |
-| 插件开发 | [docs/zh/plugin-dev.md](docs/zh/plugin-dev.md) | [docs/en/plugin-dev.md](docs/en/plugin-dev.md) |
-| 平台对接 | [docs/zh/platform-integration.md](docs/zh/platform-integration.md) | [docs/en/platform-integration.md](docs/en/platform-integration.md) |
-| 配置参考 | [docs/zh/configuration.md](docs/zh/configuration.md) | [docs/en/configuration.md](docs/en/configuration.md) |
+文档分中英两套，入口分别是 [docs/zh/index.md](docs/zh/index.md) 与 [docs/en/index.md](docs/en/index.md)。下面只列分类入口，具体篇目进去看。
+
+| 分类 | 入口 |
+| --- | --- |
+| 部署 | [选择部署方式](docs/zh/deploy.md) —— Windows / Linux / Android 三条路线 |
+| 使用 | [指令手册](docs/zh/commands.md) ｜ [配置参考](docs/zh/configuration.md) ｜ [平台对接](docs/zh/platform-integration.md) |
+| 开发 | [插件开发指南](docs/zh/plugin-dev.md) |
+
+英文文档：[Choose a deployment](docs/en/deploy.md) ｜ [Commands](docs/en/commands.md) ｜ [Configuration](docs/en/configuration.md) ｜ [Platform integration](docs/en/platform-integration.md) ｜ [Plugin development](docs/en/plugin-dev.md)
 
 ---
 
@@ -306,7 +232,7 @@ def setup(ctx):
 
 ---
 
-## 致谢与许可
+## 许可与来源
 
 - 表情合成引擎来自 [MeetWq/meme-generator](https://github.com/MeetWq/meme-generator)（MIT），本项目以 `vendor/meme-generator-main` 形式内置。
 - 素材版权归各自原作者所有；本项目仅做技术集成，请勿用于商业用途。

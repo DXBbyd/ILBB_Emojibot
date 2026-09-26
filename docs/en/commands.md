@@ -172,13 +172,13 @@ Give it an avatar + a sentence (or an emoji/sticker image) and it composes a quo
 
 Structure of the result:
 
-- **Layout** —— landscape 16:9 (`QUOTE_WIDTH` × `QUOTE_HEIGHT`, default 1280×720), split into a left and a right column by the centre line
-- **Background** —— a random anime image from the same API as the home page background (`BG_API`), with a grey mask layered between background and foreground (`QUOTE_MASK_ALPHA`, default `0.05` = 95% transparent)
-- **Avatar** —— a rounded square avatar centred in the left half; a built-in placeholder is used when none is given
-- **Bubble** —— a frosted-glass bubble in the right half; when there is text it automatically tries font sizes from large to small, and truncates with an ellipsis if it does not fit; when there is an emoji/sticker it scales adaptively, and **an animated sticker keeps its animation — the output is a GIF**, while static content outputs a JPG
-- **Signature** —— "—— 用户名" in the bottom right corner; its font can be set separately with `QUOTE_NAME_FONT` (`inherit` = follow the global font)
+- **Layout** —— landscape 16:9 (`QUOTE_WIDTH` × `QUOTE_HEIGHT`, default 1280×720): an independent rounded rectangle avatar on the left, and a white frosted-glass panel filling the right half, holding the text or emoji/sticker
+- **Background** —— a random anime image from the same API as the home page background (`BG_API`), with a grey mask layered over it (`QUOTE_MASK_ALPHA`, default `0.35` = 35% grey, the background stays recognisable); the glass panel, avatar and text are all drawn above the mask
+- **Frosted-glass panel** —— fills the right half (full height): the background inside it is blurred as a whole (`QUOTE_TRAY_BLUR`, default `30`), then a warm white glass layer (`QUOTE_TRAY_GLASS`, default `0.58`) and a top highlight are added on top; its left edge fades out through a horizontal gradient (`QUOTE_TRAY_FADE`) so the left border is fully transparent and blends into the middle background without a hard edge; text automatically tries font sizes from large to small and truncates with an ellipsis if it does not fit, while emoji/stickers scale adaptively
+- **Avatar** —— an independent rounded rectangle avatar on the left (`QUOTE_AVATAR`, default width 236, height = width × 1.32); a built-in placeholder is used when none is given
+- **Signature** —— "—— 用户名" in the bottom right corner; its font follows the global `FONT_FAMILY` and is no longer configurable on its own
 
-Output: a JPG for static content, a GIF when the content is animated. The "Quote image" form in the web UI lets you switch the global font and the signature font directly.
+Output: a JPG when the panel content is static, a GIF when it is an animated emoji/sticker (**the animation is preserved**). The "Quote image" form in the web UI lets you switch the global font directly (the same ILBB custom dropdown as the home page), and the signature follows it.
 
 All layout-related parameters are adjustable; see [configuration.md](configuration.md#名言图-quote).
 

@@ -6,7 +6,7 @@
 
 ---
 
-## 一、前置检查清单
+## 一、前置要求
 
 | 项目 | 要求 | 说明 |
 | --- | --- | --- |
@@ -18,7 +18,9 @@
 
 ---
 
-## 二、安装 Python 3.13
+## 二、准备 Python 3.13
+
+本机没有合适的 Python 也可以跳过这一步：第四节装好 uv 之后，`uv venv --python 3.13` 会自动下载一份 3.13 托管版本。想自己装就往下看。
 
 1. 打开 [python.org/downloads](https://www.python.org/downloads/) 下载 **Windows installer (64-bit)** 的 3.13 版本。
 2. 安装时**务必勾选 `Add python.exe to PATH`**。
@@ -37,27 +39,44 @@ python --version
 ## 三、获取代码
 
 ```powershell
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git
-cd <仓库名>
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git
+cd ILBB_Emojibot
 ```
 
 > 当前发布在 `beta` 分支（v0.1.0-beta）。仓库不含 meme 素材（约 254MB），首次启动由引导页联网补全。
 
 没有 git 的话，直接在 GitHub 页面点 `Code → Download ZIP` 解压也行。
 
-> 仓库里**不含 meme 素材**（约 254 MB），这是刻意的。克隆后由引导页联网补全。
-
 ---
 
-## 四、创建虚拟环境并安装依赖
+## 四、装 uv、建环境、装依赖
 
-**在项目根目录**（能看到 `app.py` 的那一层）执行：
+**在项目根目录**（能看到 `app.py` 的那一层）执行。依赖统一交给 uv 管，第一步把 uv 装上：
 
 ```powershell
-python -m venv .venv
-& .venv\Scripts\python.exe -m pip install -U pip
-& .venv\Scripts\python.exe -m pip install flask requests pillow websockets "skia-python~=144.0" numpy
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+装完**重开一个 PowerShell 窗口**让 PATH 生效，然后确认：
+
+```powershell
+uv --version
+```
+
+如果这条脚本被组策略或网络挡住，用 pip 兜底：
+
+```powershell
+pip install uv
+```
+
+接着建虚拟环境、装依赖：
+
+```powershell
+uv venv --python 3.13
+uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+```
+
+`uv venv --python 3.13` 会自己找一份 3.13，本机没有就下载一份，所以不用管系统里装的是哪个 Python。之后所有命令都通过 `.venv\Scripts\python.exe` 调用，同样不依赖 PATH。
 
 七个依赖的作用：
 
@@ -71,7 +90,7 @@ python -m venv .venv
 | `numpy` | 引擎的数值计算依赖 |
 | `meme 引擎` | 已随代码放在 `vendor/meme-generator-main/`，**不需要 pip 安装**，启动时自动挂载 |
 
-> 注意一定要用 `& .venv\Scripts\python.exe -m pip ...`。直接敲 `pip install` 很可能会装到系统 Python 里，然后引导页一直报"缺依赖"。
+> 注意装依赖统一用 `uv pip install`，别直接敲 `pip install`。裸 pip 很可能把包装进系统 Python 里，而 uv 默认认当前目录下的 `.venv`，不会跑偏；`.venv` 里到底装了什么，用 `uv pip list` 看。
 
 ---
 
@@ -166,11 +185,11 @@ pause
 **启动报 `SkIcuLoader / icudtl` 警告**
 `skia-python` 需要一份 ICU 文字数据文件。把 `.venv\Lib\site-packages\icudtl.dat` 复制到 **Python 安装目录**（和 `python.exe` 同级）。没有警告就不用管。
 
-**`pip install skia-python` 报找不到匹配版本**
-三种可能：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 wheel）；② 装的是 32 位 Python；③ pip 太旧。依次排查，先 `& .venv\Scripts\python.exe -m pip install -U pip`。
+**`uv pip install skia-python` 报找不到匹配版本**
+三种可能：① 选择的 Python 不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 wheel）；② 装的是 32 位 Python；③ uv 太旧，`uv self update` 升一下。都不对就把 Python 版本钉死重来一次：`uv venv --python 3.13 --clear`。
 
-**引导页一直显示缺依赖，但 `pip list` 里明明有**
-装到别的 Python 里去了。必须用 `& .venv\Scripts\python.exe -m pip install ...`。
+**引导页一直显示缺依赖，但 `uv pip list` 里明明有**
+多半是装到别的环境里去了。确认是在项目根目录（有 `app.py` 的那层）执行的 `uv pip install ...`，uv 默认认当前目录的 `.venv`；在别处跑就会落到别的环境。
 
 **启动报找不到 `cache` / `temp` / `font`**
 不在项目根目录启动。`cd` 到能看到 `app.py` 的那一层再运行。
@@ -189,7 +208,7 @@ pause
 
 ---
 
-## 装完自查（可选）
+## 装完验证（可选）
 
 一条命令验证依赖是否齐全：
 

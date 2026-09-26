@@ -8,7 +8,7 @@
 
 ---
 
-## 一、前置检查清单
+## 一、前置要求
 
 | 项目 | 要求 | 说明 |
 | --- | --- | --- |
@@ -36,15 +36,17 @@ sudo apt-get install -y fonts-wqy
 
 ---
 
-## 三、安装 Python 3.13
+## 三、安装 uv
 
-发行版自带的 Python 通常不是 3.13，推荐用 [`uv`](https://docs.astral.sh/uv/) 管理，它能直接下载指定版本的 Python：
+发行版自带的 Python 通常不是 3.13，而依赖统一交给 [`uv`](https://docs.astral.sh/uv/) 管，所以先把它装上。uv 既是环境与依赖管理器，也能直接下载指定版本的 Python —— 下一节的 `uv venv --python 3.13` 会自己拿一份 3.13，不必折腾系统 Python。
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env       # 或重开终端
 uv --version
 ```
+
+脚本被网络挡住的话，用 pip 兜底：`pip install uv`（Ubuntu 上系统 pip 可能要先 `sudo apt-get install -y python3-pip`）。
 
 > 也可以自己编译 3.13，或用 deadsnakes PPA（Ubuntu）：`sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.13 python3.13-venv`。
 >
@@ -57,7 +59,7 @@ uv --version
 ```bash
 sudo mkdir -p /opt/ilbb-bot
 sudo chown "$USER" /opt/ilbb-bot
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git /opt/ilbb-bot
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git /opt/ilbb-bot
 cd /opt/ilbb-bot
 ```
 
@@ -73,17 +75,11 @@ uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
 
-不用 uv 的话，等价的原生写法：
-
-```bash
-python3.13 -m venv .venv
-./.venv/bin/pip install -U pip
-./.venv/bin/pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
+`uv pip install` 默认认当前目录下的 `.venv`，在项目根目录执行就不会装错地方；想知道装了些什么，用 `uv pip list` 看。
 
 **meme 引擎不用装**：`vendor/meme-generator-main/` 里的源码由程序启动时自动挂到模块搜索路径。
 
-> 如果 `pip freeze` 里看到 `-e /老路径/vendor/meme-generator-main` 这种指向旧机器的可编辑安装记录，可以 `pip uninstall meme-generator` 清掉；留着也不影响。
+> 如果 `uv pip list` 里看到 `meme-generator` 指向别的机器上的老路径，可以 `uv pip uninstall meme-generator` 清掉；留着也不影响。
 
 ---
 
@@ -122,7 +118,7 @@ cd /opt/ilbb-bot
 ### 用 gunicorn 扛并发
 
 ```bash
-./.venv/bin/pip install gunicorn
+uv pip install gunicorn
 ./.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
 ```
 
@@ -196,11 +192,11 @@ server {
 sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 ```
 
-**`pip install skia-python` 报找不到匹配版本**
-排查：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 3.14 的 wheel）；② 是 32 位运行的 Python（`python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。
+**`uv pip install skia-python` 报找不到匹配版本**
+排查：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 3.14 的 wheel）；② 环境是 32 位的（`./.venv/bin/python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。版本选错就钉死重来：`uv venv --python 3.13 --clear`。
 
 **引导页一直显示缺依赖**
-用的不是项目自己的 Python。确认命令里带 `./.venv/bin/` 前缀。
+uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py` 的那层）跑的 `uv pip install ...`，然后 `uv pip list` 复查。
 
 **路径带空格或中文导致 import 报错**
 把项目换到 `/opt/ilbb-bot` 这类干净路径。
@@ -216,7 +212,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 
 ---
 
-## 装完自查（可选）
+## 装完验证（可选）
 
 ```bash
 ./.venv/bin/python -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"

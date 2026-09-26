@@ -48,7 +48,7 @@ proot-distro login ubuntu
 
 之后的命令都在这个 Ubuntu 环境里执行（提示符会变）。想退出用 `exit`，下次再进来还是 `proot-distro login ubuntu`。
 
-### 4. 装系统依赖与 Python 3.13
+### 4. 装系统依赖与 uv
 
 ```bash
 apt-get update
@@ -58,11 +58,13 @@ source $HOME/.local/bin/env
 uv --version
 ```
 
+装 uv 是为了让它负责建环境和装依赖，顺带把 3.13 的 Python 也拉下来，容器里不用另装。脚本被网络挡住的话，先 `apt-get install -y python3-pip`，再用 `pip install uv` 兜底。
+
 ### 5. 取代码、建环境、装依赖
 
 ```bash
 mkdir -p /opt/ilbb-bot && cd /opt/ilbb-bot
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git .
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
@@ -97,14 +99,18 @@ ip -4 addr show | grep inet
 
 ## 三、方案 B：Termux 原生（大概率装不上 skia）
 
-不套容器，直接在 Termux 里用它的 Python：
+不套容器，直接在 Termux 里跑，环境和依赖照样交给 uv：
 
 ```bash
 pkg install -y python git
 termux-wake-lock
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git ~/ilbb && cd ~/ilbb
-pip install flask requests pillow websockets numpy
-pip install "skia-python~=144.0"      # 这一步大概率失败
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git ~/ILBB_Emojibot && cd ~/ILBB_Emojibot
+uv venv --python 3.13
+uv pip install flask requests pillow websockets numpy
+uv pip install "skia-python~=144.0"      # 这一步大概率失败
 ```
 
 **如果 `skia-python` 装失败**，说明这条路在你这台机器上走不通，回头走方案 A。一些纯文本场景下的替代思路（例如只跑 WebUI 而不用表情合成）需要改代码，不在本文档支持范围内。
@@ -124,12 +130,12 @@ pip install "skia-python~=144.0"      # 这一步大概率失败
 
 ---
 
-## 五、自查清单
+## 五、部署后确认
 
-部署完成后逐项确认：
+跑完上面的步骤，下面这些应该都成立：
 
 - [ ] `uname -m` 输出 `aarch64`
-- [ ] `python -c "import platform;print(platform.architecture())"` 输出 64bit
+- [ ] `./.venv/bin/python -c "import platform;print(platform.architecture())"` 输出 64bit
 - [ ] `./.venv/bin/python -c "import skia; print('skia OK')"` 成功
 - [ ] `./.venv/bin/python -c "from meme_generator import get_memes; print(len(get_memes()))"` 能打印素材数量
 - [ ] 手机浏览器能打开 `http://127.0.0.1:5000/setup`
@@ -148,7 +154,7 @@ pip install "skia-python~=144.0"      # 这一步大概率失败
 网络问题，换网络重试；也可以先 `pkg install -y wget` 再试。
 
 **`skia-python` 编译到一半失败**
-说明 pip 在尝试从源码构建，通常是架构不对（非 aarch64）或 Python 版本不在 3.10 – 3.13。
+说明 uv 在尝试从源码构建，通常是架构不对（非 aarch64）或 Python 版本不在 3.10 – 3.13。
 
 **服务跑一会儿就断**
 系统把 Termux 冻结了。执行 `termux-wake-lock`，并在系统设置里把 Termux 的电池优化设为「不优化 / 无限制」。

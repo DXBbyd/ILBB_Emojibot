@@ -14,15 +14,14 @@ No third-party cloud service required. Everything runs on your own machine.
 
 - [Features](#features)
 - [Pages](#pages)
-- [Quick Start](#quick-start)
+- [Deployment](#deployment)
 - [Command Cheatsheet](#command-cheatsheet)
 - [Configuration & Integration](#configuration--integration)
 - [Plugin System](#plugin-system)
-- [Three Deployment Targets](#three-deployment-targets)
 - [Project Layout](#project-layout)
-- [Documentation Index](#documentation-index)
+- [Documentation](#documentation)
 - [FAQ](#faq)
-- [Credits & License](#credits--license)
+- [License & Attribution](#license--attribution)
 
 ---
 
@@ -32,7 +31,7 @@ No third-party cloud service required. Everything runs on your own machine.
 | --- | --- |
 | Meme generation `/meme` | 282 memes, 3,400+ asset files. Send a command plus text (optionally with an image, an `@mention` or a QQ number) and get a sticker back. Supports per-meme preset arguments |
 | Pairing card `/pair` | QQ-style pairing cards with three templates (classic / dark / paper); custom title, background and button labels |
-| Quote image `/quote` | Landscape 16:9: rounded square avatar in the left half, frosted-glass bubble in the right half (animated stickers supported), random anime background with a grey mask, and a signature at the bottom right; JPG for static content, GIF when animated, fonts switchable |
+| Quote image `/quote` | Landscape 16:9: a random anime background with a grey mask (35% opacity by default), one fully blurred tray in the centre holding a circular avatar on the left and text or a sticker on the right, and a signature at the bottom right; JPG for static content, GIF when animated, fonts switchable |
 | Image menu `/help` | Every command rendered as a clean, phone-friendly image |
 | Web workbench | Pairing-card generator, meme preview and debugging, command dry-run preview, web chat session (try commands without QQ) |
 | Integration panel | Start/stop the OneBot V11 reverse-WS server, edit its config, watch a live event stream with raw JSON, and use a debug panel for 30+ OneBot APIs |
@@ -57,71 +56,13 @@ On first launch a random admin password is generated and **printed to the termin
 
 ---
 
-## Quick Start
+## Deployment
 
-### 1. Prerequisites
+The project is self-hosted and needs no third-party cloud service. Environment requirements, dependency installation, configuration, startup, auto-start on boot and troubleshooting are split by platform and live in [Choose a deployment](docs/en/deploy.md) — pick the route that matches your machine and follow it.
 
-- **Python 3.10 – 3.13 (64-bit), 3.13 recommended** — the version and architecture are fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, and a mismatch fails outright. **3.14 and newer are not supported yet** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel).
-- Windows: install from [python.org](https://www.python.org/downloads/) or the Microsoft Store, ticking `Add to PATH`.
-- Linux: use your distro packages or `uv` (see [Linux deployment](docs/en/deploy-linux.md)).
+Three things are worth knowing up front. Python must be **3.10 – 3.13 (64-bit), 3.13 recommended**; `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version or architecture mismatch fails outright, and 3.14 does not work either (see [FAQ](#faq) below for why). Dependencies are managed by [uv](https://docs.astral.sh/uv/): once uv is installed, create the environment with `uv venv --python 3.13` and install with `uv pip install` — no need to touch pip again. The repository **does not include the meme assets** (~254 MB); the setup wizard downloads them on first run.
 
-### 2. Get the code
-
-```bash
-git clone -b beta https://github.com/<your-user>/<your-repo>.git
-cd <your-repo>
-```
-
-> Releases live on the **`beta`** branch; the repository **does not include the meme assets** (~254 MB). The setup wizard downloads them on first run.
-
-### 3. Create a virtual environment and install dependencies
-
-Windows:
-
-```powershell
-python -m venv .venv
-& .venv\Scripts\python.exe -m pip install -U pip
-& .venv\Scripts\python.exe -m pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
-
-Linux / macOS:
-
-```bash
-python3.13 -m venv .venv
-./.venv/bin/pip install -U pip
-./.venv/bin/pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
-
-### 4. Configure
-
-```bash
-cp .env.example .env      # Windows: copy .env.example .env
-```
-
-Every option has a default, so you can **skip this and configure everything in the browser** later.
-
-### 5. Run
-
-**You must start from the project root** (`cache`, `temp` and `font` are resolved relatively):
-
-```powershell
-# Windows
-& .venv\Scripts\python.exe app.py
-```
-
-```bash
-# Linux
-./.venv/bin/python app.py
-```
-
-Once the admin password appears in the logs, open `http://127.0.0.1:5000/setup` and walk through the wizard:
-
-1. **Environment check** — verifies all 7 dependencies
-2. **Meme assets** — one-click online download (skippable)
-3. **Basic config** — bot name, command prefix, ports
-4. **Finish** — go to the workbench
-
-Then follow [Platform Integration](docs/en/platform-integration.md) to connect NapCat and let the bot loose in QQ.
+**You must start the service from the project root** — `cache`, `temp` and `font` are resolved relatively. After startup, open `http://127.0.0.1:5000/setup` and let the wizard handle the environment check, asset download and basic config in one pass. Then follow [Platform Integration](docs/en/platform-integration.md) to connect NapCat and let the bot loose in QQ.
 
 ---
 
@@ -221,20 +162,6 @@ Full API reference, manifest field table, web-page integration and two copyable 
 
 ---
 
-## Three Deployment Targets
-
-| Platform | Document | Notes |
-| --- | --- | --- |
-| **Windows** | [deploy-windows.md](docs/en/deploy-windows.md) | Python 3.10 – 3.13 (64-bit); copy `icudtl.dat` into the Python install dir; open ports 5000 / 6700 in the firewall |
-| **Linux** | [deploy-linux.md](docs/en/deploy-linux.md) | Python 3.10 – 3.13; mind `libfontconfig1` / `libgl1` and friends; keep the path free of spaces and non-ASCII |
-| **Android** | [deploy-android.md](docs/en/deploy-android.md) | Run under Termux with Python 3.10 – 3.13; **not thoroughly validated — test at your own risk** |
-
-Chinese versions: [Windows](docs/zh/deploy-windows.md) ｜ [Linux](docs/zh/deploy-linux.md) ｜ [Android](docs/zh/deploy-android.md)
-
-> Recommended order: get `/setup` working locally and download the assets first, then migrate to Linux, a server or a phone.
-
----
-
 ## Project Layout
 
 ```
@@ -269,18 +196,17 @@ Chinese versions: [Windows](docs/zh/deploy-windows.md) ｜ [Linux](docs/zh/deplo
 
 ---
 
-## Documentation Index
+## Documentation
 
-| Topic | Chinese | English |
-| --- | --- | --- |
-| Overview | [docs/zh/index.md](docs/zh/index.md) | [docs/en/index.md](docs/en/index.md) |
-| Deploy · Windows | [docs/zh/deploy-windows.md](docs/zh/deploy-windows.md) | [docs/en/deploy-windows.md](docs/en/deploy-windows.md) |
-| Deploy · Linux | [docs/zh/deploy-linux.md](docs/zh/deploy-linux.md) | [docs/en/deploy-linux.md](docs/en/deploy-linux.md) |
-| Deploy · Android | [docs/zh/deploy-android.md](docs/zh/deploy-android.md) | [docs/en/deploy-android.md](docs/en/deploy-android.md) |
-| Commands | [docs/zh/commands.md](docs/zh/commands.md) | [docs/en/commands.md](docs/en/commands.md) |
-| Plugin development | [docs/zh/plugin-dev.md](docs/zh/plugin-dev.md) | [docs/en/plugin-dev.md](docs/en/plugin-dev.md) |
-| Platform integration | [docs/zh/platform-integration.md](docs/zh/platform-integration.md) | [docs/en/platform-integration.md](docs/en/platform-integration.md) |
-| Configuration | [docs/zh/configuration.md](docs/zh/configuration.md) | [docs/en/configuration.md](docs/en/configuration.md) |
+Docs come in two language sets, entered from [docs/en/index.md](docs/en/index.md) and [docs/zh/index.md](docs/zh/index.md). Only the category entries are listed below; open them for the full list.
+
+| Category | Entry |
+| --- | --- |
+| Deployment | [Choose a deployment](docs/en/deploy.md) — Windows / Linux / Android |
+| Usage | [Commands](docs/en/commands.md) ｜ [Configuration](docs/en/configuration.md) ｜ [Platform integration](docs/en/platform-integration.md) |
+| Development | [Plugin Development Guide](docs/en/plugin-dev.md) |
+
+Chinese docs: [选择部署方式](docs/zh/deploy.md) ｜ [指令手册](docs/zh/commands.md) ｜ [配置参考](docs/zh/configuration.md) ｜ [平台对接](docs/zh/platform-integration.md) ｜ [插件开发指南](docs/zh/plugin-dev.md)
 
 ---
 
@@ -306,7 +232,7 @@ Remove the password hash from `api_keys.json` and restart — a new one is gener
 
 ---
 
-## Credits & License
+## License & Attribution
 
 - The meme composition engine comes from [MeetWq/meme-generator](https://github.com/MeetWq/meme-generator) (MIT) and is bundled at `vendor/meme-generator-main`.
 - Asset copyrights belong to their respective authors. This project only provides technical integration; please do not use it commercially.

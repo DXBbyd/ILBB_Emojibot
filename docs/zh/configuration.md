@@ -90,17 +90,18 @@ cp .env.example .env
 | `QUOTE_ENABLED` | `true` | `/quote` 指令开关 |
 | `QUOTE_WIDTH` | `1280` | 横屏画布宽度（像素），建议与高度保持 16:9 |
 | `QUOTE_HEIGHT` | `720` | 横屏画布高度（像素） |
-| `QUOTE_MASK_ALPHA` | `0.05` | 背景与前景之间的灰色蒙版不透明度，`0.05` = 透明度 95%（背景清晰） |
+| `QUOTE_MASK_ALPHA` | `0.35` | 背景上那层灰色蒙版的不透明度，`0.35` = 压 35% 灰（背景仍可辨认）；玻璃面板 / 头像 / 文字都在蒙版之上 |
 | `QUOTE_JPG_QUALITY` | `92` | 静态图（JPG）输出质量（60–100） |
-| `QUOTE_AVATAR` | `236` | 左半边方形圆角头像边长（像素） |
-| `QUOTE_TEXT_MAX` | `56` | 气泡内文字自动字号上限（像素） |
-| `QUOTE_TEXT_MIN` | `22` | 气泡内文字自动字号下限 |
-| `QUOTE_MAX_BODY` | `500` | 气泡内容区最大高度，超过则缩字号，到底线就截断加省略号 |
-| `QUOTE_NAME_SIZE` | `40` | 右下角署名「—— 用户名」字号 |
-| `QUOTE_NAME_FONT` | `inherit` | 右下角署名字体；`inherit` = 跟随全局字体 `FONT_FAMILY` |
+| `QUOTE_AVATAR` | `236` | 左侧独立圆角头像的宽度（像素），高度约为它的 1.32 倍 |
+| `QUOTE_TRAY_BLUR` | `30` | 玻璃面板的高斯模糊半径（磨砂核心，越大越糊） |
+| `QUOTE_TRAY_GLASS` | `0.58` | 模糊层之上叠加的暖白玻璃浓度（0.2–0.96，越大越白、越不透） |
+| `QUOTE_TEXT_MAX` | `56` | 面板内容区文字自动字号上限（像素） |
+| `QUOTE_TEXT_MIN` | `22` | 面板内容区文字自动字号下限 |
+| `QUOTE_MAX_BODY` | `500` | 面板内容区最大高度，超过则缩字号，到底线就截断加省略号 |
+| `QUOTE_NAME_SIZE` | `40` | 右下角署名「—— 用户名」字号（字体跟随全局 `FONT_FAMILY`） |
 | `QUOTE_NAME` | `无名氏` | 取不到昵称时的占位名字 |
 | `QUOTE_NAME_MAX` | `16` | 署名词最大显示字数 |
-| `QUOTE_GIF_MAX_FRAMES` | `60` | 气泡是动图时输出 GIF，超过此帧数则等间隔抽帧 |
+| `QUOTE_GIF_MAX_FRAMES` | `60` | 面板内容是动图时输出 GIF，超过此帧数则等间隔抽帧 |
 | `QUOTE_GIF_MIN_MS` | `40` | GIF 单帧最短时长（毫秒） |
 
 ---

@@ -2,37 +2,40 @@
 
 [English](../en/index.md) ｜ **中文**
 
-本目录是「我在哔哩学习 Emoji Bot（ILBB）」的完整文档。README 只讲"是什么、怎么最快跑起来"，细节都在这里。
+本目录是「我在哔哩学习 Emoji Bot（ILBB）」的完整文档。根目录的 [README](../../README.md) 只讲这个项目是什么，部署与使用的细节全在这里。
 
 ---
 
 ## 从这里开始
 
-**第一次接触这个项目** → 先看根目录的 [README](../../README.md)，按「快速开始」把服务在本机跑起来，再回来看文档。
+**第一次部署** → 进 [选择部署方式](deploy.md)，按你的机器挑一条路线。三条路线都要用 uv 建环境、装依赖，公共部分也写在那篇里。
 
-**已经跑起来了** → 按下面的表挑你想做的事。
-
-| 我想…… | 看这篇 | 英文版 |
-| --- | --- | --- |
-| 在 Windows 上部署 | [deploy-windows.md](deploy-windows.md) | [English](../en/deploy-windows.md) |
-| 在 Linux 上部署 | [deploy-linux.md](deploy-linux.md) | [English](../en/deploy-linux.md) |
-| 在安卓手机上部署 | [deploy-android.md](deploy-android.md) | [English](../en/deploy-android.md) |
-| 搞清楚所有指令怎么用 | [commands.md](commands.md) | [English](../en/commands.md) |
-| 自己写一个插件 | [plugin-dev.md](plugin-dev.md) | [English](../en/plugin-dev.md) |
-| 把 QQ（NapCat）接上来 | [platform-integration.md](platform-integration.md) | [English](../en/platform-integration.md) |
-| 查某个配置项是干什么的 | [configuration.md](configuration.md) | [English](../en/configuration.md) |
+**已经跑起来了** → 直接在下面按分类找要看的东西。
 
 ---
 
-## 三条部署路线怎么选
+## 部署
 
-| 场景 | 推荐路线 | 理由 |
+| 内容 | 入口 | 英文版 |
 | --- | --- | --- |
-| 个人电脑上自己玩、调试 | **Windows** | 一条命令启动，引导页点完就能用 |
-| 长期挂机、给群里用 | **Linux** | 稳定、省资源，可配 systemd 守护与自动重启 |
-| 没有服务器、只有旧手机 | **Android** | Termux 里跑得起来，但**未充分验证**，当作实验性方案 |
+| 三条路线怎么选、共有前置与 uv 用法 | [选择部署方式](deploy.md) | [English](../en/deploy.md) |
+| 在 Windows 上部署 | [deploy-windows.md](deploy-windows.md) | [English](../en/deploy-windows.md) |
+| 在 Linux 上部署 | [deploy-linux.md](deploy-linux.md) | [English](../en/deploy-linux.md) |
+| 在安卓手机上部署 | [deploy-android.md](deploy-android.md) | [English](../en/deploy-android.md) |
 
-> 无论走哪条路线，都建议先在 Windows 或 Linux 上把 `/setup` 引导页跑通、把素材下载完，再考虑迁移。
+## 使用
+
+| 内容 | 入口 | 英文版 |
+| --- | --- | --- |
+| 所有指令怎么用 | [commands.md](commands.md) | [English](../en/commands.md) |
+| 每个配置项是干什么的 | [configuration.md](configuration.md) | [English](../en/configuration.md) |
+| 把 QQ（NapCat）接上来 | [platform-integration.md](platform-integration.md) | [English](../en/platform-integration.md) |
+
+## 开发
+
+| 内容 | 入口 | 英文版 |
+| --- | --- | --- |
+| 自己写一个插件 | [plugin-dev.md](plugin-dev.md) | [English](../en/plugin-dev.md) |
 
 ---
 

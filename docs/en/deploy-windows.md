@@ -6,7 +6,7 @@ Applies to: Windows 10 / 11 (64-bit). The whole process takes about 15 minutes, 
 
 ---
 
-## 1. Prerequisites checklist
+## 1. Prerequisites
 
 | Item | Requirement | Notes |
 | --- | --- | --- |
@@ -18,7 +18,9 @@ Applies to: Windows 10 / 11 (64-bit). The whole process takes about 15 minutes, 
 
 ---
 
-## 2. Install Python 3.13
+## 2. Prepare Python 3.13
+
+If the machine has no suitable Python, you can skip this whole step: once uv is installed in section 4, `uv venv --python 3.13` downloads a managed 3.13 build by itself. To install your own copy, read on.
 
 1. Open [python.org/downloads](https://www.python.org/downloads/) and download the **Windows installer (64-bit)** for version 3.13.
 2. During installation, **make sure to check `Add python.exe to PATH`**.
@@ -37,26 +39,39 @@ It should output `Python 3.13.x`. If it says the command cannot be found, PATH w
 ## 3. Get the code
 
 ```powershell
-git clone -b beta https://github.com/<your-username>/<repo-name>.git
-cd <repo-name>
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git
+cd ILBB_Emojibot
 ```
 
 > Current release lives on the **`beta`** branch (v0.1.0-beta). The repository does not include the meme assets (~254 MB); the setup wizard downloads them on first run.
 
 If you don't have git, you can also just click `Code → Download ZIP` on the GitHub page and extract it.
 
-> The repository **does not include meme assets** (about 254 MB); this is intentional. After cloning, the setup wizard completes them over the network.
-
 ---
 
-## 4. Create a virtual environment and install dependencies
+## 4. Install uv, create the environment, install dependencies
 
 **In the project root directory** (the level where you can see `app.py`), run:
 
+Install uv first. On Windows the PowerShell one-liner is the smoothest:
+
 ```powershell
-python -m venv .venv
-& .venv\Scripts\python.exe -m pip install -U pip
-& .venv\Scripts\python.exe -m pip install flask requests pillow websockets "skia-python~=144.0" numpy
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Confirm it is on PATH:
+
+```powershell
+uv --version
+```
+
+> If the script is blocked by the network, fall back to `pip install uv`; that works on any platform.
+
+Then create the virtual environment and install the six dependencies:
+
+```powershell
+uv venv --python 3.13
+uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
 
 What the seven dependencies do:
@@ -71,7 +86,7 @@ What the seven dependencies do:
 | `numpy` | Numerical computation dependency of the engine |
 | `meme engine` | Already shipped with the code at `vendor/meme-generator-main/`, **no pip install needed**; mounted automatically at startup |
 
-> Be sure to use `& .venv\Scripts\python.exe -m pip ...`. Typing `pip install` directly will very likely install into the system Python, and then the setup wizard will keep reporting "missing dependencies".
+> Install dependencies with `uv pip install`, not bare `pip install`. Bare pip very likely lands in your system Python, while uv resolves the `.venv` in the current directory by default and will not wander off. To see what actually went into the environment, use `uv pip list`.
 
 ---
 
@@ -166,11 +181,11 @@ After that, just double-click it to run. Note that `cd /d "%~dp0"` cannot be rem
 **Startup reports a `SkIcuLoader / icudtl` warning**
 `skia-python` needs an ICU text data file. Copy `.venv\Lib\site-packages\icudtl.dat` to the **Python installation directory** (the same level as `python.exe`). If there is no warning, no need to bother.
 
-**`pip install skia-python` reports no matching version**
-Three possibilities: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no wheel); ② the installed Python is 32-bit; ③ pip is too old. Check them in order, starting with `& .venv\Scripts\python.exe -m pip install -U pip`.
+**`uv pip install skia-python` reports no matching version**
+Three possibilities: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no wheel); ② the installed Python is 32-bit; ③ uv is too old, update it with `uv self update`. Check them in order; as a last resort, rebuild the environment with `uv venv --python 3.13 --clear` and reinstall.
 
-**The setup wizard keeps showing missing dependencies, but they clearly appear in `pip list`**
-They were installed into a different Python. You must use `& .venv\Scripts\python.exe -m pip install ...`.
+**The setup wizard keeps showing missing dependencies, but `uv pip list` clearly shows them**
+They went into a different Python. Recreate the environment from the project root with `uv venv --python 3.13`, then `uv pip install` the six packages again.
 
 **Startup reports that `cache` / `temp` / `font` cannot be found**
 You are not starting from the project root directory. `cd` to the level where you can see `app.py`, then run it.
@@ -189,7 +204,7 @@ Delete `api_keys.json` and restart; it will be regenerated and printed to the te
 
 ---
 
-## Post-install self-check (optional)
+## Post-install verification (optional)
 
 One command to verify that the dependencies are complete:
 

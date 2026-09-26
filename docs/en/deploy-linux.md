@@ -8,7 +8,7 @@ Applies to: common distributions such as Debian / Ubuntu / CentOS / Arch, on bot
 
 ---
 
-## 1. Prerequisites checklist
+## 1. Prerequisites
 
 | Item | Requirement | Notes |
 | --- | --- | --- |
@@ -36,9 +36,9 @@ sudo apt-get install -y fonts-wqy
 
 ---
 
-## 3. Install Python 3.13
+## 3. Install uv
 
-The Python bundled with distributions is usually not 3.13, so using [`uv`](https://docs.astral.sh/uv/) is recommended — it can download a specific version of Python directly:
+Dependencies are managed entirely by [`uv`](https://docs.astral.sh/uv/). You do not have to wrestle with the system Python either: `uv venv --python 3.13` in section 5 fetches a managed 3.13 build on its own.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -46,9 +46,11 @@ source $HOME/.local/bin/env       # or reopen the terminal
 uv --version
 ```
 
+> If the script is blocked by the network, fall back to `pip install uv` (on Ubuntu the system pip may first need `sudo apt-get install -y python3-pip`).
+>
 > You can also compile 3.13 yourself, or use the deadsnakes PPA (Ubuntu): `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.13 python3.13-venv`.
 >
-> The version requirement is fixed at **3.10 – 3.13**: 3.14 will not install — the meme engine pins `Pillow ^10.0.0`, and Pillow 10.x has no 3.14 wheel.
+> The version requirement is fixed at **3.10 – 3.13**: 3.14 will not install, because the meme engine pins `Pillow ^10.0.0` and Pillow 10.x has no 3.14 wheel.
 
 ---
 
@@ -57,7 +59,7 @@ uv --version
 ```bash
 sudo mkdir -p /opt/ilbb-bot
 sudo chown "$USER" /opt/ilbb-bot
-git clone -b beta https://github.com/<your-username>/<repo-name>.git /opt/ilbb-bot
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git /opt/ilbb-bot
 cd /opt/ilbb-bot
 ```
 
@@ -73,17 +75,11 @@ uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
 
-If you don't use uv, here is the equivalent native approach:
-
-```bash
-python3.13 -m venv .venv
-./.venv/bin/pip install -U pip
-./.venv/bin/pip install flask requests pillow websockets "skia-python~=144.0" numpy
-```
+`uv pip install` resolves the `.venv` in the current directory by default, so running it from the project root will not install anywhere unexpected. To see what went in, use `uv pip list`.
 
 **The meme engine does not need to be installed**: the source code in `vendor/meme-generator-main/` is automatically attached to the module search path when the program starts.
 
-> If you see an editable-install record in `pip freeze` such as `-e /old-path/vendor/meme-generator-main` pointing to an old machine, you can clean it up with `pip uninstall meme-generator`; leaving it also does no harm.
+> If you see an editable-install record in `uv pip list` such as `-e /old-path/vendor/meme-generator-main` pointing to an old machine, you can clean it up with `uv pip uninstall meme-generator`; leaving it also does no harm.
 
 ---
 
@@ -122,7 +118,7 @@ Open `http://<server-IP>:5000` in your browser; it will enter the `/setup` wizar
 ### Using gunicorn to handle concurrency
 
 ```bash
-./.venv/bin/pip install gunicorn
+uv pip install gunicorn
 ./.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
 ```
 
@@ -196,11 +192,11 @@ The system is missing a library; install it as prompted:
 sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 ```
 
-**`pip install skia-python` reports no matching version**
-Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no 3.14 wheel); ② the Python running is 32-bit (`python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available — in that case you have to switch to arm64 or x86_64.
+**`uv pip install skia-python` reports no matching version**
+Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no 3.14 wheel); ② the Python running is 32-bit (`./.venv/bin/python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available, in which case you have to switch to arm64 or x86_64. As a last resort, rebuild the environment with `uv venv --python 3.13 --clear` and reinstall.
 
 **The setup wizard keeps showing missing dependencies**
-You are not using the project's own Python. Make sure the command includes the `./.venv/bin/` prefix.
+The packages did not land in this project's `.venv`. Run `uv pip list` in the project root to check what is actually there, then reinstall the six packages with `uv pip install`.
 
 **The path has spaces or Chinese characters, causing import errors**
 Move the project to a clean path like `/opt/ilbb-bot`.
@@ -216,7 +212,7 @@ Delete `api_keys.json` and restart; it will be regenerated and printed.
 
 ---
 
-## Post-install self-check (optional)
+## Post-install verification (optional)
 
 ```bash
 ./.venv/bin/python -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"

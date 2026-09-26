@@ -9,7 +9,7 @@
  *   POST /api/setup/assets/cancel       取消下载
  *   GET  /api/setup/config              配置表单（白名单）
  *   POST /api/setup/config              保存配置（写 .env + 热重载）
- *   POST /api/setup/complete            完成引导（首次运行可顺带设管理密码）
+ *   POST /api/setup/complete            完成引导（管理密码未确认时可顺带设置）
  *   POST /api/setup/skip                跳过（what=assets|all）
  */
 (function () {
@@ -173,7 +173,7 @@
         h += envRow('可识别表情数', (c.meme_count >= 0 ? c.meme_count + ' 个' : '读取失败'), false);
         h += envRow('素材目录', c.asset_dir || '—', false);
         h += envRow('配置文件', (c.env_file || '—') + (c.env_file_exists ? '' : '（尚未生成，保存配置后可创建）'), false);
-        h += envRow('管理密码', c.admin_password_set ? '已设置' : '未设置（首次运行）', false);
+        h += envRow('管理密码', c.admin_pwd_pending ? '临时密码（待你设置）' : '已设置', false);
         h += '</div>';
 
         $('envBox').innerHTML = h;
@@ -540,7 +540,7 @@
         var a = st.assets || {};
         var sums = [];
 
-        sums.push(['管理密码', st.first_run ? (st.logged_in ? '已在本次引导设置' : '未设置（将用启动时控制台打印的随机密码）') : '已设置']);
+        sums.push(['管理密码', st.admin_pwd_pending ? '待设置（当前只有临时密码）' : '已设置']);
         sums.push(['Meme 素材', a.complete
             ? ('完整（' + (Number(a.present) || 0) + ' 个）')
             : ('缺失 ' + (Number(a.missing) || 0) + ' / 损坏 ' + (Number(a.broken) || 0) + '（可稍后补全）')]);
@@ -554,9 +554,9 @@
         });
         $('doneSum').innerHTML = h;
 
-        $('pwdWrap').style.display = st.first_run ? '' : 'none';
-        if (st.first_run) {
-            $('doneSub').textContent = '建议先设一个管理密码，然后完成引导。';
+        $('pwdWrap').style.display = st.admin_pwd_pending ? '' : 'none';
+        if (st.admin_pwd_pending) {
+            $('doneSub').textContent = '先把管理密码设成你自己的，再完成引导。';
         } else {
             $('doneSub').textContent = '确认下面的信息，然后完成引导。';
         }
@@ -575,14 +575,13 @@
     function finish() {
         if (S.busy) return;
         var body = {};
-        if (S.state && S.state.first_run) {
+        if (S.state && S.state.admin_pwd_pending) {
             var p1 = ($('pwd1').value || '').trim();
             var p2 = ($('pwd2').value || '').trim();
-            if (p1 || p2) {
-                if (p1.length < 4) return toast('管理密码至少 4 位', 'err');
-                if (p1 !== p2) return toast('两次输入的密码不一致', 'err');
-                body.admin_password = p1;
-            }
+            if (!p1) return toast('请先设置管理密码', 'err');
+            if (p1.length < 4) return toast('管理密码至少 4 位', 'err');
+            if (p1 !== p2) return toast('两次输入的密码不一致', 'err');
+            body.admin_password = p1;
         }
 
         S.busy = true;
@@ -597,7 +596,10 @@
                 S.state.reason = '';
                 if (r.state) { S.state.assets_ok = r.state.assets_ok; }
                 if (r.assets) S.state.assets = r.assets;
-                if (r.admin_password_set) S.state.logged_in = true;
+                if (r.admin_password_set) {
+                    S.state.logged_in = true;
+                    S.state.admin_pwd_pending = false;   // 密码已转正，面板收起
+                }
             }
             if (r.assets) renderAssets(r.assets);
             renderDone();
@@ -793,8 +795,10 @@
 
         api('/state', {}, 25000).then(function (st) {
             S.state = st || {};
-            if (S.state.first_run) {
-                $('hdSub').textContent = '首次运行：跟着三步走，机器人就能跑起来。';
+            if (S.state.admin_pwd_pending) {
+                $('hdSub').textContent = S.state.completed
+                    ? '管理密码还没设成你自己的，先设一个。'
+                    : '首次运行：跟着四步走，最后设一个属于你自己的管理密码。';
             } else if (S.state.reason === 'assets') {
                 $('hdSub').textContent = '检测到 Meme 素材不完整，先把它补全。';
             } else {

@@ -3,6 +3,8 @@
 数据文件：api_keys.json
 {
   "admin_hash": "<werkzeug password hash>",
+  "admin_pwd_source": "user | auto | env",
+  "admin_temp_pwd": "<待确认期间的临时密码明文，确认后即删>",
   "keys": [
     {"key":"sk-...","name":"...","created":123,"enabled":true,"last_used":null}
   ]
@@ -41,14 +43,58 @@ def _save(data):
 
 
 # ---------- 管理后台密码 ----------
+# admin_pwd_source 记录密码来历，只有 user 才算「用户自己确认过」：
+#   user = 用户在引导页或「设置 → 修改密码」里设的
+#   env  = 启动时取自 .env 的 INIT_ADMIN_PASSWORD
+#   auto = 启动时随机生成的临时密码
+# 后两种都算「待确认」：临时密码明文记在 admin_temp_pwd 里，每次启动都会重新打印，
+# 用户错过一次不至于被永久锁在门外；用户确认后这块明文立刻抹掉。
 def has_admin_password():
     return bool(_load().get("admin_hash"))
 
 
-def set_admin_password(password):
+def admin_password_source():
+    """密码来历：user=用户自己设过；auto=启动时随机生成；env=取自 .env 的初始值。
+
+    没有密码时返回空串。老数据没有这个字段，按 auto 处理。
+    """
+    d = _load()
+    if not d.get("admin_hash"):
+        return ""
+    return str(d.get("admin_pwd_source") or "auto")
+
+
+def admin_password_pending():
+    """密码还没被用户确认过。
+
+    启动时总会把初始密码写进去（随机生成或取自 .env），只认「有没有哈希」会把
+    这种密码当成已设置好的：用户没记下终端里那串随机密码就再也进不去后台，
+    引导页也不再让设。所以这里只认 user 来源。
+    """
+    return admin_password_source() != "user"
+
+
+def admin_temp_password():
+    """待确认期间那枚临时密码的明文；已确认（或没有密码）时返回空串。"""
+    if not admin_password_pending():
+        return ""
+    return str(_load().get("admin_temp_pwd") or "")
+
+
+def set_admin_password(password, source="user"):
+    """写入管理密码。
+
+    source=user 会抹掉临时密码明文；其余来源把它记下来，下次启动好再打印一遍。
+    """
+    src = str(source or "user")
     with _lock:
         data = _load()
         data["admin_hash"] = generate_password_hash(password)
+        data["admin_pwd_source"] = src
+        if src == "user":
+            data.pop("admin_temp_pwd", None)
+        else:
+            data["admin_temp_pwd"] = str(password)
         _save(data)
 
 

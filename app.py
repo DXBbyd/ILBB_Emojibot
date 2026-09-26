@@ -31,8 +31,10 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # ==================== 管理密码（持久化） ====================
 # 密码保存在 api_keys.json 的 admin_hash 中，服务重启后保持不变。
-# 初始密码来源：.env 的 INIT_ADMIN_PASSWORD（留空则随机生成并打印到日志）；
-# 之后可在 设置→修改密码 中更换。
+# 只有「用户在界面上自己设的」密码算数：启动时随机生成（或取自 .env 的
+# INIT_ADMIN_PASSWORD）的那枚只算临时密码，明文留在 api_keys.json 里，
+# 每次启动都重新打印一遍，用户错过一次也不会被锁在门外。
+# 用户确认后（引导页第 4 步或 设置→修改密码）临时密码作废，终端不再打印。
 import random
 import string
 
@@ -42,18 +44,18 @@ def _gen_admin_pwd(n=8):
     return ''.join(random.SystemRandom().choice(alph) for _ in range(n))
 
 
-# 是否「首次运行」：本次启动时还没有管理密码。
-# 引导页（/setup）据此判断要不要走「首次配置」流程，必须在写入初始密码前取。
-FIRST_RUN = not api_key_store.has_admin_password()
-
-if not api_key_store.has_admin_password():
+if api_key_store.admin_password_pending():
     _from_env = config.INIT_ADMIN_PASSWORD.strip()
-    _init_pwd = _from_env or _gen_admin_pwd()
-    api_key_store.set_admin_password(_init_pwd)
+    _init_pwd = api_key_store.admin_temp_password() or _from_env or _gen_admin_pwd()
+    _init_src = "env" if _from_env else "auto"
+    api_key_store.set_admin_password(_init_pwd, source=_init_src)
     print('=' * 56, flush=True)
-    print('[管理后台] 首次运行，初始管理密码: ' + _init_pwd, flush=True)
-    print('[管理后台] 来源: ' + ('config.INIT_ADMIN_PASSWORD（.env）' if _from_env else '本次随机生成'), flush=True)
-    print('[管理后台] 请复制保存；之后可用其登录，并可在 设置→修改密码 中更换', flush=True)
+    if _init_src == "env":
+        print('[管理后台] 管理密码取自 .env 的 INIT_ADMIN_PASSWORD，你还没有在界面上确认过', flush=True)
+    else:
+        print('[管理后台] 临时管理密码: ' + _init_pwd + '（本次随机生成，重启后会再次打印）', flush=True)
+    print('[管理后台] 打开 http://<本机IP>:' + str(config.WEB_PORT) + '/setup 设一个你自己的管理密码', flush=True)
+    print('[管理后台] 设好后这枚临时密码作废，之后可在 设置→修改密码 中更换', flush=True)
     print('=' * 56, flush=True)
 else:
     print('[管理后台] 使用已保存的管理密码登录（服务重启保持不变，可在 设置→修改密码 中更换）', flush=True)
@@ -813,10 +815,14 @@ def background_reset():
 
 @app.route('/')
 def index():
-    # 首次运行 / 素材缺失 / 引导未完成 → 先去引导页（/setup）
+    # 管理密码待确认 / 引导未完成 / 素材缺失 → 先去引导页（/setup）
     _need, _why = _setup_needed()
     if _need:
-        return redirect('/setup' + ('' if _why != 'assets' else '?step=assets'))
+        if _why == 'assets':
+            return redirect('/setup?step=assets')
+        if _why == 'password':
+            return redirect('/setup?step=4')   # 直接落到「设置管理密码」那一步
+        return redirect('/setup')
     # 工作台受管理密码保护（密码每次启动随机生成，见启动日志）
     if not session.get('admin_ok'):
         return render_template('lock.html')
@@ -2173,14 +2179,15 @@ def _setup_state_read():
             st.update(d)
     except Exception:
         pass
-    st["first_run"] = bool(FIRST_RUN)      # 以本次进程为准，不信任磁盘上的旧值
+    # 管理密码是否待确认以 api_keys.json 为准，不信磁盘上的旧值
+    st["admin_pwd_pending"] = api_key_store.admin_password_pending()
     return st
 
 
 def _setup_state_write(patch):
     """增量写引导状态，返回写后的完整状态。"""
     st = _setup_state_read()
-    st.pop("first_run", None)
+    st.pop("admin_pwd_pending", None)
     st.update(patch or {})
     try:
         tmp = SETUP_STATE_PATH + ".tmp"
@@ -2189,15 +2196,21 @@ def _setup_state_write(patch):
         os.replace(tmp, SETUP_STATE_PATH)
     except Exception as e:
         print(f"[setup] 写引导状态失败: {e}", flush=True)
-    st["first_run"] = bool(FIRST_RUN)
+    st["admin_pwd_pending"] = api_key_store.admin_password_pending()
     return st
 
 
 def _setup_needed():
-    """返回 (是否需要引导, 原因)。原因取值 first_run / setup / assets / ''。"""
+    """返回 (是否需要引导, 原因)。原因取值 password / setup / assets / ''。
+
+    管理密码还没被用户确认过就先回引导页：引导页第 4 步是唯一能把密码设成
+    「自己的」入口，用户错过终端里那串临时密码时只能靠它进来。
+    """
     st = _setup_state_read()
+    if api_key_store.admin_password_pending():
+        return True, ("password" if st.get("completed") else "setup")
     if not st.get("completed"):
-        return True, ("first_run" if FIRST_RUN else "setup")
+        return True, "setup"
     if not st.get("assets_ok") and not st.get("assets_ack"):
         return True, "assets"
     return False, ""
@@ -2255,7 +2268,8 @@ def _setup_env_check():
         "asset_dir": meme_assets.asset_dir(),
         "meme_count": meme_count,
         "admin_password_set": api_key_store.has_admin_password(),
-        "first_run": bool(FIRST_RUN),
+        "admin_pwd_pending": api_key_store.admin_password_pending(),
+        "admin_pwd_source": api_key_store.admin_password_source(),
         "env_file": config.ENV_FILE,
         "env_file_exists": os.path.isfile(config.ENV_FILE),
     }
@@ -2308,7 +2322,8 @@ def setup_state_api():
         "ok": True,
         "needed": needed,
         "reason": why,
-        "first_run": bool(FIRST_RUN),
+        "admin_pwd_pending": api_key_store.admin_password_pending(),
+        "admin_pwd_source": api_key_store.admin_password_source(),
         "completed": bool(st.get("completed")),
         "assets_ok": bool(st.get("assets_ok")),
         "assets_ack": bool(st.get("assets_ack")),
@@ -2380,7 +2395,8 @@ def setup_assets_cancel_api():
 def setup_config_get_api():
     """引导页配置表单（仅白名单键）。"""
     return jsonify({"ok": True, "groups": _setup_config_schema(),
-                    "state": _setup_state_read(), "first_run": bool(FIRST_RUN),
+                    "state": _setup_state_read(),
+                    "admin_pwd_pending": api_key_store.admin_password_pending(),
                     "env_file": config.ENV_FILE,
                     "env_file_exists": os.path.isfile(config.ENV_FILE)})
 
@@ -2403,13 +2419,13 @@ def setup_config_save_api():
 
 @app.route('/api/setup/complete', methods=['POST'])
 def setup_complete_api():
-    """完成引导。可顺带设置管理密码（仅首次运行允许，避免任何人改密码）。"""
+    """完成引导。可顺带设置管理密码（密码还没被确认过时才允许，避免任何人随时改密码）。"""
     d = request.get_json(silent=True) or {}
     payload = {"ok": True}
     newpwd = str(d.get("admin_password") or "").strip()
     if newpwd:
-        if not FIRST_RUN:
-            return jsonify({"ok": False, "error": "非首次运行，请到「设置」里修改密码"}), 403
+        if not api_key_store.admin_password_pending():
+            return jsonify({"ok": False, "error": "管理密码已设置过，请到「设置」里修改"}), 403
         if len(newpwd) < 4:
             return jsonify({"ok": False, "error": "管理密码至少 4 位"}), 400
         api_key_store.set_admin_password(newpwd)

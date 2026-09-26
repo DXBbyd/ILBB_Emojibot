@@ -123,6 +123,7 @@
 
         /* 右下角系统信息 */
         .sysinfo { position: fixed; right: 26px; bottom: 18px; font-size: 12px; color: #fff; text-shadow: 0 1px 12px rgba(0,0,0,.6); z-index: 4; }
+        .sysinfo a { color: #cfe0ff; text-decoration: underline; }
 
         /* ===== 主页容器（后台 iframe） ===== */
         .app-frame-wrap {
@@ -189,7 +190,7 @@
         </form>
     </div>
 
-    <div class="sysinfo">ILBB Emoji Bot · 工作台受密码保护</div>
+    <div class="sysinfo" id="sysinfo">ILBB Emoji Bot · 工作台受密码保护</div>
 
     <script src="{{ url_for('static', filename='js/bg.js') }}"></script>
     <script>
@@ -251,6 +252,13 @@
                 }, 950);
             }
         });
+
+        // 管理密码还没被用户确认过时（例如直接打开了这个页面），在右下角给一条去引导页的退路
+        fetch('/api/setup/state').then(function (r) { return r.json(); }).then(function (st) {
+            if (!st || !st.admin_pwd_pending) return;
+            document.getElementById('sysinfo').innerHTML =
+                'ILBB Emoji Bot · 管理密码还没设置，<a href="/setup?step=4">去引导页设置</a>';
+        }).catch(function () {});
 
         lockForm.addEventListener('submit', function (e) {
             e.preventDefault();

@@ -118,34 +118,31 @@ def get_available_fonts():
 
 
 def load_font(font_key, size):
-    """加载字体"""
-    font_path = os.path.join(FONT_DIR, font_key)
-    if os.path.exists(font_path):
-        try:
-            return ImageFont.truetype(font_path, size)
-        except Exception as e:
-            print(f"加载字体 {font_key} 失败: {e}")
+    """加载字体。
 
-    if os.path.exists(font_key):
-        try:
-            return ImageFont.truetype(font_key, size)
-        except:
-            pass
+    查找顺序统一交给 core.bot_render.font()：指定字体（font/ 下的文件名或绝对路径）
+    → 全局字体 → Windows 字体 → 项目 font/ 目录 → 带 size 的 PIL 默认字体。
+    这里不再自己拼 Windows 字体路径 —— 那套在 Linux 上会一路落空，最后拿到
+    既没有中文字形、又不带 size 的 ImageFont.load_default()，配对卡上的中文就被画成
+    极小方块，看上去像乱码。
+    """
+    try:
+        if bot_render is not None:
+            return bot_render.font(int(size), family=font_key)
+    except Exception as e:
+        print(f"加载字体 {font_key} 失败: {e}")
 
-    system_paths = [
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-        "C:/Windows/Fonts/simsun.ttc",
-        "C:/Windows/Fonts/arial.ttf"
-    ]
-    for path in system_paths:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except:
-                continue
-
-    return ImageFont.load_default()
+    # bot_render 不可用时的兜底：项目 font/ 目录，最后才用带 size 的默认字体
+    try:
+        for fn in sorted(os.listdir(FONT_DIR)):
+            if fn.lower().endswith(('.ttf', '.ttc', '.otf')):
+                return ImageFont.truetype(os.path.join(FONT_DIR, fn), size)
+    except Exception:
+        pass
+    try:
+        return ImageFont.load_default(size=size)
+    except Exception:
+        return ImageFont.load_default()
 
 
 def get_qq_info(qq_number):
@@ -591,12 +588,17 @@ DEFAULT_BG_COLORS = {
 }
 
 
+# 卡片绘制版本号：改了字体或版式后 +1。
+# 缓存键里带上它，群里和 WebUI 的旧缓存图才会失效重绘（对齐 bot_render.RENDER_VERSION 的做法）。
+CARD_RENDER_VERSION = 2
+
+
 def generate_cache_key(qq_number, title_text, btn_text, font_key, template, bg_config, buttons_meta=None):
     """生成缓存键（包含模板、背景与按钮配置）"""
     bg_json = json.dumps(bg_config or {}, sort_keys=True)
     bt = buttons_meta if buttons_meta else [{'type': 'text', 'text': btn_text, 'icon': ''}]
     bt_json = json.dumps(bt, ensure_ascii=False, sort_keys=True)
-    content = f"{qq_number}|{title_text}|{font_key}|{template}|{bg_json}|{bt_json}"
+    content = f"{qq_number}|{title_text}|{font_key}|{template}|{bg_json}|{bt_json}|v{CARD_RENDER_VERSION}"
     return hashlib.md5(content.encode('utf-8')).hexdigest()
 
 

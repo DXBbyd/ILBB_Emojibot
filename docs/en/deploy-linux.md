@@ -222,4 +222,18 @@ Run this from the project root. The `sys.path.insert` part attaches the vendored
 
 ---
 
+## Connect NapCat
+
+A running service is only the first step. In NapCat's (NC) network settings, add a reverse WebSocket entry pointing at `ws://<this machine's LAN IP>:6700/onebot/v11/ws`, set the message format to `array`, and keep the Token aligned with `WS_ACCESS_TOKEN` in `.env` (leave it empty if you never set one).
+
+Find the LAN IP with `ip -4 addr show` or `hostname -I`, and open port 6700:
+
+```bash
+sudo ufw allow 6700/tcp
+```
+
+After saving, go back to the real-time event stream in the ILBB admin panel — a connection count of 1 means it is through. Full steps and troubleshooting are in [Platform Integration](platform-integration.md).
+
+---
+
 [Back to docs home](index.md) ｜ [中文](../zh/deploy-linux.md)

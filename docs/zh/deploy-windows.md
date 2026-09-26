@@ -207,3 +207,17 @@ pause
 ```
 
 这条要在项目根目录跑，`sys.path.insert` 那一段是把 vendor 里的引擎挂进来——只有 `app.py` 启动时才会自动挂，独立跑一条命令得自己补。打印出 `deps OK, meme count: 295` 一类的数字就基本稳了。更全面的检查直接看引导页第 1 步（还会检查 `cache` / `temp` / `font` / 背景图目录、Python 版本、引擎版本、可识别表情数、管理密码状态）。
+
+---
+
+## 连上 NapCat
+
+服务起来只是第一步。在 NapCat（NC）的网络配置里新增一项「反向 WebSocket」，URL 填 `ws://<这台机器内网 IP>:6700/onebot/v11/ws`，消息格式选 `array`，Token 与 `.env` 里的 `WS_ACCESS_TOKEN` 对齐（没设就留空）。
+
+查内网 IP 用 `ipconfig`（找形如 `192.168.x.x` 的 IPv4），6700 端口按管理员 PowerShell 放行：
+
+```powershell
+New-NetFirewallRule -DisplayName "ILBB OneBot 6700" -Direction Inbound -Protocol TCP -LocalPort 6700 -Action Allow
+```
+
+保存后回到 ILBB 后台的实时事件流，连接数变成 1 就说明通了。完整步骤和连不上的排查见 [消息平台对接](platform-integration.md)。

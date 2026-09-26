@@ -168,4 +168,10 @@ uv pip install -r requirements.txt      # 大概率卡在 skia-python
 
 ---
 
+## 七、连上 NapCat
+
+跑到这里服务已经起来了，还差最后一步：把 NapCat（NC）接上，机器人才会在 QQ 里收消息。手机和 NapCat 所在机器要在同一局域网，然后在 NapCat 的网络配置里新增一项「反向 WebSocket」，URL 填 `ws://<手机IP>:6700/onebot/v11/ws`，消息格式选 `array`。
+
+手机 IP 用 `ip -4 addr show | grep inet` 查。完整步骤和连不上的排查见 [消息平台对接](platform-integration.md)。
+
 如果你在这条路线上踩到了坑，或者成功跑通了，欢迎反馈具体机型、Android 版本、Termux 来源和报错信息，能帮后面的人省很多时间。

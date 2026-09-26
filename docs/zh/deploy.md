@@ -73,6 +73,6 @@ uv pip install -r requirements.txt
 
 ---
 
-## 跑起来之后
+## 连上 NapCat
 
-服务起得来只是第一步，接着看 [消息平台对接](platform-integration.md) 把 NapCat 连上，机器人才能在 QQ 里干活。指令怎么用看 [指令手册](commands.md)，配置项含义看 [配置参考](configuration.md)；想给项目加功能，看 [插件开发指南](plugin-dev.md)。
+服务起得来只是第一步。在 NapCat（NC）的网络配置里新增一项「反向 WebSocket」，URL 填 `ws://<ILBB 机器 IP>:6700/onebot/v11/ws`，消息格式选 `array`，Token 与 `.env` 里的 `WS_ACCESS_TOKEN` 对齐（没设就留空），并在防火墙上放行 6700——这些都做完，机器人才会在 QQ 里收消息。完整步骤和连不上的排查见 [消息平台对接](platform-integration.md)。

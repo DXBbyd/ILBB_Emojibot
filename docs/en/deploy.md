@@ -73,6 +73,6 @@ Every `.env` option has a default, so you can leave the file alone and configure
 
 ---
 
-## After it is running
+## Connect NapCat
 
-A running service is only the first step. Follow [Platform Integration](platform-integration.md) to connect NapCat so the bot can actually work in QQ. For command usage see the [Command Manual](commands.md), for what each option means see [Configuration](configuration.md), and if you want to extend the project see the [Plugin Development Guide](plugin-dev.md).
+A running service is only the first step. In NapCat's (NC) network settings, add a reverse WebSocket entry pointing at `ws://<ILBB machine IP>:6700/onebot/v11/ws`, set the message format to `array`, keep the Token aligned with `WS_ACCESS_TOKEN` in `.env` (leave it empty if you never set one), and open port 6700 in the firewall — only then does the bot receive messages in QQ. Full steps and connection troubleshooting are in [Platform Integration](platform-integration.md).

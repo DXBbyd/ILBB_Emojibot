@@ -219,3 +219,17 @@ uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py`
 ```
 
 这条要在项目根目录跑，`sys.path.insert` 那一段是把 vendor 里的引擎挂进来——只有 `app.py` 启动时才会自动挂，独立跑一条命令得自己补。打印出 `deps OK, meme count: 295` 一类的数字就算过。更全面的检查看引导页第 1 步。
+
+---
+
+## 连上 NapCat
+
+服务起来只是第一步。在 NapCat（NC）的网络配置里新增一项「反向 WebSocket」，URL 填 `ws://<这台机器内网 IP>:6700/onebot/v11/ws`，消息格式选 `array`，Token 与 `.env` 里的 `WS_ACCESS_TOKEN` 对齐（没设就留空）。
+
+查内网 IP 用 `ip -4 addr show` 或 `hostname -I`，6700 端口放行：
+
+```bash
+sudo ufw allow 6700/tcp
+```
+
+保存后回到 ILBB 后台的实时事件流，连接数变成 1 就说明通了。完整步骤和连不上的排查见 [消息平台对接](platform-integration.md)。

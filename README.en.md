@@ -2,7 +2,7 @@
 
 [中文](README.md) ｜ **English**
 
-> **Current version: v0.1.0-beta** ｜ Release branch: `beta` ｜ Beta stage: features and interfaces may still change.
+> **Current version: v0.2.0-beta** ｜ Release branch: `beta` ｜ Beta stage: features and interfaces may still change.
 
 A **self-hosted** QQ sticker generator bot plus a web workbench. Hook it up to NapCat (OneBot V11) and your group chats can generate memes with a single message — while the web UI gives you a pairing-card generator, quote-image composer, asset browser, API debugger and a plugin system.
 
@@ -237,7 +237,19 @@ Every startup prints the password currently in effect: until you set your own, t
 
 ## License & Attribution
 
-- The meme composition engine comes from [MeetWq/meme-generator](https://github.com/MeetWq/meme-generator) (MIT) and is bundled at `vendor/meme-generator-main`.
-- Asset copyrights belong to their respective authors. This project only provides technical integration; please do not use it commercially.
+Released under the **[MIT License](LICENSE)**. Beyond its own code, the repository bundles or integrates the following external projects:
 
-Released under the **[MIT License](LICENSE)**.
+| Project | Role in ILBB | Link |
+| --- | --- | --- |
+| meme-generator | The meme rendering engine, bundled at `vendor/meme-generator-main` (0.1.14); the fonts and asset manifest used for rendering live here too | [MemeCrafters/meme-generator](https://github.com/MemeCrafters/meme-generator) (MIT; originally by MeetWq, [old repo](https://github.com/MeetWq/meme-generator)) |
+| NapCat | The protocol side: logs in to QQ and connects back to ILBB over a reverse WebSocket | [NapNeko/NapCatQQ](https://github.com/NapNeko/NapCatQQ) ｜ [docs](https://napneko.github.io/) |
+| OneBot V11 | The message protocol between ILBB and the protocol side | [botuniverse/onebot](https://github.com/botuniverse/onebot) |
+| uv | Creates the virtual environment and installs dependencies (used in place of pip throughout the deployment docs) | [astral-sh/uv](https://github.com/astral-sh/uv) |
+
+Other external resources in play:
+
+- The meme assets (~254 MB) are not committed. The setup wizard pulls them on first run from mirrors of the meme-generator repository (jsDelivr, raw.githubusercontent and similar), with the candidate URLs listed in `core/meme_assets.py`. Those assets originate from [nonebot-plugin-petpet](https://github.com/noneplugin/nonebot-plugin-petpet) and [nonebot-plugin-memes](https://github.com/noneplugin/nonebot-plugin-memes).
+- Quote images and the login page / workbench background call a third-party random image API by default, `BG_API_URL` (`https://api.yppp.net/api.php`). Point it elsewhere in `.env`, or serve your own cached images instead.
+- The plugin store points at a companion plugin source server by default, `PLUGIN_STORE_URL` (`http://zako.zh.kg:5050`). It supplies the plugin list and repository URLs; the actual code is still cloned from GitHub. Point it at your own instance, or turn the store off with `PLUGIN_STORE_ENABLED=false`.
+- The three fonts under `font/`, plus the fonts shipped with the engine, are used only to render pairing cards and quote images. Copyright belongs to their respective authors, so check the licence before any commercial use.
+- Python dependencies are listed in `requirements.txt` (Flask, Pillow, skia-python, pil-utils, FastAPI and more), each under its own licence. Asset copyrights belong to their respective authors; this project only provides technical integration, so please do not use it commercially.

@@ -43,7 +43,7 @@ git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git
 cd ILBB_Emojibot
 ```
 
-> 当前发布在 `beta` 分支（v0.1.0-beta）。仓库不含 meme 素材（约 254MB），首次启动由引导页联网补全。
+> 当前发布在 `beta` 分支（v0.2.0-beta）。仓库不含 meme 素材（约 254MB），首次启动由引导页联网补全。
 
 没有 git 的话，直接在 GitHub 页面点 `Code → Download ZIP` 解压也行。
 

@@ -2,7 +2,7 @@
 
 **中文** ｜ [English](README.en.md)
 
-> **当前版本：v0.1.0-beta** ｜ 发布分支：`beta` ｜ 处于 Beta 阶段，功能与接口仍可能调整。
+> **当前版本：v0.2.0-beta** ｜ 发布分支：`beta` ｜ 处于 Beta 阶段，功能与接口仍可能调整。
 
 一个**自托管**的 QQ 表情包生成机器人 + Web 工作台：接上 NapCat（OneBot V11）就能在群聊/私聊里用一句话合成表情包，同时提供网页端配对卡生成、名言图合成、素材浏览、接口调试与插件系统。
 
@@ -237,7 +237,19 @@ def setup(ctx):
 
 ## 许可与来源
 
-- 表情合成引擎来自 [MeetWq/meme-generator](https://github.com/MeetWq/meme-generator)（MIT），本项目以 `vendor/meme-generator-main` 形式内置。
-- 素材版权归各自原作者所有；本项目仅做技术集成，请勿用于商业用途。
+本项目采用 **[MIT License](LICENSE)** 开源。除自研代码外，仓库还内置或对接了这些外部项目：
 
-本项目采用 **[MIT License](LICENSE)** 开源。
+| 项目 | 在 ILBB 里的角色 | 地址 |
+| --- | --- | --- |
+| meme-generator | 表情合成引擎，源码内置在 `vendor/meme-generator-main`（0.1.14），渲染用到的字体与素材清单也来自这里 | [MemeCrafters/meme-generator](https://github.com/MemeCrafters/meme-generator)（MIT；原作者 MeetWq，[原仓库](https://github.com/MeetWq/meme-generator)） |
+| NapCat | 协议端：登录 QQ，并以反向 WebSocket 连进 ILBB | [NapNeko/NapCatQQ](https://github.com/NapNeko/NapCatQQ) ｜ [官方文档](https://napneko.github.io/) |
+| OneBot V11 | ILBB 与协议端之间的消息协议 | [botuniverse/onebot](https://github.com/botuniverse/onebot) |
+| uv | 建虚拟环境、装依赖的工具（部署文档里用它替代 pip） | [astral-sh/uv](https://github.com/astral-sh/uv) |
+
+另外几处用到的外部资源：
+
+- 表情素材（约 254MB）不入库，首次启动由引导页从 meme-generator 仓库的 jsDelivr、raw.githubusercontent 等镜像拉取，候选地址写在 `core/meme_assets.py`。这批素材整合自 [nonebot-plugin-petpet](https://github.com/noneplugin/nonebot-plugin-petpet) 与 [nonebot-plugin-memes](https://github.com/noneplugin/nonebot-plugin-memes)。
+- 名言图、登录页与工作台的随机背景默认调用第三方接口 `BG_API_URL`（`https://api.yppp.net/api.php`）。想换就改 `.env`，或者改指自己缓存好的图。
+- 插件商店默认指向配套的插件源服务器 `PLUGIN_STORE_URL`（`http://zako.zh.kg:5050`），它给出插件清单与仓库地址，真正的代码仍从 GitHub 克隆；可以换成自建实例，或用 `PLUGIN_STORE_ENABLED=false` 关掉。
+- `font/` 下的三款字体与引擎自带字体只用于配对卡、名言图渲染，版权归各字体作者，商用前请自行确认授权。
+- Python 依赖见 `requirements.txt`（Flask、Pillow、skia-python、pil-utils、FastAPI 等），各自遵循其原始开源许可。表情素材的版权归各自原作者，本项目只做技术集成，请勿用于商业用途。

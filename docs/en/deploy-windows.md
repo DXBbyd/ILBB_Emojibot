@@ -43,7 +43,7 @@ git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git
 cd ILBB_Emojibot
 ```
 
-> Current release lives on the **`beta`** branch (v0.1.0-beta). The repository does not include the meme assets (~254 MB); the setup wizard downloads them on first run.
+> Current release lives on the **`beta`** branch (v0.2.0-beta). The repository does not include the meme assets (~254 MB); the setup wizard downloads them on first run.
 
 If you don't have git, you can also just click `Code → Download ZIP` on the GitHub page and extract it.
 

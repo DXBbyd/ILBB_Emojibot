@@ -94,12 +94,20 @@
         }
         h += '</div>';
 
+        var eg = (d.fonts && d.fonts.engine) || {};
         h += '<div class="status-card"><h3>字体 (' + fontFiles.length + ')</h3>';
+        h += '<div class="status-row"><span class="k">表情合成 · 中文字形</span><span class="v" data-f="font_cjk">' +
+             (eg.error ? '未能探测' : (eg.cjk_ok ? esc(eg.cjk_family || '可用') : '缺失')) + '</span></div>';
+        h += '<div class="status-row"><span class="k">表情合成 · 拉丁字形</span><span class="v" data-f="font_latin">' +
+             (eg.latin_ok ? '可用' : '缺失') + '</span></div>';
+        h += '<div class="status-row"><span class="k">项目字体（配对卡/名言图）</span><span class="v" data-f="font_proj">' +
+             fontFiles.length + ' 个</span></div>';
         if (!fontFiles.length) {
             h += '<div class="status-row"><span class="k">无可用字体</span><span class="v">-</span></div>';
         } else {
             fontFiles.forEach(function (f) { h += '<div class="status-row"><span class="k">' + esc(f) + '</span><span class="v">✓</span></div>'; });
         }
+        if (d.fonts && d.fonts.hint) h += '<div class="status-row"><span class="k">提示</span><span class="v">' + esc(d.fonts.hint) + '</span></div>';
         h += '</div></div>';
 
         el.innerHTML = h;

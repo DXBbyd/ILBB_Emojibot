@@ -15,7 +15,7 @@
 | 架构 | x86_64 / arm64 | 32 位（armv7 / i386）装不了 `skia-python` |
 | Python | **3.10 – 3.13，推荐 3.13** | 版本写死：`skia-python`、`Pillow` 等只发预编译 wheel，版本对不上直接装不上。**3.14 暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，10.x 没有 3.14 的 wheel） |
 | 磁盘 | ≥ 2 GB | 项目 + venv + 素材 |
-| 系统库 | fontconfig、libGL、libEGL、libjpeg | 缺了运行时会报缺 `.so` |
+| 系统库与字体 | fontconfig、libGL、libEGL、libjpeg、一套中文字体 | 缺库会报缺 `.so`；缺中文字体则让合成的表情出现方块 |
 | 路径 | **无空格、无中文** | 推荐 `/root/ilbb-bot` |
 | 端口 | 5000、6700 | 5000 = 工作台，6700 = OneBot V11 |
 
@@ -30,11 +30,16 @@ sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
 
 `libegl1` 不能省：`skia-python` 从 138 版起在 Linux 上硬性依赖 `libEGL.so.1`，没有它启动就会报 `ImportError: libEGL.so.1: cannot open shared object file`。无头服务器还建议补上 `libgl1-mesa-dri`，让 OpenGL 能走 mesa 软件渲染兜底。
 
-中文字体项目已自带 3 个（在 `font/`），够用；想再补一套可装：
+系统里还要有一套中文字体，否则 meme 表情合成出来的汉字全是方块：
 
 ```bash
-sudo apt-get install -y fonts-wqy
+sudo apt-get install -y fonts-noto-cjk
+fc-cache -f
 ```
+
+项目里有两条互不相干的文字渲染链路。配对卡、名言图由项目自己用 PIL 画，读的是 `font/` 目录和 `FONT_FAMILY`；meme 表情合成交给引擎的 skia 排版，字体只从系统里找（Linux 走 fontconfig），`font/` 放多少字体它都不看。系统没有中文字体时引擎取不到字形，只能拿 `.notdef` 顶上，看上去就像乱码。
+
+`fonts-noto-cjk` 装出来的 `Noto Sans CJK SC` 正好在引擎的字体回退表里。嫌它体积大可以换 `fonts-wqy`（对应 `WenQuanYi Micro Hei`）。装完刷新字体缓存，再打开 `/status`，看「表情合成 · 中文字形」那一行是否显示为可用。
 
 ---
 
@@ -193,6 +198,16 @@ server {
 ```bash
 sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
 ```
+
+**合成出来的表情里汉字是方块**
+系统缺中文字体。表情引擎不读项目的 `font/`，装一套系统字体再刷新缓存：
+
+```bash
+sudo apt-get install -y fonts-noto-cjk
+fc-cache -f
+```
+
+`/status` 页面「字体」卡片里的「表情合成 · 中文字形」会同步变成可用。
 
 **启动报 `ImportError: libEGL.so.1: cannot open shared object file`**
 就是上面那条里漏装 `libegl1`。`skia-python` 从 138 版起在 Linux 上必须有 `libEGL.so`，无头服务器再补一个软件渲染兜底：

@@ -52,13 +52,15 @@ From here on, all commands are executed inside this Ubuntu environment (the prom
 
 ```bash
 apt-get update
-apt-get install -y curl git libfontconfig1 libgl1 libegl1 libjpeg-dev
+apt-get install -y curl git libfontconfig1 libgl1 libegl1 libjpeg-dev fonts-noto-cjk
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 uv --version
 ```
 
 Installing uv is how the environment and the dependencies get built, and it pulls down Python 3.13 along the way, so there is no need to install a Python of your own inside the container. If the script is blocked by the network, run `apt-get install -y python3-pip` first and fall back to `pip install uv`.
+
+`fonts-noto-cjk` is there for the meme engine: it lays text out with skia and only looks at system fonts, ignoring the project's `font/` directory entirely, so without a CJK font every Chinese character in a generated meme becomes a box.
 
 ### 5. Get the Code, Create the Environment, Install Dependencies
 
@@ -162,6 +164,14 @@ The system has frozen Termux. Run `termux-wake-lock` and set Termux's battery op
 
 **Startup reports that `cache` / `temp` / `font` cannot be found**
 You did not start from the project root directory. `cd` to the level where you can see `app.py`.
+
+**Generated memes show Chinese characters as boxes**
+The container has no CJK font. The meme engine only uses system fonts, so install one and refresh the cache:
+
+```bash
+apt-get install -y fonts-noto-cjk
+fc-cache -f
+```
 
 **The phone cannot open `127.0.0.1:5000`**
 Confirm that the service is actually running (the terminal should show `Running on http://0.0.0.0:5000`); do not set `WEB_HOST` to `127.0.0.1` (that way nothing other than the phone itself can reach it, though the phone's own local browser can).

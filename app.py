@@ -1003,6 +1003,39 @@ import platform
 QQ_NICK_API = "https://api3.mhimg.cn/api/nickname"
 
 
+def engine_font_status():
+    """体检表情引擎实际能用到的字体。
+
+    项目里有两条互不相干的文字渲染链路：配对卡、名言图走 PIL（读 `font/` 与
+    `FONT_FAMILY`），而 meme 表情合成走引擎的 skia 排版，只认系统字体（Linux 上是
+    fontconfig）——`font/` 放多少个字体它都不看。系统里没有中文字体时，引擎会把每个
+    汉字画成 .notdef 方块，看着像乱码，所以这里单独探一次。
+    """
+    info = {'latin_ok': False, 'cjk_ok': False, 'cjk_family': None, 'error': None}
+    try:
+        import skia
+        from pil_utils.text2image import DEFAULT_FALLBACK_FONTS
+
+        mgr = skia.FontMgr()
+        style = skia.FontStyle.Normal()
+        for family in DEFAULT_FALLBACK_FONTS:
+            face = mgr.matchFamilyStyle(family, style)
+            if face is None:
+                continue
+            if not info['latin_ok'] and face.unicharToGlyph(0x41) != 0:
+                info['latin_ok'] = True
+            if not info['cjk_ok'] and face.unicharToGlyph(0x4E2D) != 0:
+                info['cjk_ok'] = True
+                # fontconfig 可能拿别的字体顶替请求的族名，报真实族名更有参考价值
+                try:
+                    info['cjk_family'] = face.getFamilyName() or family
+                except Exception:
+                    info['cjk_family'] = family
+    except Exception as e:
+        info['error'] = str(e)[:200]
+    return info
+
+
 @app.route('/api/status', methods=['GET'])
 def api_status():
     """状态检查：汇总服务器 / Meme 服务 / 缓存 / 字体 / 目录 / QQ 接口的实时状态。"""
@@ -1048,13 +1081,19 @@ def api_status():
     except Exception as e:
         cache['error'] = str(e)
 
-    # 4) 字体
+    # 4) 字体：项目 font/ 目录（配对卡、名言图走的 PIL 链路）
     fonts = {'count': 0, 'files': [], 'error': None}
     try:
         fonts['files'] = sorted(get_available_fonts().keys())
         fonts['count'] = len(fonts['files'])
     except Exception as e:
         fonts['error'] = str(e)
+
+    # 4.1) 表情引擎的字体（skia + 系统 fontconfig），跟上面那份列表没有交集
+    fonts['engine'] = engine_font_status()
+    if not fonts['engine']['error'] and not fonts['engine']['cjk_ok']:
+        fonts['hint'] = ('表情合成的文字用的是系统字体，当前系统里找不到中文字体，'
+                         '汉字会被画成方块。装一套即可：sudo apt-get install -y fonts-noto-cjk')
 
     # 5) QQ 昵称/头像接口连通性（轻量探测）
     qq_api = {'reachable': None, 'http': None, 'error': None}
@@ -2280,6 +2319,7 @@ def _setup_env_check():
         "asset_dir": meme_assets.asset_dir(),
         "meme_count": meme_count,
         "meme_hint": meme_hint,
+        "engine_fonts": engine_font_status(),
         "admin_password_set": api_key_store.has_admin_password(),
         "admin_pwd_pending": api_key_store.admin_password_pending(),
         "admin_pwd_source": api_key_store.admin_password_source(),

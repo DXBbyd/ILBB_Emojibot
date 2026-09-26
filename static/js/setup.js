@@ -176,6 +176,15 @@
                 '<div class="r-name">表情库没有加载出来</div>' +
                 '<div class="r-sub">' + esc(c.meme_hint) + '</div></div></div>';
         }
+        var ef = c.engine_fonts || {};
+        if (ef.cjk_ok === false) {
+            h += '<div class="row"><span class="pill warn">注意</span><div class="r-main">' +
+                '<div class="r-name">表情合成缺中文字体</div>' +
+                '<div class="r-sub">表情引擎只用系统字体，合成出来的汉字会是方块。装一套再刷新缓存：' +
+                '<b>apt-get install -y fonts-noto-cjk &amp;&amp; fc-cache -f</b></div></div></div>';
+        } else if (ef.cjk_ok) {
+            h += envRow('表情合成中文字形', '可用（' + (ef.cjk_family || '系统字体') + '）', false);
+        }
         h += envRow('素材目录', c.asset_dir || '—', false);
         h += envRow('配置文件', (c.env_file || '—') + (c.env_file_exists ? '' : '（尚未生成，保存配置后可创建）'), false);
         h += envRow('管理密码', c.admin_pwd_pending ? '临时密码（待你设置）' : '已设置', false);

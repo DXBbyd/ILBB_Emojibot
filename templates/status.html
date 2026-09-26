@@ -95,7 +95,7 @@ body {
             <div class="card" id="card-meme"><h3>Meme 表情服务 <span class="badge" id="memeBadge"></span></h3><div id="memeBody"></div></div>
             <div class="card" id="card-cache"><h3>缓存 <span class="badge" id="cacheBadge"></span></h3><div id="cacheBody"></div></div>
             <div class="card" id="card-dir"><h3>目录权限</h3><div class="dir-grid" id="dirBody"></div></div>
-            <div class="card"><h3>字体</h3><div id="fontBody"></div></div>
+            <div class="card"><h3>字体 <span class="badge" id="fontBadge"></span></h3><div id="fontBody"></div></div>
             <div class="card"><h3>QQ 接口</h3><div id="qqBody"></div></div>
         </div>
     </div>
@@ -127,7 +127,7 @@ function renderStatus(d){
         '<div class="stat"><div class="n">'+ d.meme.with_image +'</div><div class="l">需要/支持图片</div></div>'+
         '<div class="stat"><div class="n">'+ d.cache.count +'</div><div class="l">缓存文件数</div></div>'+
         '<div class="stat"><div class="n">'+ d.cache.size_kb.toFixed(1) +'</div><div class="l">缓存大小 (KB)</div></div>'+
-        '<div class="stat"><div class="n">'+ d.fonts.count +'</div><div class="l">可用字体</div></div>';
+        '<div class="stat"><div class="n">'+ d.fonts.count +'</div><div class="l">项目字体</div></div>';
 
     // 服务器
     var s=d.server;
@@ -168,9 +168,19 @@ function renderStatus(d){
                             : '<span class="tag bad">不可写</span>'))+'</div>';
     }).join('');
 
-    // 字体
-    var f=d.fonts;
-    $('fontBody').innerHTML = f.count ? ('<div class="chips">'+f.files.map(function(x){return '<span class="chip">'+esc(x)+'</span>';}).join('')+'</div>') : '<div class="empty">未检测到字体文件</div>';
+    // 字体：项目 font/ 目录与表情引擎的系统字体是两条独立链路，分开报
+    var f=d.fonts||{}, eg=f.engine||{};
+    $('fontBadge').innerHTML = eg.error ? badge('warn','未知') : (eg.cjk_ok ? badge('ok','中文可用') : badge('bad','缺中文字体'));
+    $('fontBody').innerHTML =
+        kv('表情合成 · 中文字形', eg.error ? '未能探测' : (eg.cjk_ok ? (eg.cjk_family||'可用') : '缺失'))+
+        kv('表情合成 · 拉丁字形', eg.latin_ok ? '可用' : '缺失')+
+        '<div style="height:10px"></div>'+
+        kv('项目字体（配对卡/名言图）', f.count+' 个')+
+        (f.count ? ('<div class="chips">'+f.files.map(function(x){return '<span class="chip">'+esc(x)+'</span>';}).join('')+'</div>')
+                 : '<div class="empty">未检测到字体文件</div>')+
+        (f.hint ? errBox(f.hint) : '')+
+        (eg.error ? errBox(eg.error) : '')+
+        (f.error ? errBox(f.error) : '');
 
     // QQ 接口
     var qq=d.qq_api, b;

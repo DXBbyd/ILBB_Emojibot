@@ -15,7 +15,7 @@ Applies to: common distributions such as Debian / Ubuntu / CentOS / Arch, on bot
 | Architecture | x86_64 / arm64 | 32-bit (armv7 / i386) cannot install `skia-python` |
 | Python | **3.10 – 3.13, 3.13 recommended** | The version is fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version mismatch fails outright. **3.14 is not supported** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel) |
 | Disk | ≥ 2 GB | Project + venv + assets |
-| System libraries | fontconfig, libGL, libEGL, libjpeg | Missing them causes missing `.so` errors at runtime |
+| System libraries and fonts | fontconfig, libGL, libEGL, libjpeg, plus a CJK font | Missing libraries cause missing `.so` errors; a missing CJK font makes generated memes show boxes |
 | Path | **No spaces, no Chinese characters** | `/root/ilbb-bot` is recommended |
 | Ports | 5000, 6700 | 5000 = workbench, 6700 = OneBot V11 |
 
@@ -30,11 +30,16 @@ sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
 
 `libegl1` is not optional: since version 138, `skia-python` hard-depends on `libEGL.so.1` on Linux, and without it startup fails with `ImportError: libEGL.so.1: cannot open shared object file`. On a headless server it is also worth adding `libgl1-mesa-dri` so OpenGL has mesa software rendering to fall back on.
 
-The project already ships with 3 Chinese fonts (in `font/`), which is enough; if you want to add another set, you can install:
+The system also needs a set of Chinese fonts, otherwise every Chinese character in a generated meme comes out as a box:
 
 ```bash
-sudo apt-get install -y fonts-wqy
+sudo apt-get install -y fonts-noto-cjk
+fc-cache -f
 ```
+
+The project has two independent text-rendering paths. Pair cards and quote images are drawn by the project itself with PIL, reading the `font/` directory and `FONT_FAMILY`; meme generation is handed to the engine's skia layout, which only looks at system fonts (fontconfig on Linux) and ignores `font/` entirely. Without a system CJK font the engine finds no glyph and falls back to `.notdef`, which looks like garbled text.
+
+The `Noto Sans CJK SC` that `fonts-noto-cjk` provides is already in the engine's fallback font list. If you want something smaller, `fonts-wqy` (which provides `WenQuanYi Micro Hei`) works too. Refresh the font cache after installing, then open `/status` and check whether the "表情合成 · 中文字形" row reads as available.
 
 ---
 
@@ -193,6 +198,16 @@ The system is missing a library; install it as prompted:
 ```bash
 sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
 ```
+
+**Generated memes show Chinese characters as boxes**
+The system has no CJK font. The meme engine does not read the project's `font/`, so install a system font and refresh the cache:
+
+```bash
+sudo apt-get install -y fonts-noto-cjk
+fc-cache -f
+```
+
+The "表情合成 · 中文字形" row in the "字体" card on `/status` turns available once it is picked up.
 
 **Startup reports `ImportError: libEGL.so.1: cannot open shared object file`**
 The `libegl1` package from the command above was skipped. Since version 138, `skia-python` requires `libEGL.so` on Linux; on a headless server add a software-rendering fallback as well:

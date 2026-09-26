@@ -52,13 +52,15 @@ proot-distro login ubuntu
 
 ```bash
 apt-get update
-apt-get install -y curl git libfontconfig1 libgl1 libegl1 libjpeg-dev
+apt-get install -y curl git libfontconfig1 libgl1 libegl1 libjpeg-dev fonts-noto-cjk
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 uv --version
 ```
 
 装 uv 是为了让它负责建环境和装依赖，顺带把 3.13 的 Python 也拉下来，容器里不用另装。脚本被网络挡住的话，先 `apt-get install -y python3-pip`，再用 `pip install uv` 兜底。
+
+`fonts-noto-cjk` 是给 meme 表情引擎准备的：引擎走 skia 排版，字体只从系统里找，项目 `font/` 目录对它无效，缺了中文字体合成出来的汉字会变成方块。
 
 ### 5. 取代码、建环境、装依赖
 
@@ -162,6 +164,14 @@ uv pip install -r requirements.txt      # 大概率卡在 skia-python
 
 **启动报找不到 `cache` / `temp` / `font`**
 不在项目根目录启动。`cd` 到能看到 `app.py` 的那一层。
+
+**合成的表情里汉字是方块**
+容器里缺中文字体。表情引擎只认系统字体，装一套再刷新缓存：
+
+```bash
+apt-get install -y fonts-noto-cjk
+fc-cache -f
+```
 
 **手机访问 `127.0.0.1:5000` 打不开**
 确认服务确实在跑（终端里应有 `Running on http://0.0.0.0:5000`）；`WEB_HOST` 别设成 `127.0.0.1`（那样连手机自己以外的都访问不了，手机本机浏览器是可以的）。

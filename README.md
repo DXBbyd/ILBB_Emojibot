@@ -61,7 +61,7 @@
 
 ### 1. 准备环境
 
-- **Python 3.13（64 位）** —— 必须，`skia-python` 是预编译包，位数/版本对不上装不上。
+- **Python 3.10 – 3.13（64 位），推荐 3.13** —— 版本与位数是写死的：`skia-python`、`Pillow` 等依赖只发预编译 wheel，对不上直接装不上。**3.14 及更高暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，而 10.x 没有 3.14 的 wheel）。
 - Windows：从 [python.org](https://www.python.org/downloads/) 或 Microsoft Store 安装，安装时勾选 `Add to PATH`。
 - Linux：用发行版包管理器或 `uv`（见 [Linux 部署](docs/zh/deploy-linux.md)）。
 
@@ -225,9 +225,9 @@ def setup(ctx):
 
 | 平台 | 文档 | 要点 |
 | --- | --- | --- |
-| **Windows** | [deploy-windows.md](docs/zh/deploy-windows.md) | Python 3.13 64 位；`icudtl.dat` 需拷到 Python 安装目录；注意防火墙放行 5000 / 6700 端口 |
-| **Linux** | [deploy-linux.md](docs/zh/deploy-linux.md) | 推荐 `uv` 建环境；可上 `gunicorn -w 2 -b 0.0.0.0:5000 app:app`；systemd 做服务守护 |
-| **Android** | [deploy-android.md](docs/zh/deploy-android.md) | 用 Termux 装 Python 3.13 + 依赖，手机端跑；**未做充分验证，请自行测试** |
+| **Windows** | [deploy-windows.md](docs/zh/deploy-windows.md) | Python 3.10 – 3.13（64 位）；`icudtl.dat` 需拷到 Python 安装目录；注意防火墙放行 5000 / 6700 端口 |
+| **Linux** | [deploy-linux.md](docs/zh/deploy-linux.md) | Python 3.10 – 3.13；注意 `libfontconfig1` / `libgl1` 等系统库；路径别带空格和中文 |
+| **Android** | [deploy-android.md](docs/zh/deploy-android.md) | 用 Termux 装 Python 3.10 – 3.13 + 依赖，手机端跑；**未做充分验证，请自行测试** |
 
 英文版：[Windows](docs/en/deploy-windows.md) ｜ [Linux](docs/en/deploy-linux.md) ｜ [Android](docs/en/deploy-android.md)
 
@@ -287,7 +287,10 @@ def setup(ctx):
 ## 常见问题
 
 **Q：一定要 Python 3.13 吗？**
-是。`skia-python~=144.0` 提供的是预编译 wheel，Python 版本或 32/64 位对不上会直接装不上；引导页第一步会体检并告诉你缺什么。
+版本要求写死为 **3.10 – 3.13（64 位），推荐 3.13**。`skia-python~=144.0` 提供的是预编译 wheel，Python 版本或 32/64 位对不上会直接装不上；引导页第一步会把解释器版本和依赖一起体检，不合格直接标出来。
+
+**Q：能用 Python 3.14 吗？**
+不行。`skia-python` 本身有 3.14 的 wheel，但 vendor 里的 meme 引擎锁了 `Pillow ^10.0.0`，而 Pillow 10.x 早于 3.14 发布、没有 3.14 的预编译包，pip 会直接报 `Could not find a version that satisfies the requirement Pillow<11,>=10`。装 64 位 3.13 是唯一省事的选择。
 
 **Q：克隆下来提示素材不全 / `/meme` 报找不到素材？**
 仓库故意不含 meme 素材（约 254MB）。打开 `http://127.0.0.1:5000/setup`，在「Meme 素材」一步点下载即可补齐。

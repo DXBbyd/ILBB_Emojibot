@@ -68,7 +68,7 @@ uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
 
-**这一步是成败关键**。如果 `skia-python` 顺利装完，后面的路基本就通了；如果卡在编译或报找不到版本，先确认 `uname -m` 是 `aarch64`，再确认 Python 是 3.13 64 位。
+**这一步是成败关键**。如果 `skia-python` 顺利装完，后面的路基本就通了；如果卡在编译或报找不到版本，先确认 `uname -m` 是 `aarch64`，再确认 Python 是 64 位的 **3.10 – 3.13**（推荐 3.13）。**3.14 不行**：meme 引擎依赖的 Pillow 10.x 没有 3.14 的 wheel。
 
 ### 6. 配置并启动
 
@@ -148,7 +148,7 @@ pip install "skia-python~=144.0"      # 这一步大概率失败
 网络问题，换网络重试；也可以先 `pkg install -y wget` 再试。
 
 **`skia-python` 编译到一半失败**
-说明 pip 在尝试从源码构建，通常是架构不对（非 aarch64）或 Python 版本不是 3.13。
+说明 pip 在尝试从源码构建，通常是架构不对（非 aarch64）或 Python 版本不在 3.10 – 3.13。
 
 **服务跑一会儿就断**
 系统把 Termux 冻结了。执行 `termux-wake-lock`，并在系统设置里把 Termux 的电池优化设为「不优化 / 无限制」。

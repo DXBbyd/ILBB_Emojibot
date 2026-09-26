@@ -2110,6 +2110,39 @@ SETUP_CONFIG_GROUPS = [
                               "MEME_ASSET_DIR", "MEME_RESOURCE_BASE"]),
 ]
 
+# 解释器要求（写死，不做自动适配）：
+#   下界 3.10 —— 依赖里已有若干库要求 3.10+；
+#   上界 3.13 —— vendor 里的 meme-generator 锁了 Pillow ^10.0.0，而 Pillow 10.x
+#                没有 3.14 的预编译包（skia-python 反而有），3.14 上 pip 直接报找不到版本；
+#   另需 64 位 —— skia-python 不发 32 位 wheel。
+PY_SUPPORT_MIN = (3, 10)
+PY_SUPPORT_MAX = (3, 13)
+PY_SUPPORT_TEXT = "3.10 – 3.13（64 位）"
+PY_SUPPORT_TIP = "换成 64 位 Python 3.13（3.10 – 3.13 都行，推荐 3.13）"
+
+
+def _setup_python_dep():
+    """解释器自检项：版本区间 + 位数，结论拼进依赖清单一起显示。"""
+    ver = ".".join(str(n) for n in sys.version_info[:3])
+    cur = sys.version_info[:2]
+    item = {"module": ver, "label": "Python", "ok": True, "detail": "", "tip": "", "badge": ""}
+    if sys.maxsize <= 2 ** 32:
+        item.update(ok=False, badge="不兼容",
+                    detail="当前是 32 位的 Python，skia-python 没有 32 位 wheel，装不上。",
+                    tip=PY_SUPPORT_TIP)
+    elif cur > PY_SUPPORT_MAX:
+        item.update(ok=False, badge="不兼容",
+                    detail="Python %d.%d 暂不支持：meme 引擎锁了 Pillow 10.x，"
+                           "而 Pillow 10.x 没有 %d.%d 的预编译包，pip 会直接报找不到版本。"
+                           % (cur[0], cur[1], cur[0], cur[1]),
+                    tip=PY_SUPPORT_TIP)
+    elif cur < PY_SUPPORT_MIN:
+        item.update(ok=False, badge="不兼容",
+                    detail="Python %d.%d 太旧，本项目依赖的库需要 3.10 及以上。" % (cur[0], cur[1]),
+                    tip=PY_SUPPORT_TIP)
+    return item
+
+
 # 依赖自检清单：(import 名, 显示名, 装不上时的补救提示)
 SETUP_DEP_MODULES = [
     ("flask", "Flask", "pip install flask"),
@@ -2194,7 +2227,7 @@ def _setup_scan(refresh=False, deep=False):
 
 def _setup_env_check():
     """依赖 / 引擎 / 目录自检，引导页第一步展示。"""
-    deps = []
+    deps = [_setup_python_dep()]          # 解释器排第一：版本不对，后面的包根本装不上
     for mod, label, tip in SETUP_DEP_MODULES:
         try:
             __import__(mod)
@@ -2216,6 +2249,8 @@ def _setup_env_check():
         "deps": deps,
         "dirs": dirs,
         "python": platform.python_version(),
+        "python_ok": bool(deps[0].get("ok")),
+        "python_require": PY_SUPPORT_TEXT,
         "engine_version": meme_assets.engine_version(),
         "asset_dir": meme_assets.asset_dir(),
         "meme_count": meme_count,

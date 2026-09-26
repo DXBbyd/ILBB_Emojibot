@@ -11,7 +11,7 @@ Applies to: Windows 10 / 11 (64-bit). The whole process takes about 15 minutes, 
 | Item | Requirement | Notes |
 | --- | --- | --- |
 | Operating system | Windows 10 / 11 64-bit | 32-bit systems cannot install `skia-python` |
-| Python | **3.13 (64-bit)** | Required; `skia-python` is a precompiled package, and it simply will not install if the version does not match |
+| Python | **3.10 – 3.13 (64-bit), 3.13 recommended** | The version is fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version/architecture mismatch fails outright. **3.14 is not supported** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel) |
 | Disk space | ≥ 2 GB | Project + virtual environment + meme assets are about 600 MB |
 | Network | Able to reach the internet | The first startup needs network access to complete the meme assets |
 | Ports | 5000, 6700 available | 5000 = workbench, 6700 = OneBot V11 |
@@ -30,7 +30,7 @@ python --version
 
 It should output `Python 3.13.x`. If it says the command cannot be found, PATH was not set up; reinstall and check the box, or manually add the Python installation directory to PATH.
 
-> If multiple versions of Python are installed on the machine, remember that this project needs 3.13 — all later commands are invoked through `.venv\Scripts\python.exe` and do not rely on PATH, so as long as 3.13 was used when creating the venv, it is fine.
+> If multiple versions of Python are installed on the machine, remember that this project needs **3.10 – 3.13 (3.13 recommended)** — all later commands are invoked through `.venv\Scripts\python.exe` and do not rely on PATH, so as long as an allowed version was used when creating the venv, it is fine. **Do not use 3.14**: Pillow 10.x, which the meme engine depends on, has no 3.14 wheel.
 
 ---
 
@@ -167,7 +167,7 @@ After that, just double-click it to run. Note that `cd /d "%~dp0"` cannot be rem
 `skia-python` needs an ICU text data file. Copy `.venv\Lib\site-packages\icudtl.dat` to the **Python installation directory** (the same level as `python.exe`). If there is no warning, no need to bother.
 
 **`pip install skia-python` reports no matching version**
-Three possibilities: ① Python is not 3.13; ② the installed Python is 32-bit; ③ pip is too old. Check them in order, starting with `& .venv\Scripts\python.exe -m pip install -U pip`.
+Three possibilities: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no wheel); ② the installed Python is 32-bit; ③ pip is too old. Check them in order, starting with `& .venv\Scripts\python.exe -m pip install -U pip`.
 
 **The setup wizard keeps showing missing dependencies, but they clearly appear in `pip list`**
 They were installed into a different Python. You must use `& .venv\Scripts\python.exe -m pip install ...`.

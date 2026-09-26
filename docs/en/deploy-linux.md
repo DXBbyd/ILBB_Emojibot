@@ -13,7 +13,7 @@ Applies to: common distributions such as Debian / Ubuntu / CentOS / Arch, on bot
 | Item | Requirement | Notes |
 | --- | --- | --- |
 | Architecture | x86_64 / arm64 | 32-bit (armv7 / i386) cannot install `skia-python` |
-| Python | **3.13** | The version must match; `skia-python` is a precompiled package |
+| Python | **3.10 – 3.13, 3.13 recommended** | The version is fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version mismatch fails outright. **3.14 is not supported** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel) |
 | Disk | ≥ 2 GB | Project + venv + assets |
 | System libraries | fontconfig, libGL, libjpeg | Missing them causes missing `.so` errors at runtime |
 | Path | **No spaces, no Chinese characters** | `/opt/ilbb-bot` is recommended |
@@ -47,6 +47,8 @@ uv --version
 ```
 
 > You can also compile 3.13 yourself, or use the deadsnakes PPA (Ubuntu): `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.13 python3.13-venv`.
+>
+> The version requirement is fixed at **3.10 – 3.13**: 3.14 will not install — the meme engine pins `Pillow ^10.0.0`, and Pillow 10.x has no 3.14 wheel.
 
 ---
 
@@ -195,7 +197,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 ```
 
 **`pip install skia-python` reports no matching version**
-Troubleshoot: ① Python is not 3.13; ② the Python running is 32-bit (`python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available — in that case you have to switch to arm64 or x86_64.
+Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no 3.14 wheel); ② the Python running is 32-bit (`python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available — in that case you have to switch to arm64 or x86_64.
 
 **The setup wizard keeps showing missing dependencies**
 You are not using the project's own Python. Make sure the command includes the `./.venv/bin/` prefix.

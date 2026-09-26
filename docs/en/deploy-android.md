@@ -68,7 +68,7 @@ uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
 
-**This step decides success or failure**. If `skia-python` installs successfully, the rest of the road is basically clear; if it gets stuck compiling or reports that the version cannot be found, first confirm that `uname -m` is `aarch64`, then confirm that Python is 3.13 64-bit.
+**This step decides success or failure**. If `skia-python` installs successfully, the rest of the road is basically clear; if it gets stuck compiling or reports that the version cannot be found, first confirm that `uname -m` is `aarch64`, then confirm that Python is 64-bit **3.10 – 3.13** (3.13 recommended). **3.14 will not work**: Pillow 10.x, which the meme engine depends on, has no 3.14 wheel.
 
 ### 6. Configure and Start
 
@@ -148,7 +148,7 @@ You are using the Play Store version of Termux. Uninstall it and reinstall from 
 It is a network problem; switch networks and retry; you can also try `pkg install -y wget` first.
 
 **`skia-python` fails halfway through compilation**
-It means pip is trying to build from source, usually because the architecture is wrong (not aarch64) or the Python version is not 3.13.
+It means pip is trying to build from source, usually because the architecture is wrong (not aarch64) or the Python version is outside 3.10 – 3.13.
 
 **The service disconnects after running for a while**
 The system has frozen Termux. Run `termux-wake-lock` and set Termux's battery optimization to "not optimized / unrestricted" in the system settings.

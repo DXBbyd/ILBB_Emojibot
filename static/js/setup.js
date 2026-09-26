@@ -136,16 +136,16 @@
         deps.forEach(function (d) { if (!d.ok) bad++; });
 
         if (bad === 0) {
-            h += '<div class="tip ok"><span class="ic">✓</span><span>全部依赖就绪，可以直接往下走。</span></div>';
+            h += '<div class="tip ok"><span class="ic">✓</span><span>解释器与依赖都就绪，可以直接往下走。</span></div>';
         } else {
-            h += '<div class="tip err"><span class="ic">!</span><span>有 ' + bad + ' 项依赖缺失，' +
-                '请按下面每一项的提示逐个装好（在项目目录里用本项目的 Python 执行），装完点「重新检测」。</span></div>';
+            h += '<div class="tip err"><span class="ic">!</span><span>有 ' + bad + ' 项没通过自检，' +
+                '请按下面每一项的提示逐个处理（在项目目录里用本项目的 Python 执行），处理完点「重新检测」。</span></div>';
         }
 
         h += '<div class="sec-t">运行依赖</div><div class="rows">';
         deps.forEach(function (d) {
             h += '<div class="row">' +
-                '<span class="pill ' + (d.ok ? 'ok' : 'err') + '">' + (d.ok ? '正常' : '缺失') + '</span>' +
+                '<span class="pill ' + (d.ok ? 'ok' : 'err') + '">' + (d.ok ? '正常' : (d.badge || '缺失')) + '</span>' +
                 '<div class="r-main">' +
                 '<div class="r-name">' + esc(d.label) + ' <span class="k">' + esc(d.module) + '</span></div>' +
                 (d.ok ? '' : '<div class="r-sub">' + esc(d.detail || '') +
@@ -167,7 +167,8 @@
         }
 
         h += '<div class="sec-t">运行环境</div><div class="rows">';
-        h += envRow('Python 版本', 'v' + (c.python || '—'), true);
+        h += envRow('Python 版本', 'v' + (c.python || '—') +
+            (c.python_ok === false ? '　需 ' + (c.python_require || '3.10 – 3.13（64 位）') : ''), true);
         h += envRow('Meme 引擎版本', c.engine_version || '未识别', false);
         h += envRow('可识别表情数', (c.meme_count >= 0 ? c.meme_count + ' 个' : '读取失败'), false);
         h += envRow('素材目录', c.asset_dir || '—', false);

@@ -11,7 +11,7 @@
 | 项目 | 要求 | 说明 |
 | --- | --- | --- |
 | 操作系统 | Windows 10 / 11 64 位 | 32 位系统装不了 `skia-python` |
-| Python | **3.13（64 位）** | 必须，`skia-python` 是预编译包，版本对不上直接装不上 |
+| Python | **3.10 – 3.13（64 位），推荐 3.13** | 版本写死：`skia-python`、`Pillow` 等只发预编译 wheel，版本/位数对不上直接装不上。**3.14 暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，10.x 没有 3.14 的 wheel） |
 | 磁盘空间 | ≥ 2 GB | 项目 + 虚拟环境 + meme 素材约 600 MB |
 | 网络 | 能访问外网 | 首次启动要联网补全 meme 素材 |
 | 端口 | 5000、6700 可用 | 5000 = 工作台，6700 = OneBot V11 |
@@ -30,7 +30,7 @@ python --version
 
 应输出 `Python 3.13.x`。如果提示找不到命令，说明 PATH 没配上，重装并勾选，或手动把 Python 安装目录加进 PATH。
 
-> 如果机器上装了多个 Python，记住本项目要用 3.13 —— 后面所有命令都通过 `.venv\Scripts\python.exe` 调用，不依赖 PATH，所以只要建 venv 时用的是 3.13 就行。
+> 如果机器上装了多个 Python，记住本项目要用 **3.10 – 3.13（推荐 3.13）** —— 后面所有命令都通过 `.venv\Scripts\python.exe` 调用，不依赖 PATH，所以只要建 venv 时用的是合规版本就行。**别用 3.14**：meme 引擎依赖的 Pillow 10.x 没有 3.14 的 wheel。
 
 ---
 
@@ -167,7 +167,7 @@ pause
 `skia-python` 需要一份 ICU 文字数据文件。把 `.venv\Lib\site-packages\icudtl.dat` 复制到 **Python 安装目录**（和 `python.exe` 同级）。没有警告就不用管。
 
 **`pip install skia-python` 报找不到匹配版本**
-三种可能：① Python 不是 3.13；② 装的是 32 位 Python；③ pip 太旧。依次排查，先 `& .venv\Scripts\python.exe -m pip install -U pip`。
+三种可能：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 wheel）；② 装的是 32 位 Python；③ pip 太旧。依次排查，先 `& .venv\Scripts\python.exe -m pip install -U pip`。
 
 **引导页一直显示缺依赖，但 `pip list` 里明明有**
 装到别的 Python 里去了。必须用 `& .venv\Scripts\python.exe -m pip install ...`。

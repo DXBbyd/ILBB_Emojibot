@@ -13,7 +13,7 @@
 | 项目 | 要求 | 说明 |
 | --- | --- | --- |
 | 架构 | x86_64 / arm64 | 32 位（armv7 / i386）装不了 `skia-python` |
-| Python | **3.13** | 版本必须对上，`skia-python` 是预编译包 |
+| Python | **3.10 – 3.13，推荐 3.13** | 版本写死：`skia-python`、`Pillow` 等只发预编译 wheel，版本对不上直接装不上。**3.14 暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，10.x 没有 3.14 的 wheel） |
 | 磁盘 | ≥ 2 GB | 项目 + venv + 素材 |
 | 系统库 | fontconfig、libGL、libjpeg | 缺了运行时会报缺 `.so` |
 | 路径 | **无空格、无中文** | 推荐 `/opt/ilbb-bot` |
@@ -47,6 +47,8 @@ uv --version
 ```
 
 > 也可以自己编译 3.13，或用 deadsnakes PPA（Ubuntu）：`sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.13 python3.13-venv`。
+>
+> 版本要求写死为 **3.10 – 3.13**：3.14 装不上 —— meme 引擎锁了 `Pillow ^10.0.0`，而 Pillow 10.x 没有 3.14 的预编译包。
 
 ---
 
@@ -195,7 +197,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 ```
 
 **`pip install skia-python` 报找不到匹配版本**
-排查：① Python 不是 3.13；② 是 32 位运行的 Python（`python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。
+排查：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 3.14 的 wheel）；② 是 32 位运行的 Python（`python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。
 
 **引导页一直显示缺依赖**
 用的不是项目自己的 Python。确认命令里带 `./.venv/bin/` 前缀。

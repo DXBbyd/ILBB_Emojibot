@@ -61,7 +61,7 @@ On first launch a random admin password is generated and **printed to the termin
 
 ### 1. Prerequisites
 
-- **Python 3.13 (64-bit)** — required. `skia-python` ships prebuilt wheels, so the version and architecture must match.
+- **Python 3.10 – 3.13 (64-bit), 3.13 recommended** — the version and architecture are fixed on purpose: `skia-python`, `Pillow` and friends only ship prebuilt wheels, and a mismatch fails outright. **3.14 and newer are not supported yet** (the meme engine pins `Pillow ^10.0.0`, and 10.x has no 3.14 wheel).
 - Windows: install from [python.org](https://www.python.org/downloads/) or the Microsoft Store, ticking `Add to PATH`.
 - Linux: use your distro packages or `uv` (see [Linux deployment](docs/en/deploy-linux.md)).
 
@@ -225,9 +225,9 @@ Full API reference, manifest field table, web-page integration and two copyable 
 
 | Platform | Document | Notes |
 | --- | --- | --- |
-| **Windows** | [deploy-windows.md](docs/en/deploy-windows.md) | Python 3.13 64-bit; copy `icudtl.dat` into the Python install dir; open ports 5000 / 6700 in the firewall |
-| **Linux** | [deploy-linux.md](docs/en/deploy-linux.md) | `uv` recommended; optionally serve with `gunicorn -w 2 -b 0.0.0.0:5000 app:app`; supervise with systemd |
-| **Android** | [deploy-android.md](docs/en/deploy-android.md) | Run under Termux with Python 3.13; **not thoroughly validated — test at your own risk** |
+| **Windows** | [deploy-windows.md](docs/en/deploy-windows.md) | Python 3.10 – 3.13 (64-bit); copy `icudtl.dat` into the Python install dir; open ports 5000 / 6700 in the firewall |
+| **Linux** | [deploy-linux.md](docs/en/deploy-linux.md) | Python 3.10 – 3.13; mind `libfontconfig1` / `libgl1` and friends; keep the path free of spaces and non-ASCII |
+| **Android** | [deploy-android.md](docs/en/deploy-android.md) | Run under Termux with Python 3.10 – 3.13; **not thoroughly validated — test at your own risk** |
 
 Chinese versions: [Windows](docs/zh/deploy-windows.md) ｜ [Linux](docs/zh/deploy-linux.md) ｜ [Android](docs/zh/deploy-android.md)
 
@@ -287,7 +287,10 @@ Chinese versions: [Windows](docs/zh/deploy-windows.md) ｜ [Linux](docs/zh/deplo
 ## FAQ
 
 **Is Python 3.13 mandatory?**
-Yes. `skia-python~=144.0` ships prebuilt wheels; a mismatched Python version or 32/64-bit architecture simply fails to install. Step 1 of the setup wizard tells you exactly what is missing.
+The version requirement is fixed at **Python 3.10 – 3.13 (64-bit), 3.13 recommended**. `skia-python~=144.0` ships prebuilt wheels; a mismatched Python version or 32/64-bit architecture simply fails to install. Step 1 of the setup wizard checks the interpreter alongside the dependencies and flags anything that does not qualify.
+
+**Can I use Python 3.14?**
+No. `skia-python` itself does publish a 3.14 wheel, but the meme engine vendored here pins `Pillow ^10.0.0`, and Pillow 10.x predates 3.14 with no prebuilt wheel for it, so pip fails with `Could not find a version that satisfies the requirement Pillow<11,>=10`. Installing 64-bit 3.13 is the only painless option.
 
 **"Assets incomplete" or `/meme` says the meme is missing?**
 Meme assets (~254 MB) are intentionally excluded from the repo. Open `http://127.0.0.1:5000/setup` and use the "Meme assets" step to download them.

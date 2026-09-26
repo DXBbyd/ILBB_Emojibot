@@ -58,10 +58,10 @@ Creating the environment and installing are just these two lines, identical ever
 
 ```bash
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
-The meme engine under `vendor/meme-generator-main/` needs no separate install; the program puts it on the module search path at startup.
+The dependency list lives in `requirements.txt` at the repository root. The meme engine under `vendor/meme-generator-main/` is not installed through pip itself, but its own dependencies cannot be resolved automatically (there is no `pyproject.toml` inside `vendor/`), so the list already covers them — the single command above is all you need.
 
 ### Configuration and first run
 

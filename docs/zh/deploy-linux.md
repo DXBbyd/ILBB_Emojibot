@@ -72,12 +72,12 @@ git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 ```bash
 cd /root/ilbb-bot
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
 `uv pip install` 默认认当前目录下的 `.venv`，在项目根目录执行就不会装错地方；想知道装了些什么，用 `uv pip list` 看。
 
-**meme 引擎不用装**：`vendor/meme-generator-main/` 里的源码由程序启动时自动挂到模块搜索路径。
+**meme 引擎本身不用装**：`vendor/meme-generator-main/` 里的源码由程序启动时自动挂到模块搜索路径。但引擎自己声明的依赖得装齐，`toml`、`loguru`、`httpx`、`pil-utils` 这类包漏掉任何一个，启动都会直接报 `ModuleNotFoundError`——`requirements.txt` 已经把它们全部列好，所以上面只要这一条命令。
 
 > 如果 `uv pip list` 里看到 `meme-generator` 指向别的机器上的老路径，可以 `uv pip uninstall meme-generator` 清掉；留着也不影响。
 
@@ -196,7 +196,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 排查：① Python 版本不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 3.14 的 wheel）；② 环境是 32 位的（`./.venv/bin/python -c "import platform;print(platform.architecture())"` 应为 `('64bit', ...)`）；③ 架构是 armv7 之类没有 wheel 的——这种情况得换 arm64 或 x86_64。版本选错就钉死重来：`uv venv --python 3.13 --clear`。
 
 **引导页一直显示缺依赖**
-uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py` 的那层）跑的 `uv pip install ...`，然后 `uv pip list` 复查。
+uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py` 的那层）跑的 `uv pip install -r requirements.txt`，然后 `uv pip list` 复查。如果只是缺了其中几个包（典型的是 `toml`、`loguru` 这类），同样用这一条命令补齐，不要照单包名一个个装。
 
 **路径带空格或中文导致 import 报错**
 把项目换到 `/root/ilbb-bot` 这类干净路径。
@@ -215,7 +215,7 @@ uv 没把包装进项目的 `.venv`。确认是在项目根目录（有 `app.py`
 ## 装完验证（可选）
 
 ```bash
-./.venv/bin/python -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"
+./.venv/bin/python -c "import sys; sys.path.insert(0,'vendor/meme-generator-main'); import flask, requests, PIL, websockets, numpy, skia, meme_generator; print('deps OK, meme count:', len(meme_generator.get_memes()))"
 ```
 
-输出两行即通过。更全面的检查看引导页第 1 步。
+这条要在项目根目录跑，`sys.path.insert` 那一段是把 vendor 里的引擎挂进来——只有 `app.py` 启动时才会自动挂，独立跑一条命令得自己补。打印出 `deps OK, meme count: 295` 一类的数字就算过。更全面的检查看引导页第 1 步。

@@ -58,10 +58,10 @@ uv --version
 
 ```bash
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
-`vendor/meme-generator-main/` 里的 meme 引擎不用单独安装，程序启动时会自己把它挂进模块搜索路径。
+依赖清单在仓库根目录的 `requirements.txt` 里。`vendor/meme-generator-main/` 里的 meme 引擎本身不走 pip 安装，但它依赖的十几个包没法自动解析（vendor 里没有 `pyproject.toml`），所以清单已经把它们一起列好了，照上面这一条命令装就行。
 
 ### 配置与首次启动
 

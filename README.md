@@ -60,7 +60,7 @@
 
 本项目自托管运行，不依赖任何第三方云服务。环境要求、依赖安装、配置、启动、开机自启与故障排查按平台分开，写在 [选择部署方式](docs/zh/deploy.md) 里，照着你的机器选一条路线进去即可。
 
-动手之前有三件事值得先知道。Python 需要 **3.10 – 3.13（64 位），推荐 3.13**，`skia-python`、`Pillow` 这类依赖只发预编译 wheel，版本或位数对不上会直接装不上，3.14 同样不行（原因见下方 [常见问题](#常见问题)）。依赖统一交给 [uv](https://docs.astral.sh/uv/) 管理：装好 uv 之后用 `uv venv --python 3.13` 建虚拟环境，用 `uv pip install` 装依赖，不必再碰 pip。仓库里**不含 meme 素材**（约 254MB），克隆下来首次启动时由引导页联网补全。
+动手之前有三件事值得先知道。Python 需要 **3.10 – 3.13（64 位），推荐 3.13**，`skia-python`、`Pillow` 这类依赖只发预编译 wheel，版本或位数对不上会直接装不上，3.14 同样不行（原因见下方 [常见问题](#常见问题)）。依赖统一交给 [uv](https://docs.astral.sh/uv/) 管理：装好 uv 之后用 `uv venv --python 3.13` 建虚拟环境，用 `uv pip install -r requirements.txt` 装依赖，不必再碰 pip。仓库里**不含 meme 素材**（约 254MB），克隆下来首次启动时由引导页联网补全。
 
 服务**必须在项目根目录启动**，`cache`、`temp`、`font` 走的是相对路径。启动后浏览器打开 `http://127.0.0.1:5000/setup`，引导页会把环境自检、素材下载和基础配置一次走完；接着按 [消息平台对接](docs/zh/platform-integration.md) 把 NapCat 连上来，机器人就能在 QQ 里干活了。
 
@@ -213,10 +213,13 @@ def setup(ctx):
 ## 常见问题
 
 **Q：一定要 Python 3.13 吗？**
-版本要求写死为 **3.10 – 3.13（64 位），推荐 3.13**。`skia-python~=144.0` 提供的是预编译 wheel，Python 版本或 32/64 位对不上会直接装不上；引导页第一步会把解释器版本和依赖一起体检，不合格直接标出来。
+版本要求写死为 **3.10 – 3.13（64 位），推荐 3.13**。`skia-python`、`Pillow` 这类带预编译 wheel 的包，Python 版本或 32/64 位对不上会直接装不上；引导页第一步会把解释器版本和依赖一起体检，不合格直接标出来。
 
 **Q：能用 Python 3.14 吗？**
 不行。`skia-python` 本身有 3.14 的 wheel，但 vendor 里的 meme 引擎锁了 `Pillow ^10.0.0`，而 Pillow 10.x 早于 3.14 发布、没有 3.14 的预编译包，pip 会直接报 `Could not find a version that satisfies the requirement Pillow<11,>=10`。装 64 位 3.13 是唯一省事的选择。
+
+**Q：启动报 `ModuleNotFoundError: No module named 'toml'`（或 `loguru`、`httpx`）？**
+漏装了 meme 引擎的依赖。引擎源码随仓库放在 `vendor/meme-generator-main/`，不走 pip 安装，pip 也就没法自动解析它声明的依赖，照单个包名装很容易漏掉其中几个。在项目根目录跑 `uv pip install -r requirements.txt` 一次补齐即可。清单里 `Pillow` 钉在 10.x 也是这个道理：引擎锁的就是这个区间，装成 11 或 12 时导包不报错，生成表情时才崩。
 
 **Q：克隆下来提示素材不全 / `/meme` 报找不到素材？**
 仓库故意不含 meme 素材（约 254MB）。打开 `http://127.0.0.1:5000/setup`，在「Meme 素材」一步点下载即可补齐。

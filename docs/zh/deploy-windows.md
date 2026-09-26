@@ -73,22 +73,12 @@ pip install uv
 
 ```powershell
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
 `uv venv --python 3.13` 会自己找一份 3.13，本机没有就下载一份，所以不用管系统里装的是哪个 Python。之后所有命令都通过 `.venv\Scripts\python.exe` 调用，同样不依赖 PATH。
 
-七个依赖的作用：
-
-| 包 | 用途 |
-| --- | --- |
-| `flask` | Web 工作台与 REST 接口 |
-| `requests` | 拉取 QQ 头像、随机背景图 |
-| `pillow` | 图片处理（配对卡、名言图） |
-| `websockets` | OneBot V11 反向 WebSocket 服务器 |
-| `skia-python~=144.0` | 表情合成引擎使用的绘图库（**必须 144.x**） |
-| `numpy` | 引擎的数值计算依赖 |
-| `meme 引擎` | 已随代码放在 `vendor/meme-generator-main/`，**不需要 pip 安装**，启动时自动挂载 |
+依赖清单在仓库根目录的 `requirements.txt`，分两部分：机器人本体需要 `flask`、`requests`、`websockets`；`vendor/meme-generator-main/` 里的 meme 引擎自带源码、不走 pip 安装，但它自己声明的十几个依赖没法自动解析，清单已经把它们列齐了，其中 `Pillow` 钉在 10.x——引擎锁死的就是这个区间，装成 11 或 12 会在生成表情时崩掉。
 
 > 注意装依赖统一用 `uv pip install`，别直接敲 `pip install`。裸 pip 很可能把包装进系统 Python 里，而 uv 默认认当前目录下的 `.venv`，不会跑偏；`.venv` 里到底装了什么，用 `uv pip list` 看。
 
@@ -129,7 +119,7 @@ copy .env.example .env
 
 浏览器打开 `http://127.0.0.1:5000`，会自动跳到 `/setup` 引导页，走完四步：
 
-1. **环境自检** —— 逐项检查那 7 个依赖，缺哪个会直接给出对应的安装命令。点"重新检测"可复查。
+1. **环境自检** —— 逐项检查那 7 个依赖，缺哪个都会提示跑 `uv pip install -r requirements.txt`。点"重新检测"可复查。
 2. **Meme 素材** —— 一键联网下载素材库（`vendor/.../meme_generator/memes/`）。这一步最慢，也最容易被网络问题卡住。
 3. **基础配置** —— 机器人昵称、指令前缀、端口等。
 4. **完成** —— 进入工作台。
@@ -189,7 +179,7 @@ pause
 三种可能：① 选择的 Python 不在 3.10 – 3.13（3.14 会卡在 Pillow 10.x 没有 wheel）；② 装的是 32 位 Python；③ uv 太旧，`uv self update` 升一下。都不对就把 Python 版本钉死重来一次：`uv venv --python 3.13 --clear`。
 
 **引导页一直显示缺依赖，但 `uv pip list` 里明明有**
-多半是装到别的环境里去了。确认是在项目根目录（有 `app.py` 的那层）执行的 `uv pip install ...`，uv 默认认当前目录的 `.venv`；在别处跑就会落到别的环境。
+多半是装到别的环境里去了。确认是在项目根目录（有 `app.py` 的那层）执行的 `uv pip install -r requirements.txt`，uv 默认认当前目录的 `.venv`；在别处跑就会落到别的环境。只缺个别包（典型的是 `toml`、`loguru`）也走同一条命令补齐，别照单包名一个个装。
 
 **启动报找不到 `cache` / `temp` / `font`**
 不在项目根目录启动。`cd` 到能看到 `app.py` 的那一层再运行。
@@ -213,7 +203,7 @@ pause
 一条命令验证依赖是否齐全：
 
 ```powershell
-& .venv\Scripts\python.exe -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"
+& .venv\Scripts\python.exe -c "import sys; sys.path.insert(0,'vendor/meme-generator-main'); import flask, requests, PIL, websockets, numpy, skia, meme_generator; print('deps OK, meme count:', len(meme_generator.get_memes()))"
 ```
 
-输出两行 `base OK` / `meme OK` 就基本稳了。更全面的检查直接看引导页第 1 步（还会检查 `cache` / `temp` / `font` / 背景图目录、Python 版本、引擎版本、可识别表情数、管理密码状态）。
+这条要在项目根目录跑，`sys.path.insert` 那一段是把 vendor 里的引擎挂进来——只有 `app.py` 启动时才会自动挂，独立跑一条命令得自己补。打印出 `deps OK, meme count: 295` 一类的数字就基本稳了。更全面的检查直接看引导页第 1 步（还会检查 `cache` / `temp` / `font` / 背景图目录、Python 版本、引擎版本、可识别表情数、管理密码状态）。

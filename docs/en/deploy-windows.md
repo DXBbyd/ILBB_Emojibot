@@ -67,24 +67,16 @@ uv --version
 
 > If the script is blocked by the network, fall back to `pip install uv`; that works on any platform.
 
-Then create the virtual environment and install the six dependencies:
+Then create the virtual environment and install the dependencies:
 
 ```powershell
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
-What the seven dependencies do:
+`uv venv --python 3.13` finds a 3.13 interpreter on its own and downloads one if your machine does not have it, so the Python already installed on the system does not matter. Every later command goes through `.venv\Scripts\python.exe`, which likewise does not depend on PATH.
 
-| Package | Purpose |
-| --- | --- |
-| `flask` | Web workbench and REST API |
-| `requests` | Fetch QQ avatars, random background images |
-| `pillow` | Image processing (pair cards, quote images) |
-| `websockets` | OneBot V11 reverse WebSocket server |
-| `skia-python~=144.0` | Drawing library used by the meme composition engine (**must be 144.x**) |
-| `numpy` | Numerical computation dependency of the engine |
-| `meme engine` | Already shipped with the code at `vendor/meme-generator-main/`, **no pip install needed**; mounted automatically at startup |
+The dependency list is `requirements.txt` at the repository root, and it covers two things: the bot itself needs `flask`, `requests` and `websockets`; the meme engine under `vendor/meme-generator-main/` ships as source and is not installed through pip, but the dozen or so packages it declares cannot be resolved automatically, so the list enumerates them. `Pillow` is pinned to 10.x there — that is the range the engine locks, and 11 or 12 will break meme generation.
 
 > Install dependencies with `uv pip install`, not bare `pip install`. Bare pip very likely lands in your system Python, while uv resolves the `.venv` in the current directory by default and will not wander off. To see what actually went into the environment, use `uv pip list`.
 
@@ -125,7 +117,7 @@ Seeing logs like the following means success (the admin password only appears th
 
 Open `http://127.0.0.1:5000` in your browser; it will automatically jump to the `/setup` wizard. Go through the four steps:
 
-1. **Environment self-check** — checks those 7 dependencies one by one, and for any that are missing it directly gives the corresponding install command. Click "Re-check" to check again.
+1. **Environment self-check** — checks those 7 dependencies one by one, and for anything missing it points you at `uv pip install -r requirements.txt`. Click "Re-check" to check again.
 2. **Meme assets** — one-click online download of the asset library (`vendor/.../meme_generator/memes/`). This step is the slowest, and the most likely to get stuck on network issues.
 3. **Basic configuration** — bot nickname, command prefix, ports, etc.
 4. **Done** — enter the workbench.
@@ -185,7 +177,7 @@ After that, just double-click it to run. Note that `cd /d "%~dp0"` cannot be rem
 Three possibilities: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no wheel); ② the installed Python is 32-bit; ③ uv is too old, update it with `uv self update`. Check them in order; as a last resort, rebuild the environment with `uv venv --python 3.13 --clear` and reinstall.
 
 **The setup wizard keeps showing missing dependencies, but `uv pip list` clearly shows them**
-They went into a different Python. Recreate the environment from the project root with `uv venv --python 3.13`, then `uv pip install` the six packages again.
+They went into a different Python. Recreate the environment from the project root with `uv venv --python 3.13`, then install again with `uv pip install -r requirements.txt`. If only individual packages are missing — `toml`, `loguru` — that same command fills them in; do not reinstall them one by one by name.
 
 **Startup reports that `cache` / `temp` / `font` cannot be found**
 You are not starting from the project root directory. `cd` to the level where you can see `app.py`, then run it.
@@ -209,10 +201,10 @@ Delete `api_keys.json` and restart; it will be regenerated and printed to the te
 One command to verify that the dependencies are complete:
 
 ```powershell
-& .venv\Scripts\python.exe -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"
+& .venv\Scripts\python.exe -c "import sys; sys.path.insert(0,'vendor/meme-generator-main'); import flask, requests, PIL, websockets, numpy, skia, meme_generator; print('deps OK, meme count:', len(meme_generator.get_memes()))"
 ```
 
-If it outputs the two lines `base OK` / `meme OK`, you are basically good. For a more comprehensive check, just look at step 1 of the setup wizard (it also checks the `cache` / `temp` / `font` / background image directories, the Python version, the engine version, the number of recognizable memes, and the admin password status).
+Run this from the project root. The `sys.path.insert` part attaches the vendored engine — only `app.py` does that automatically at startup, so a standalone command has to do it itself. Seeing a number such as `deps OK, meme count: 295` means you are basically good. For a more comprehensive check, just look at step 1 of the setup wizard (it also checks the `cache` / `temp` / `font` / background image directories, the Python version, the engine version, the number of recognizable memes, and the admin password status).
 
 ---
 

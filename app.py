@@ -2141,14 +2141,17 @@ def _setup_python_dep():
 
 
 # 依赖自检清单：(import 名, 显示名, 装不上时的补救提示)
+# 补救提示统一指向 requirements.txt：meme 引擎随项目自带源码、不走 pip 安装，
+# 它声明的十几个依赖没法自动解析，照单个包名 pip install 非常容易漏。
+_DEP_FIX = "uv pip install -r requirements.txt"
 SETUP_DEP_MODULES = [
-    ("flask", "Flask", "pip install flask"),
-    ("requests", "requests", "pip install requests"),
-    ("PIL", "Pillow", "pip install pillow"),
-    ("websockets", "websockets", "pip install websockets"),
-    ("skia", "skia-python", "pip install skia-python~=144.0"),
-    ("numpy", "numpy", "pip install numpy"),
-    ("meme_generator", "meme 引擎", "确认 vendor/meme-generator-main 已就位（源码随项目自带，无需 pip 安装）"),
+    ("flask", "Flask", _DEP_FIX),
+    ("requests", "requests", _DEP_FIX),
+    ("PIL", "Pillow", _DEP_FIX),
+    ("websockets", "websockets", _DEP_FIX),
+    ("skia", "skia-python", _DEP_FIX),
+    ("numpy", "numpy", _DEP_FIX),
+    ("meme_generator", "meme 引擎", "确认 vendor/meme-generator-main 已就位，然后跑 uv pip install -r requirements.txt"),
 ]
 
 

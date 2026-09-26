@@ -60,7 +60,7 @@ On first launch a random admin password is generated and **printed to the termin
 
 The project is self-hosted and needs no third-party cloud service. Environment requirements, dependency installation, configuration, startup, auto-start on boot and troubleshooting are split by platform and live in [Choose a deployment](docs/en/deploy.md) — pick the route that matches your machine and follow it.
 
-Three things are worth knowing up front. Python must be **3.10 – 3.13 (64-bit), 3.13 recommended**; `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version or architecture mismatch fails outright, and 3.14 does not work either (see [FAQ](#faq) below for why). Dependencies are managed by [uv](https://docs.astral.sh/uv/): once uv is installed, create the environment with `uv venv --python 3.13` and install with `uv pip install` — no need to touch pip again. The repository **does not include the meme assets** (~254 MB); the setup wizard downloads them on first run.
+Three things are worth knowing up front. Python must be **3.10 – 3.13 (64-bit), 3.13 recommended**; `skia-python`, `Pillow` and friends only ship prebuilt wheels, so a version or architecture mismatch fails outright, and 3.14 does not work either (see [FAQ](#faq) below for why). Dependencies are managed by [uv](https://docs.astral.sh/uv/): once uv is installed, create the environment with `uv venv --python 3.13` and install with `uv pip install -r requirements.txt` — no need to touch pip again. The repository **does not include the meme assets** (~254 MB); the setup wizard downloads them on first run.
 
 **You must start the service from the project root** — `cache`, `temp` and `font` are resolved relatively. After startup, open `http://127.0.0.1:5000/setup` and let the wizard handle the environment check, asset download and basic config in one pass. Then follow [Platform Integration](docs/en/platform-integration.md) to connect NapCat and let the bot loose in QQ.
 
@@ -213,10 +213,13 @@ Chinese docs: [选择部署方式](docs/zh/deploy.md) ｜ [指令手册](docs/zh
 ## FAQ
 
 **Is Python 3.13 mandatory?**
-The version requirement is fixed at **Python 3.10 – 3.13 (64-bit), 3.13 recommended**. `skia-python~=144.0` ships prebuilt wheels; a mismatched Python version or 32/64-bit architecture simply fails to install. Step 1 of the setup wizard checks the interpreter alongside the dependencies and flags anything that does not qualify.
+The version requirement is fixed at **Python 3.10 – 3.13 (64-bit), 3.13 recommended**. Packages such as `skia-python` and `Pillow` ship as prebuilt wheels; a mismatched Python version or 32/64-bit architecture simply fails to install. Step 1 of the setup wizard checks the interpreter alongside the dependencies and flags anything that does not qualify.
 
 **Can I use Python 3.14?**
 No. `skia-python` itself does publish a 3.14 wheel, but the meme engine vendored here pins `Pillow ^10.0.0`, and Pillow 10.x predates 3.14 with no prebuilt wheel for it, so pip fails with `Could not find a version that satisfies the requirement Pillow<11,>=10`. Installing 64-bit 3.13 is the only painless option.
+
+**Startup fails with `ModuleNotFoundError: No module named 'toml'` (or `loguru`, `httpx`)?**
+The meme engine's dependencies are missing. The engine ships as source at `vendor/meme-generator-main/` and is not installed through pip, so pip cannot resolve the dependencies it declares, and installing package by package easily leaves a few out. Run `uv pip install -r requirements.txt` from the project root to fill them all in at once. The `Pillow` pin to 10.x in that list follows the same logic: it is the range the engine locks, and 11 or 12 imports fine but breaks when you actually generate a meme.
 
 **"Assets incomplete" or `/meme` says the meme is missing?**
 Meme assets (~254 MB) are intentionally excluded from the repo. Open `http://127.0.0.1:5000/setup` and use the "Meme assets" step to download them.

@@ -67,7 +67,7 @@ mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
 容器里你的身份就是 root，`/root` 是家目录，既不用 `sudo`，也不会碰到权限不足。`/root/ilbb-bot` 只是给项目腾一个独立文件夹，换成别的名字或者放到 `/home` 下面照样能跑，唯一的要求是路径**不含空格和中文**。真正要避开的是 `/sdcard` 这类共享存储：它是 Android 的外部存储挂载，没有执行权限，`.venv/bin/python` 会因为拿不到执行位而起不来。还有一点，`~` 在容器里指向 `/root`，退回到 Termux 原生环境却指向 `/data/data/com.termux/files/home`，所以自己写启动命令时用绝对路径更稳妥。
@@ -111,8 +111,7 @@ source $HOME/.local/bin/env
 
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git ~/ILBB_Emojibot && cd ~/ILBB_Emojibot
 uv venv --python 3.13
-uv pip install flask requests pillow websockets numpy
-uv pip install "skia-python~=144.0"      # 这一步大概率失败
+uv pip install -r requirements.txt      # 大概率卡在 skia-python
 ```
 
 **如果 `skia-python` 装失败**，说明这条路在你这台机器上走不通，回头走方案 A。一些纯文本场景下的替代思路（例如只跑 WebUI 而不用表情合成）需要改代码，不在本文档支持范围内。

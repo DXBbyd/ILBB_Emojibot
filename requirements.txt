@@ -1,0 +1,32 @@
+# ILBB 依赖清单
+# 安装：uv pip install -r requirements.txt
+# 解释器：64 位 Python 3.10 – 3.13（推荐 3.13）
+
+# ---- 机器人本体 ----
+flask
+requests
+websockets
+
+# ---- vendor/meme-generator-main 引擎 ----
+# 引擎源码随项目自带，不通过 pip 安装，但它自己声明的依赖得装齐。
+# Pillow 必须钉在 10.x：引擎锁 Pillow >=10.0.0,<11.0.0，
+# 而 Pillow 11/12 改了内部接口，装上会在生成表情时炸。
+Pillow>=10.0.0,<11.0.0
+pil-utils>=0.2.0,<0.3.0
+skia-python>=138.0
+pydantic>=2.4,<3.0
+toml>=0.10.2,<0.11.0
+loguru>=0.6.0,<1.0.0
+httpx>=0.20.0,<1.0.0
+rich>=13.0.0,<14.0.0
+typing-extensions>=4.4.0,<5.0.0
+filetype>=1.2.0,<2.0.0
+qrcode>=8.0,<9.0
+dateparser>=1.2.0,<2.0.0
+python-multipart>=0.0.9,<0.1.0
+arclet-alconna>=1.8.23,<2.0.0,!=1.8.27
+arclet-alconna-tools>=0.7.9,<0.8.0
+fastapi>=0.93.0,<1.0.0
+uvicorn>=0.20.0,<1.0.0
+
+# numpy 与 opencv-python-headless 不在这里列：pil-utils 会带进来。

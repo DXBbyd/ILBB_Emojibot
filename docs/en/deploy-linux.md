@@ -72,12 +72,12 @@ git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 ```bash
 cd /root/ilbb-bot
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
 `uv pip install` resolves the `.venv` in the current directory by default, so running it from the project root will not install anywhere unexpected. To see what went in, use `uv pip list`.
 
-**The meme engine does not need to be installed**: the source code in `vendor/meme-generator-main/` is automatically attached to the module search path when the program starts.
+**The meme engine itself does not need to be installed**: the source code in `vendor/meme-generator-main/` is automatically attached to the module search path when the program starts. Its own declared dependencies, however, do have to be present; the ones most easily missed are `toml`, `loguru`, `httpx` and `pil-utils`, and a single missing one stops startup with `ModuleNotFoundError`. `requirements.txt` enumerates all of them, which is why the one command above is enough.
 
 > If you see an editable-install record in `uv pip list` such as `-e /old-path/vendor/meme-generator-main` pointing to an old machine, you can clean it up with `uv pip uninstall meme-generator`; leaving it also does no harm.
 
@@ -196,7 +196,7 @@ sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
 Troubleshoot: ① Python is not in the 3.10 – 3.13 range (3.14 stalls on Pillow 10.x having no 3.14 wheel); ② the Python running is 32-bit (`./.venv/bin/python -c "import platform;print(platform.architecture())"` should be `('64bit', ...)`); ③ the architecture is something like armv7 with no wheel available, in which case you have to switch to arm64 or x86_64. As a last resort, rebuild the environment with `uv venv --python 3.13 --clear` and reinstall.
 
 **The setup wizard keeps showing missing dependencies**
-The packages did not land in this project's `.venv`. Run `uv pip list` in the project root to check what is actually there, then reinstall the six packages with `uv pip install`.
+The packages did not land in this project's `.venv`. Run `uv pip list` in the project root to check what is actually there, then reinstall with `uv pip install -r requirements.txt`. If only a few packages are missing — `toml`, `loguru` and the like are the usual suspects — that same command fills them in; do not reinstall them one by one by name.
 
 **The path has spaces or Chinese characters, causing import errors**
 Move the project to a clean path like `/root/ilbb-bot`.
@@ -215,10 +215,10 @@ Delete `api_keys.json` and restart; it will be regenerated and printed.
 ## Post-install verification (optional)
 
 ```bash
-./.venv/bin/python -c "import flask,requests,PIL,websockets,numpy,skia; print('base OK'); from meme_generator import get_memes; print('meme OK')"
+./.venv/bin/python -c "import sys; sys.path.insert(0,'vendor/meme-generator-main'); import flask, requests, PIL, websockets, numpy, skia, meme_generator; print('deps OK, meme count:', len(meme_generator.get_memes()))"
 ```
 
-Outputting the two lines means it passes. For a more comprehensive check, look at step 1 of the setup wizard.
+Run this from the project root. The `sys.path.insert` part attaches the vendored engine — only `app.py` does that automatically at startup, so a standalone command has to do it itself. Seeing a number such as `deps OK, meme count: 295` means it passed. For a more comprehensive check, look at step 1 of the setup wizard.
 
 ---
 

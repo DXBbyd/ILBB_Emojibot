@@ -67,7 +67,7 @@ mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
-uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
+uv pip install -r requirements.txt
 ```
 
 Inside the container you are root and `/root` is the home directory, so there is no `sudo` to type and no permission trouble to hit. `/root/ilbb-bot` is only a folder set aside for the project; another name, or a spot under `/home`, works just as well. The single requirement is that the path contains **no spaces and no Chinese characters**. What you do need to avoid is shared storage such as `/sdcard`: it is an external-storage mount with no execute permission, so `.venv/bin/python` will fail to start. One more thing: `~` resolves to `/root` inside the container but to `/data/data/com.termux/files/home` back in native Termux, so use absolute paths in any startup command you write yourself.
@@ -111,8 +111,7 @@ source $HOME/.local/bin/env
 
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git ~/ILBB_Emojibot && cd ~/ILBB_Emojibot
 uv venv --python 3.13
-uv pip install flask requests pillow websockets numpy
-uv pip install "skia-python~=144.0"      # this step very likely fails
+uv pip install -r requirements.txt      # in most cases this stalls on skia-python
 ```
 
 **If `skia-python` fails to install**, that means this route does not work on your machine, so go back to Option A. Some alternative ideas for pure-text scenarios (for example, running only the WebUI without emoji composition) require code changes and are outside the scope of this document.

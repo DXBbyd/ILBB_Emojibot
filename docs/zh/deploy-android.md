@@ -63,12 +63,14 @@ uv --version
 ### 5. 取代码、建环境、装依赖
 
 ```bash
-mkdir -p /opt/ilbb-bot && cd /opt/ilbb-bot
+mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
+
+容器里你的身份就是 root，`/root` 是家目录，既不用 `sudo`，也不会碰到权限不足。`/root/ilbb-bot` 只是给项目腾一个独立文件夹，换成别的名字或者放到 `/home` 下面照样能跑，唯一的要求是路径**不含空格和中文**。真正要避开的是 `/sdcard` 这类共享存储：它是 Android 的外部存储挂载，没有执行权限，`.venv/bin/python` 会因为拿不到执行位而起不来。还有一点，`~` 在容器里指向 `/root`，退回到 Termux 原生环境却指向 `/data/data/com.termux/files/home`，所以自己写启动命令时用绝对路径更稳妥。
 
 **这一步是成败关键**。如果 `skia-python` 顺利装完，后面的路基本就通了；如果卡在编译或报找不到版本，先确认 `uname -m` 是 `aarch64`，再确认 Python 是 64 位的 **3.10 – 3.13**（推荐 3.13）。**3.14 不行**：meme 引擎依赖的 Pillow 10.x 没有 3.14 的 wheel。
 

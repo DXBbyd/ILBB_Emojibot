@@ -63,12 +63,14 @@ Installing uv is how the environment and the dependencies get built, and it pull
 ### 5. Get the Code, Create the Environment, Install Dependencies
 
 ```bash
-mkdir -p /opt/ilbb-bot && cd /opt/ilbb-bot
+mkdir -p /root/ilbb-bot && cd /root/ilbb-bot
 git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git .
 
 uv venv --python 3.13
 uv pip install flask requests pillow websockets "skia-python~=144.0" numpy
 ```
+
+Inside the container you are root and `/root` is the home directory, so there is no `sudo` to type and no permission trouble to hit. `/root/ilbb-bot` is only a folder set aside for the project; another name, or a spot under `/home`, works just as well. The single requirement is that the path contains **no spaces and no Chinese characters**. What you do need to avoid is shared storage such as `/sdcard`: it is an external-storage mount with no execute permission, so `.venv/bin/python` will fail to start. One more thing: `~` resolves to `/root` inside the container but to `/data/data/com.termux/files/home` back in native Termux, so use absolute paths in any startup command you write yourself.
 
 **This step decides success or failure**. If `skia-python` installs successfully, the rest of the road is basically clear; if it gets stuck compiling or reports that the version cannot be found, first confirm that `uname -m` is `aarch64`, then confirm that Python is 64-bit **3.10 – 3.13** (3.13 recommended). **3.14 will not work**: Pillow 10.x, which the meme engine depends on, has no 3.14 wheel.
 

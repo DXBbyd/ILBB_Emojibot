@@ -180,7 +180,7 @@ Structure of the result:
 
 Output: a JPG when the panel content is static, a GIF when it is an animated emoji/sticker (**the animation is preserved**). The "Quote image" form in the web UI lets you switch the global font directly (the same ILBB custom dropdown as the home page), and the signature follows it.
 
-All layout-related parameters are adjustable; see [configuration.md](configuration.md#名言图-quote).
+All layout-related parameters are adjustable; see [configuration.md](configuration.md#4-quote-image-quote).
 
 > To turn this feature off: `QUOTE_ENABLED=false`; in that case it only replies with a hint image.
 

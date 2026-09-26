@@ -34,9 +34,17 @@ env/
 node_modules/
 
 # ---------- vendor 素材库分层 ----------
-# 入库：meme 引擎源码、字体（resources/fonts）、素材清单（resource_list.json）
-# 忽略：meme 素材本体（~254MB / 3000+ 文件），克隆后由引导页 /setup 联网补全
-vendor/meme-generator-main/meme_generator/memes/
+# 入库：meme 引擎源码（含 memes/<key>/__init__.py 表情定义）、字体（resources/fonts）、
+#       素材清单（resource_list.json）
+# 忽略：meme 图片素材本体（~254MB / 2869 文件），克隆后由引导页 /setup 联网补全
+#
+# memes/<key>/__init__.py 是每个表情的定义代码（add_meme 注册用），必须入库：
+# 上游 resource_list.json 只列图片、不含 .py，只靠 /setup 下素材会得到一个
+# 「有图片、没定义」的目录 —— 那些子目录不成其为 Python 包，引擎 pkgutil 扫描时
+# 一个表情都加载不出来，表情列表于是全空。
+vendor/meme-generator-main/meme_generator/memes/**/*
+!vendor/meme-generator-main/meme_generator/memes/**/
+!vendor/meme-generator-main/meme_generator/memes/**/__init__.py
 vendor/**/__pycache__/
 vendor/meme-generator-main/output/
 vendor/meme-generator-main/result.*

@@ -170,13 +170,15 @@ On the first startup, visiting `http://127.0.0.1:5000/setup` takes you to the se
 | Step | Content |
 | --- | --- |
 | Environment self-check | Checks 7 dependencies one by one (flask / requests / pillow / websockets / skia-python / numpy / meme engine); a missing one points you to `uv pip install -r requirements.txt` |
-| Asset download | Pulls meme assets from the original repository to complete `vendor/.../memes/`, with progress and cancel |
+| Asset download | Downloads meme image assets into `vendor/.../memes/`, with progress and cancel |
 | Basic configuration | Sets the bot nickname, WebUI port, command prefix, etc., and writes back to `.env` |
 | Set admin password | Sets an admin password of your own (required); the temporary one stops working immediately |
 
 While the wizard is unfinished, visiting `/` brings you back to it (landing directly on step 4 when no password has been set yet).
 
-**Why the assets must be downloaded**: to keep the repository size down to a few tens of MB, the roughly 282 asset directories (about 254MB) under `vendor/meme-generator-main/meme_generator/memes/` are **not committed** and are completed over the network by this step. ILBB can start without downloading them, but meme generation will fail on a large scale.
+**Why the assets must be downloaded**: to keep the repository size down to a few tens of MB, the image assets under `vendor/meme-generator-main/meme_generator/memes/` (about 2,869 files, roughly 254MB) are **not committed** and are completed over the network by this step. ILBB can start without downloading them, but meme generation will fail on a large scale.
+
+Assets are assembled from two halves: the images are what this step downloads, while each meme's definition code `memes/<key>/__init__.py` ships with the repository (about 282 files, just over 400 KB in total — see the vendor layering in `.gitignore`). The upstream resource list holds only png/jpg/gif, so a download cannot restore a missing definition: the meme list would end up completely empty, and both the setup page and the status panel say as much.
 
 ---
 

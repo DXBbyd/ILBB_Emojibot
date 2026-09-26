@@ -170,13 +170,15 @@ cp .env.example .env
 | 步骤 | 内容 |
 | --- | --- |
 | 环境自检 | 逐项检查 7 个依赖（flask / requests / pillow / websockets / skia-python / numpy / meme 引擎），缺哪个都会提示跑 `uv pip install -r requirements.txt` |
-| 素材下载 | 从原仓库拉取 meme 素材补全 `vendor/.../memes/`，带进度与取消 |
+| 素材下载 | 从原仓库拉取 meme 图片素材补全 `vendor/.../memes/`，带进度与取消 |
 | 基础配置 | 机器人昵称、WebUI 端口、指令前缀等，写回 `.env` |
 | 设置管理密码 | 设一个属于你自己的管理密码（必填）；此前那枚临时密码立即作废 |
 
 引导没走完时，访问 `/` 会自动把你带回引导页（缺密码时直接落在第 4 步）。
 
-**为什么需要下载素材**：为了把仓库体积控制在几十 MB，`vendor/meme-generator-main/meme_generator/memes/` 下约 282 个素材目录（约 254MB）**未入库**，由这一步联网补全。不下载也能启动，但表情生成会大面积失败。
+**为什么需要下载素材**：为了把仓库体积控制在几十 MB，`vendor/meme-generator-main/meme_generator/memes/` 下的图片素材（约 2869 个文件、约 254MB）**未入库**，由这一步联网补全。不下载也能启动，但表情生成会大面积失败。
+
+素材是两半拼起来的：图片由这一步下载，而每个表情的定义代码 `memes/<key>/__init__.py` 随仓库分发（约 282 个文件、400 多 KB，见 `.gitignore` 的 vendor 分层）。上游资源清单里只有 png/jpg/gif，所以定义文件缺失时下载补不回来 —— 表情列表会整个空掉，引导页与「状态」页会直接给出提示，按提示确认代码是完整拉取的即可。
 
 ---
 

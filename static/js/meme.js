@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var memeQQStatus = document.getElementById('memeQQStatus');
 
     var allMemes = [];
+    var memeHint = '';     // 表情库为空时后端给出的原因
     var selected = null;   // {item, imagesDataURL[], texts[], args[]}
     var filterType = 'all';   // all | img | text
 
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var data = await res.json();
             if (!data.ok) { memeList.innerHTML = '<div style="color:#e05555;padding:12px;">加载失败: ' + (data.error || '') + '</div>'; return; }
             allMemes = data.items;
+            memeHint = data.hint || '';
             renderList('');
         } catch (e) {
             memeList.innerHTML = '<div style="color:#e05555;padding:12px;">加载失败</div>';
@@ -66,7 +68,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         memeList.innerHTML = '';
         if (!items.length) {
-            memeList.innerHTML = '<div style="color:#b0b4c0;padding:12px;">没有匹配的表情</div>';
+            // 一条都没有多半不是「搜不到」，而是表情库没加载出来，把原因说清楚
+            var tip = (allMemes.length && q) ? '没有匹配的表情' : (memeHint || '没有匹配的表情');
+            memeList.innerHTML = '<div style="color:#b0b4c0;padding:12px;line-height:1.6;">' + esc(tip) + '</div>';
             return;
         }
         items.forEach(function(m) {

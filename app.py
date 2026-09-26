@@ -1033,6 +1033,9 @@ def api_status():
             meme['preview_ok'] = len(meme_service.preview('always')) > 0
         except Exception:
             meme['preview_ok'] = False
+        if not meme['total']:
+            # 一个表情都没有时，把原因一并带出去，省得后台只显示一片空白
+            meme['error'] = meme_service.load_error() or '表情列表为空，原因未知'
     except Exception as e:
         meme['error'] = str(e)
 
@@ -1124,7 +1127,11 @@ def meme_list():
     query = request.args.get('q', '')
     try:
         items = meme_service.list_memes(query)
-        return jsonify({'ok': True, 'count': len(items), 'items': items})
+        out = {'ok': True, 'count': len(items), 'items': items}
+        if not items and not query:
+            # 整个表情库都是空的，把原因一起给前端，别只显示「没有匹配的表情」
+            out['hint'] = meme_service.load_error()
+        return jsonify(out)
     except Exception as e:
         return _meme_error(e)
 
@@ -2255,8 +2262,11 @@ def _setup_env_check():
                      ("字体", config.FONT_DIR), ("背景图", config.BG_DIR)):
         dirs.append({"label": label, "path": p, "exists": bool(p) and os.path.isdir(p)})
     meme_count = -1
+    meme_hint = ""
     try:
         meme_count = len(meme_service.list_memes(""))
+        if not meme_count:
+            meme_hint = meme_service.load_error()
     except Exception:
         meme_count = -1
     return {
@@ -2269,6 +2279,7 @@ def _setup_env_check():
         "engine_version": meme_assets.engine_version(),
         "asset_dir": meme_assets.asset_dir(),
         "meme_count": meme_count,
+        "meme_hint": meme_hint,
         "admin_password_set": api_key_store.has_admin_password(),
         "admin_pwd_pending": api_key_store.admin_password_pending(),
         "admin_pwd_source": api_key_store.admin_password_source(),
@@ -2320,6 +2331,12 @@ def setup_state_api():
     """引导页首屏数据（不联网、不扫盘，读缓存状态即可）。"""
     st = _setup_state_read()
     needed, why = _setup_needed()
+    meme_hint = ""
+    try:
+        if not meme_service.get_memes():
+            meme_hint = meme_service.load_error()
+    except Exception:
+        pass
     return jsonify({
         "ok": True,
         "needed": needed,
@@ -2334,6 +2351,7 @@ def setup_state_api():
         "logged_in": bool(session.get("admin_ok")),
         "job": meme_assets.job_snapshot(),
         "config_groups": _setup_config_schema(),
+        "meme_hint": meme_hint,
         "env_file": config.ENV_FILE,
         "env_file_exists": os.path.isfile(config.ENV_FILE),
     })

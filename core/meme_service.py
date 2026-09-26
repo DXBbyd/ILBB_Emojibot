@@ -44,8 +44,14 @@ KNOWN_ERRORS = (
 # （见 .gitignore 的 vendor 分层），新克隆的机器上这次扫描是空的。这里在首次
 # 真正用到表情时按需补扫，素材补齐后无需重启；下载中途被抓到一半也没关系，
 # 下次调用发现磁盘上的表情变多了会再补一次。
+#
+# 表情素材分两半：图片来自 /setup 按上游 resource_list.json 下载（那份清单里只有
+# png/jpg/gif，没有任何 .py），每个表情的定义 memes/<key>/__init__.py 来自仓库。
+# 缺了定义，那些子目录就不成其为 Python 包，pkgutil 一个模块都扫不出来，表情数恒为
+# 0 —— 所以数不出来的时候得说清原因，不能让后台只显示一片空白。
 _memes_lock = threading.Lock()
 _memes_tried = ()       # 上次补扫的「目录 + 个数」签名，避免反复白扫
+_load_error = ""        # 上次补扫的诊断信息；一切正常时为空
 
 
 def _asset_dir() -> str:
@@ -66,19 +72,66 @@ def _meme_names(d: str) -> set:
         return set()
 
 
+def _missing_defs(d: str, names: set) -> int:
+    """数出多少个表情目录缺 __init__.py 定义文件。"""
+    miss = 0
+    for n in names:
+        try:
+            if not os.path.isfile(os.path.join(d, n, "__init__.py")):
+                miss += 1
+        except OSError:
+            pass
+    return miss
+
+
+def _diagnose(have: int, d: str, want: set, err: str = "") -> str:
+    """说清「为什么表情列表是空的」；一切正常返回空串。"""
+    if err:
+        return err
+    if have:
+        return ""
+    if not d:
+        return "取不到表情素材目录，请确认依赖已装齐（meme-generator 是否可用）"
+    if not os.path.isdir(d):
+        return f"表情素材目录不存在：{d}；请在引导页完成素材下载"
+    if not want:
+        return f"表情素材目录是空的：{d}；请在引导页完成素材下载"
+    miss = _missing_defs(d, want)
+    if miss:
+        return (f"素材目录里有 {len(want)} 个表情，但一个都没加载出来：其中 {miss} 个缺少定义文件 "
+                f"memes/<key>/__init__.py。定义文件随仓库分发，不在素材包里，"
+                f"请确认代码是完整拉取的（git pull）")
+    return (f"素材目录里有 {len(want)} 个表情定义，但引擎一个都没加载出来；"
+            f"请查看启动日志里 meme_generator 的 import 报错")
+
+
+def load_error() -> str:
+    """最近一次补扫的失败原因；一切正常返回空串。"""
+    ensure_memes_loaded()
+    return _load_error
+
+
 def ensure_memes_loaded() -> int:
     """确保素材已挂进引擎，返回当前表情总数。"""
-    global _memes_tried
+    global _memes_tried, _load_error
     with _memes_lock:
         have = len(_engine_get_memes())
         d = _asset_dir()
         want = _meme_names(d) if d else set()
         sig = (d, len(want))
         if not want or have >= len(want) or sig == _memes_tried:
+            _load_error = _diagnose(have, d, want)
             return have
         _memes_tried = sig
-        _engine_load_memes(d)
-        return len(_engine_get_memes())
+        try:
+            _engine_load_memes(d)
+        except Exception as e:
+            have = len(_engine_get_memes())
+            _load_error = _diagnose(have, d, want, f"加载表情素材出错：{type(e).__name__}: {e}")
+            return have
+        have = len(_engine_get_memes())
+        _load_error = _diagnose(have, d, want)
+        return have
 
 
 def get_meme(key: str):

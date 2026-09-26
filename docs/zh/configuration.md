@@ -169,7 +169,7 @@ cp .env.example .env
 
 | 步骤 | 内容 |
 | --- | --- |
-| 环境自检 | 逐项检查 7 个依赖（flask / requests / pillow / websockets / skia-python / numpy / meme 引擎） |
+| 环境自检 | 逐项检查 7 个依赖（flask / requests / pillow / websockets / skia-python / numpy / meme 引擎），缺哪个都会提示跑 `uv pip install -r requirements.txt` |
 | 素材下载 | 从原仓库拉取 meme 素材补全 `vendor/.../memes/`，带进度与取消 |
 | 基础配置 | 设置管理密码、WebUI 端口、指令前缀等，写回 `.env` |
 | 完成 | 跳转到主界面 |

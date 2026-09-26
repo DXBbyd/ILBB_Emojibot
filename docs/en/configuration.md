@@ -169,7 +169,7 @@ On the first startup, visiting `http://127.0.0.1:5000/setup` takes you to the se
 
 | Step | Content |
 | --- | --- |
-| Environment self-check | Checks 7 dependencies one by one (flask / requests / pillow / websockets / skia-python / numpy / meme engine) |
+| Environment self-check | Checks 7 dependencies one by one (flask / requests / pillow / websockets / skia-python / numpy / meme engine); a missing one points you to `uv pip install -r requirements.txt` |
 | Asset download | Pulls meme assets from the original repository to complete `vendor/.../memes/`, with progress and cancel |
 | Basic configuration | Sets the admin password, WebUI port, command prefix, etc., and writes back to `.env` |
 | Done | Redirects to the main interface |

@@ -12,10 +12,11 @@
         会自动变成 ILBB 的下拉栏，选项来自 NapCat 当前登录 QQ。
     </div>
 
-    <!-- ============ 二级切换：插件列表 / 独立页面 ============ -->
+    <!-- ============ 二级切换：插件列表 / 插件商店 / 独立页面 ============ -->
     <div class="ws-tabs" id="pgTabs">
         <span class="ws-tabs-pill" id="pgTabsPill" aria-hidden="true"></span>
         <button type="button" class="ws-tab active" data-pg-tab="list">插件列表</button>
+        <button type="button" class="ws-tab" data-pg-tab="store">插件商店</button>
         <button type="button" class="ws-tab" data-pg-tab="web">独立页面</button>
         <span class="ws-tabs-hint" id="pgTabsHint">一个文件夹 = 一个插件</span>
     </div>
@@ -114,7 +115,140 @@
         </div>
     </div>
 
-    <!-- ============ 子页 2：独立页面 ============ -->
+    <!-- ============ 子页 2：插件商店 ============ -->
+    <div class="ws-pane" id="pgPaneStore">
+        <div class="pg-wrap pg-wrap-store">
+            <section class="pg-col-list">
+                <div class="bot-block">
+                    <div class="bot-block-head">
+                        <h3>插件商店</h3>
+                        <span class="bot-block-hint" id="pgStoreCountHint">正在读取…</span>
+                    </div>
+                    <div class="pg-toolbar">
+                        <label class="pg-search">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><path d="M10.5 10.5L14 14"></path></svg>
+                            <input type="text" id="pgStoreSearch" placeholder="搜索插件名 / 简介 / 作者 / 标签…" autocomplete="off">
+                        </label>
+                        <button type="button" class="ws-btn" id="pgStoreRefreshBtn" title="强制重新拉取插件源列表（忽略缓存）">刷新列表</button>
+                        <button type="button" class="ws-btn" id="pgStoreStatusBtn" title="查看插件源 / git 环境是否正常">检查环境</button>
+                    </div>
+                    <div class="pg-tip-inline pg-toolbar-tip" id="pgStoreSrcTip">插件源：—</div>
+
+                    <!-- 3 列 × 5 行，每页 15 个 -->
+                    <div class="pg-list pg-store-grid" id="pgStoreList">
+                        <div class="console-empty">正在读取插件源…</div>
+                    </div>
+                    <div class="pg-pager" id="pgStorePager"></div>
+                </div>
+            </section>
+
+            <aside class="pg-col-detail">
+                <div class="bot-block" id="pgStoreDetailBlock">
+                    <div class="bot-block-head">
+                        <h3 id="pgStoreDetailTitle">插件详情</h3>
+                        <span class="bot-block-hint" id="pgStoreDetailHint">从左边的网格里选一个插件</span>
+                    </div>
+
+                    <div class="pg-empty" id="pgStoreEmpty">
+                        还没选中插件。左边点一下卡片，这里会显示它的介绍、仓库地址和作者信息。
+                    </div>
+
+                    <div class="pg-detail hidden" id="pgStoreDetail">
+                        <div class="pg-meta" id="pgStoreMeta"></div>
+
+                        <div class="pg-store-about" id="pgStoreAbout"></div>
+
+                        <div class="pg-cfg-head">
+                            <h4>安装</h4>
+                            <span class="pg-tip-inline" id="pgStoreInstallHint">装好后会自动被热重载识别，不用重启</span>
+                        </div>
+
+                        <div class="pg-actions" id="pgStoreActions"></div>
+
+                        <div class="pg-store-log hidden" id="pgStoreLog"></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ============ 安装弹窗：选加速地址 + 安装设置 ============ -->
+        <div class="pg-modal hidden" id="pgStoreModal">
+            <div class="pg-modal-mask" data-pg-close="1"></div>
+            <div class="pg-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="pgStoreModalTitle">
+                <div class="pg-modal-head">
+                    <h3 id="pgStoreModalTitle">安装插件</h3>
+                    <button type="button" class="pg-modal-x" data-pg-close="1" title="关闭" aria-label="关闭">&times;</button>
+                </div>
+
+                <div class="pg-modal-body">
+                    <div class="pg-modal-plugin">
+                        <b id="pgStoreModalName">—</b>
+                        <span class="pg-modal-repo" id="pgStoreModalRepo"></span>
+                    </div>
+
+                    <div class="pg-modal-pick">
+                        <div class="pg-modal-sec-head">
+                            <h4>GitHub 加速地址</h4>
+                            <span class="bot-block-hint" id="pgStoreSpeedHint">—</span>
+                        </div>
+                        <div class="pg-tip-inline">
+                            先挑一条线路。<b>原 GitHub（直连）</b>是官方地址，其余是前缀式加速站：会用
+                            <code class="ws-code">加速地址 + https://github.com/作者/仓库.git</code> 拼出下载地址。
+                            拿不准就点「测速选最快」，会自动选中并滑到最快的那条。
+                        </div>
+                        <div class="pg-store-proxy-bar">
+                            <button type="button" class="ws-btn pg-btn-primary" id="pgStoreSpeedBtn">测速选最快</button>
+                            <button type="button" class="ws-btn" id="pgStoreProxyTestBtn" title="只测当前选中的那条线路">测当前线路</button>
+                            <span class="pg-tip-inline" id="pgStoreSpeedTip">还没测速</span>
+                        </div>
+                        <div class="pg-store-proxies" id="pgStoreProxies">
+                            <div class="pg-tip-inline">正在读取加速地址…</div>
+                        </div>
+                    </div>
+
+                    <div class="pg-modal-set">
+                        <div class="pg-modal-sec-head"><h4>安装设置</h4></div>
+
+                        <div class="pg-field">
+                            <div class="pg-field-head">
+                                <label for="pgStoreName">目录名</label>
+                                <span class="pg-field-type">可改</span>
+                            </div>
+                            <input type="text" id="pgStoreName" placeholder="默认用仓库名" autocomplete="off">
+                            <div class="pg-field-hint">会创建 <code class="ws-code">plugins/&lt;目录名&gt;/</code>；留空则用仓库名。</div>
+                        </div>
+
+                        <div class="pg-field">
+                            <div class="pg-field-head">
+                                <label for="pgStoreBranch">分支</label>
+                                <span class="pg-field-type">可留空</span>
+                            </div>
+                            <input type="text" id="pgStoreBranch" placeholder="留空 = 仓库默认分支" autocomplete="off">
+                        </div>
+
+                        <div class="pg-field">
+                            <div class="pg-field-head">
+                                <label for="pgStoreForce">重复安装</label>
+                                <span class="pg-field-type">开关</span>
+                            </div>
+                            <label class="pg-check"><input type="checkbox" id="pgStoreForce"> <span>已存在同名目录时删掉重装</span></label>
+                        </div>
+
+                        <div class="pg-store-url" id="pgStoreRealUrl"></div>
+                    </div>
+                </div>
+
+                <div class="pg-modal-foot">
+                    <span class="pg-tip-inline" id="pgStoreModalTip">装好后热重载自动识别，不用重启</span>
+                    <button type="button" class="ws-btn" data-pg-close="1">取消</button>
+                    <button type="button" class="ws-btn pg-btn-primary" id="pgStoreInstallBtn">开始安装</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============ 子页 3：独立页面 ============ -->
     <div class="ws-pane" id="pgPaneWeb">
         <div class="pg-wrap">
             <section class="pg-col-list">

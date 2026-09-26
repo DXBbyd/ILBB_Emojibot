@@ -409,6 +409,14 @@
         c.innerHTML = h;
     }
 
+    // 原生 confirm() 在预览 / 内嵌 iframe 里会被静默拦截并直接返回 false，
+    // 表现为「点了按钮没反应」。优先用 plugins.js 提供的页面内确认框，
+    // 实在取不到（脚本没加载）才退回原生实现。
+    function askConfirm(opts) {
+        if (typeof window.uiConfirm === 'function') return window.uiConfirm(opts);
+        return Promise.resolve(window.confirm(opts.text || '确定继续？'));
+    }
+
     window.toggleKV = function (key) {
         fetch('/admin/api/keys/' + encodeURIComponent(key) + '/toggle', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
             if (d.error) { alert(d.error); return; }
@@ -417,10 +425,17 @@
     };
 
     window.deleteKV = function (key) {
-        if (!confirm('确定删除此 API Key？此操作不可撤销。')) return;
-        fetch('/admin/api/keys/' + encodeURIComponent(key), { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
-            if (d.error) { alert(d.error); return; }
-            loadKeys();
+        askConfirm({
+            title: '删除 API Key',
+            text: '确定删除此 API Key？此操作不可撤销。',
+            tip: '删除后，正在使用该 Key 的调用会立刻失效',
+            okText: '删除'
+        }).then(function (yes) {
+            if (!yes) return;
+            fetch('/admin/api/keys/' + encodeURIComponent(key), { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
+                if (d.error) { alert(d.error); return; }
+                loadKeys();
+            });
         });
     };
 

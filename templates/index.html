@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>ILBB Emoji Bot</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260926d') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260926g') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/ilbb.css', v='20260926b') }}">
 </head>
 <body>
@@ -354,16 +354,39 @@
     </div>
     </div>
 
+    <!-- ============ 通用确认弹窗（替代会被浏览器拦截的原生 confirm） ============
+         必须挂在 <body> 直接子级：它原先在 #view-plugins 里面，不在插件页时父级
+         display:none，弹窗量不到尺寸也点不到，表现为「点了按钮没反应」。 -->
+    <div class="pg-modal hidden" id="pgConfirmModal">
+        <div class="pg-modal-mask" data-pg-confirm="0"></div>
+        <div class="pg-modal-dialog pg-modal-dialog-sm" role="dialog" aria-modal="true"
+             aria-labelledby="pgConfirmTitle">
+            <div class="pg-modal-head">
+                <h3 id="pgConfirmTitle">确认操作</h3>
+                <button type="button" class="pg-modal-x" data-pg-confirm="0"
+                        title="关闭" aria-label="关闭">&times;</button>
+            </div>
+            <div class="pg-modal-body">
+                <div class="pg-confirm-text" id="pgConfirmBody"></div>
+            </div>
+            <div class="pg-modal-foot">
+                <span class="pg-tip-inline" id="pgConfirmTip"></span>
+                <button type="button" class="ws-btn" data-pg-confirm="0" id="pgConfirmCancelBtn">取消</button>
+                <button type="button" class="ws-btn pg-btn-danger" data-pg-confirm="1" id="pgConfirmOkBtn">确定</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/bg.js', v='20260926b') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js', v='20260926c') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js', v='20260926e') }}"></script>
     <script src="{{ url_for('static', filename='js/meme.js', v='20260926d') }}"></script>
     <script src="{{ url_for('static', filename='js/compose.js', v='20260926b') }}"></script>
     <script src="{{ url_for('static', filename='js/quote.js', v='20260926c') }}"></script>
-    <script src="{{ url_for('static', filename='js/console.js', v='20260924b') }}"></script>
+    <script src="{{ url_for('static', filename='js/console.js', v='20260926f') }}"></script>
     <script src="{{ url_for('static', filename='js/ws.js', v='20260926c') }}"></script>
     <script src="{{ url_for('static', filename='js/bot.js', v='20260924b') }}"></script>
     <script src="{{ url_for('static', filename='js/webchat.js', v='20260924b') }}"></script>
-    <script src="{{ url_for('static', filename='js/plugins.js', v='20260925e') }}"></script>
+    <script src="{{ url_for('static', filename='js/plugins.js', v='20260926i') }}"></script>
     <script src="{{ url_for('static', filename='js/effects.js', v='20260924b') }}"></script>
     <script>
         var logoutBtn = document.getElementById('logoutBtn');

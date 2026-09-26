@@ -1410,6 +1410,15 @@ except Exception as _e:
     _tb3.print_exc()
     print(f"[插件] plugin_manager 加载失败: {_e}", flush=True)
 
+# 插件商店：从插件源服务器拉列表 → 选加速地址 → git clone 进 plugins/
+try:
+    import plugin_store
+except Exception as _e:
+    plugin_store = None
+    import traceback as _tb3s
+    _tb3s.print_exc()
+    print(f"[插件] plugin_store 加载失败: {_e}", flush=True)
+
 
 def _plugin_ok():
     return plugin_manager is not None and ws_server is not None and config.PLUGIN_ENABLED
@@ -2138,6 +2147,81 @@ def plugins_web():
         return jsonify({'ok': False, 'error': '缺少插件 id'}), 400
     host = str(request.args.get('host') or '').strip() or request.host.split(':')[0]
     return _plugin_err(plugin_manager.web_info(pid, host))
+
+
+# ---------- 插件商店（列表在插件源服务器，安装 = git clone 进 plugins/） ----------
+def _store_err(resp):
+    return jsonify(resp), (200 if resp.get("ok") else 400)
+
+
+@app.route('/api/plugins/store/status', methods=['GET'])
+def plugins_store_status():
+    """商店概览：源地址、git 是否可用、可选加速地址、已安装记录。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    return _store_err(plugin_store.status())
+
+
+@app.route('/api/plugins/store/list', methods=['GET'])
+def plugins_store_list():
+    """商店插件列表（带 TTL 缓存；force=1 强制刷新）。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    return _store_err(plugin_store.list_plugins(
+        q=str(request.args.get('q') or '').strip(),
+        tag=str(request.args.get('tag') or '').strip(),
+        author=str(request.args.get('author') or '').strip(),
+        force=str(request.args.get('force') or '') in ('1', 'true', 'yes')))
+
+
+@app.route('/api/plugins/store/detail', methods=['GET'])
+def plugins_store_detail():
+    """单个插件的详细信息（来自插件源）。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    key = str(request.args.get('key') or '').strip()
+    if not key:
+        return jsonify({'ok': False, 'error': '缺少插件标识'}), 400
+    return _store_err(plugin_store.detail(key))
+
+
+@app.route('/api/plugins/store/speedtest', methods=['POST'])
+def plugins_store_speedtest():
+    """对各加速地址（含原 GitHub 直连）测速：拿同一个仓库请求 git 的 info/refs。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    return _store_err(plugin_store.speedtest(str(data.get('repo') or '').strip(),
+                                            str(data.get('only') or '').strip()))
+
+
+@app.route('/api/plugins/store/install', methods=['POST'])
+def plugins_store_install():
+    """按选定的加速地址把插件仓库 git clone 进 plugins/，并立刻重扫。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    repo = str(data.get('repo') or data.get('clone_url') or '').strip()
+    if not repo:
+        return jsonify({'ok': False, 'error': '缺少仓库地址'}), 400
+    return _store_err(plugin_store.install(
+        repo,
+        proxy=data.get('proxy', ''),
+        branch=str(data.get('branch') or '').strip(),
+        name=str(data.get('name') or '').strip(),
+        force=bool(data.get('force'))))
+
+
+@app.route('/api/plugins/store/uninstall', methods=['POST'])
+def plugins_store_uninstall():
+    """删除 plugins/<目录>（前端已二次确认）。"""
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    folder = str(data.get('folder') or '').strip()
+    if not folder:
+        return jsonify({'ok': False, 'error': '缺少目录名'}), 400
+    return _store_err(plugin_store.uninstall(folder))
 
 
 # ==================== 首次运行引导（/setup） ====================

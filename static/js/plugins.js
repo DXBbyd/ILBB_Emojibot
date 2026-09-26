@@ -23,10 +23,20 @@
         summary: null,
         sel: '',
         filter: '',
-        tab: 'list',         // 子选项：list | web
+        tab: 'list',         // 子选项：list | store | web
         detail: {},          // pid -> {fields, values}
         multi: {},           // pid|key -> [value, ...]
         web: {},             // pid -> {url, up, ...}
+        // ---- 插件商店 ----
+        store: null,         // /store/list 的结果
+        storeStatus: null,   // /store/status 的结果（含加速地址清单 / git 情况）
+        storeSel: '',        // 选中的插件 key
+        storeDetail: {},     // key -> 源站详情（后面补的更全的那份）
+        storeQ: '',          // 商店搜索词
+        storeProxy: null,    // 选中的线路前缀（'' = 原 GitHub 直连；null = 还没选过）
+        storeBusy: '',       // '' | 'speed' | 'install'
+        storeLoaded: false,
+        storePage: 1,        // 商店网格当前页（每页 15 个 = 3 列 × 5 行）
         dirty: false,
         inited: false,
         view: false
@@ -72,6 +82,47 @@
         toastTimer = setTimeout(function () { box.classList.remove('show'); }, 2600);
     }
 
+    // 页面内自建确认框。原生 confirm() 在预览 / 内嵌 iframe 里会被浏览器
+    // 静默拦截并直接返回 false，表现为「点了按钮没反应」，所以这里自己实现。
+    var confirmCb = null;
+    function uiConfirm(opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+            var mod = $('pgConfirmModal');
+            if (!mod) { toast('确认弹窗没加载出来，刷新页面再试', 'err'); resolve(false); return; }
+            var t = $('pgConfirmTitle');
+            if (t) t.textContent = opts.title || '确认操作';
+            var b = $('pgConfirmBody');
+            if (b) b.textContent = opts.text || '';
+            var tip = $('pgConfirmTip');
+            if (tip) tip.textContent = opts.tip || '';
+            var ok = $('pgConfirmOkBtn');
+            if (ok) {
+                ok.textContent = opts.okText || '确定';
+                ok.className = 'ws-btn ' + (opts.danger === false ? 'pg-btn-primary' : 'pg-btn-danger');
+            }
+            var cancel = $('pgConfirmCancelBtn');
+            if (cancel) cancel.textContent = opts.cancelText || '取消';
+
+            confirmCb = function (yes) {
+                confirmCb = null;
+                closeConfirmModal();
+                resolve(!!yes);
+            };
+            mod.classList.remove('hidden');
+            document.body.classList.add('pg-modal-open');
+            if (ok && ok.focus) ok.focus({ preventScroll: true });
+        });
+    }
+
+    function closeConfirmModal() {
+        var mod = $('pgConfirmModal');
+        if (!mod || mod.classList.contains('hidden')) return;
+        mod.classList.add('hidden');
+        var inst = $('pgStoreModal');
+        if (!inst || inst.classList.contains('hidden')) document.body.classList.remove('pg-modal-open');
+    }
+
     function pluginById(pid) {
         var list = (S.summary && S.summary.plugins) || [];
         for (var i = 0; i < list.length; i++) if (list[i].id === pid) return list[i];
@@ -101,8 +152,14 @@
 
     // 手动刷新：表单里还有没保存的改动时先确认一下，别让人白填
     function refreshPage() {
-        if (S.dirty && !confirm('配置表单里还有没保存的改动，刷新会把它们丢掉。确定要刷新吗？')) return;
-        load();
+        if (!S.dirty) { load(); return; }
+        uiConfirm({
+            title: '放弃未保存的改动？',
+            text: '配置表单里还有没保存的改动，刷新会把它们丢掉。',
+            tip: '刷新后表单会回到上次保存的状态',
+            okText: '刷新',
+            cancelText: '先不刷新'
+        }).then(function (yes) { if (yes) load(); });
     }
 
     function renderStats() {
@@ -340,10 +397,14 @@
     }
 
     // ------------------------------------------------------------------
-    // 子选项切换：插件列表 / 独立页面（复用 .ws-tabs 滑块组件）
+    // 子选项切换：插件列表 / 插件商店 / 独立页面（复用 .ws-tabs 滑块组件）
     // ------------------------------------------------------------------
-    var PG_PANES = { list: 'pgPaneList', web: 'pgPaneWeb' };
-    var PG_HINTS = { list: '一个文件夹 = 一个插件', web: '带 "web": true 的插件 · 端口由 ILBB 分配' };
+    var PG_PANES = { list: 'pgPaneList', store: 'pgPaneStore', web: 'pgPaneWeb' };
+    var PG_HINTS = {
+        list: '一个文件夹 = 一个插件',
+        store: '来自插件源 · 选加速地址后一键装进 plugins/',
+        web: '带 "web": true 的插件 · 端口由 ILBB 分配'
+    };
 
     function pgTabEls() {
         var wrap = $('pgTabs');
@@ -381,6 +442,7 @@
         var hint = $('pgTabsHint');
         if (hint) hint.textContent = PG_HINTS[name] || PG_HINTS.list;
         if (name === 'web') { renderWebList(); prefetchWeb(); }
+        if (name === 'store' && !S.storeLoaded) loadStore(false, true);
         requestAnimationFrame(function () { movePgPill(); });
     }
 
@@ -870,6 +932,760 @@
     }
 
     // ------------------------------------------------------------------
+    // 插件商店子选项
+    //   主区：可搜索的插件网格（3 列 × 5 行，每页 15 个）
+    //   右侧：插件详情（简介 / 作者 / star / 版本 …）
+    //   安装：点「安装」弹出弹窗 → 在里面挑加速地址、测速、改目录名 / 分支 → git clone
+    // ------------------------------------------------------------------
+    var ST_PAGE_SIZE = 15;                  // 3 列 × 5 行
+
+    var ST_STATUS = '/api/plugins/store/status';
+    var ST_LIST = '/api/plugins/store/list';
+    var ST_DETAIL = '/api/plugins/store/detail';
+    var ST_SPEED = '/api/plugins/store/speedtest';
+    var ST_INSTALL = '/api/plugins/store/install';
+    var ST_UNINSTALL = '/api/plugins/store/uninstall';
+
+    var ST_PROXY_LS = 'ilbb_store_proxy';   // 记住上次选的线路
+
+    // 读不到返回 null（跟「显式选中直连」的空字符串区分开）
+    function lsGet(k) { try { var v = localStorage.getItem(k); return v === null ? null : v; } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 隐私模式忽略 */ } }
+
+    function fmtMs(ms) {
+        if (ms == null || ms === undefined) return '—';
+        if (ms < 1000) return ms + ' ms';
+        return (ms / 1000).toFixed(2) + ' s';
+    }
+
+    // 把「前缀 + 仓库地址」拼成真正会访问的地址（跟后端 apply_proxy 一个逻辑）
+    function realUrl(prefix, repo) {
+        var r = String(repo || '').trim();
+        if (!r) return '';
+        if (!prefix) return r;
+        if (r.indexOf(prefix) === 0) return r;
+        return String(prefix).replace(/\/+$/, '') + '/' + r.replace(/^\/+/, '');
+    }
+
+    // 仓库名 → 候选目录名（默认目录名，装完前给用户看一眼）
+    function guessFolder(url) {
+        var s = String(url || '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+        var seg = s.split('/').pop() || '';
+        seg = seg.replace(/\.git$/i, '').replace(/[^A-Za-z0-9_\-]/g, '_');
+        if (/^[._\-]/.test(seg)) seg = 'p' + seg;
+        return seg.slice(0, 64);
+    }
+
+    function storeList() {
+        var st = S.storeStatus || {};
+        return Array.isArray(st.candidates) ? st.candidates : [];
+    }
+
+    // 当前线路：S.storeProxy 为 null = 还没选过 → 默认第一条加速站（直连国内太慢，不适合当默认）
+    function proxyCurrent() {
+        var list = storeList();
+        if (!list.length) return '';
+        for (var i = 0; i < list.length; i++) {
+            if (S.storeProxy !== null && list[i].prefix === S.storeProxy) return list[i].prefix;
+        }
+        for (var j = 0; j < list.length; j++) if (!list[j].direct) return list[j].prefix;
+        return '';
+    }
+
+    function proxyLabel(prefix) {
+        var list = storeList();
+        for (var i = 0; i < list.length; i++) if (list[i].prefix === prefix) return list[i].label;
+        return prefix || '原 GitHub（直连）';
+    }
+
+    function proxyEl(prefix) {
+        var box = $('pgStoreProxies');
+        if (!box) return null;
+        var nodes = box.querySelectorAll('.pg-proxy');
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].getAttribute('data-prefix') === prefix) return nodes[i];
+        }
+        return null;
+    }
+
+    // 前缀 -> 候选序号（后端测速用 id 定位单条线路）
+    function proxyId(prefix) {
+        var list = storeList();
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].prefix === prefix) return String(list[i].id);
+        }
+        return '';
+    }
+
+    function setProxy(prefix, quiet) {
+        S.storeProxy = prefix;
+        lsSet(ST_PROXY_LS, prefix);
+        syncProxyUI();
+        if (quiet !== true) renderStoreRealUrl();
+    }
+
+    function syncProxyUI() {
+        var cur = proxyCurrent();
+        var box = $('pgStoreProxies');
+        if (box) {
+            var nodes = box.querySelectorAll('.pg-proxy');
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].classList.toggle('active', nodes[i].getAttribute('data-prefix') === cur);
+            }
+        }
+        renderStoreRealUrl();
+    }
+
+    function renderStoreRealUrl() {
+        var box = $('pgStoreRealUrl');
+        if (!box) return;
+        var p = curStorePlugin();
+        var repo = p ? (p.clone_url || p.repo || '') : '';
+        if (!p) { box.textContent = ''; return; }
+        var real = realUrl(proxyCurrent(), repo);
+        box.innerHTML = '<span class="k">实际下载地址</span><code class="pg-mono">' + esc(real || '—') + '</code>';
+    }
+
+    // ---- 加速地址列表 ----
+    function renderStoreProxies() {
+        var box = $('pgStoreProxies');
+        if (!box) return;
+        var list = storeList();
+        if (!list.length) {
+            box.innerHTML = '<div class="pg-tip-inline">没读到加速地址。检查设置里的「GitHub 加速地址」，'
+                + '或本页的 PLUGIN_GIT_PROXIES 配置。</div>';
+            return;
+        }
+        var cur = proxyCurrent();
+        box.innerHTML = list.map(function (c) {
+            return '<div class="pg-proxy' + (c.prefix === cur ? ' active' : '') + (c.direct ? ' direct' : '') + '"'
+                + ' data-prefix="' + esc(c.prefix) + '" data-id="' + esc(c.id) + '"'
+                + ' title="' + esc(c.direct ? '官方地址，不加任何前缀' : c.prefix) + '">'
+                + '<span class="pg-proxy-radio" aria-hidden="true"></span>'
+                + '<div class="pg-proxy-main">'
+                +   '<b class="pg-proxy-name">' + esc(c.label) + '</b>'
+                +   '<code class="pg-proxy-url">' + esc(c.direct ? 'https://github.com/…' : String(c.prefix).replace(/\/+$/, '')) + '</code>'
+                + '</div>'
+                + '<span class="pg-proxy-ms">未测</span>'
+                + '</div>';
+        }).join('');
+        Array.prototype.forEach.call(box.querySelectorAll('.pg-proxy'), function (el) {
+            el.addEventListener('click', function () {
+                setProxy(el.getAttribute('data-prefix'));
+                var tip = $('pgStoreSpeedTip');
+                if (tip) tip.textContent = '已选：' + proxyLabel(S.storeProxy);
+            });
+        });
+        syncProxyUI();
+    }
+
+    function paintProxyResult(d) {
+        var box = $('pgStoreProxies');
+        if (!box) return;
+        var map = {};
+        (d.results || []).forEach(function (r) { map[r.prefix + '\u0000' + r.id] = r; });
+        Array.prototype.forEach.call(box.querySelectorAll('.pg-proxy'), function (el) {
+            var prefix = el.getAttribute('data-prefix');
+            var id = el.getAttribute('data-id');
+            var r = map[prefix + '\u0000' + id];
+            if (!r) return;
+            var ms = el.querySelector('.pg-proxy-ms');
+            el.classList.remove('ok', 'bad', 'best', 'testing');
+            if (r.best) el.classList.add('best');
+            if (r.ok) {
+                el.classList.add('ok');
+                if (ms) { ms.textContent = fmtMs(r.ms); ms.title = '首字节 ' + fmtMs(r.ms) + '（握手 ' + fmtMs(r.ttfb_ms) + '）'; }
+            } else {
+                el.classList.add('bad');
+                if (ms) { ms.textContent = '失败'; ms.title = r.error || ('HTTP ' + r.status); }
+            }
+        });
+        var okn = $('pgStoreSpeedHint');
+        if (okn) {
+            okn.textContent = d.ok_count + ' / ' + d.total + ' 条可用 · 耗时 ' + d.elapsed + 's';
+        }
+    }
+
+    // ---- 测速：只测一条 / 测全部并自动跳到最快 ----
+    function runSpeed(only) {
+        if (S.storeBusy === 'speed') return;
+        var repo = (S.storeStatus && S.storeStatus.test_repo) || '';
+        var body = { repo: repo };
+        if (only !== undefined) body.only = only;
+        S.storeBusy = 'speed';
+        var btn = $('pgStoreSpeedBtn');
+        var old = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = '测速中…'; }
+        var box = $('pgStoreProxies');
+        if (box) Array.prototype.forEach.call(box.querySelectorAll('.pg-proxy'), function (el) {
+            el.classList.remove('ok', 'bad', 'best');
+            el.classList.add('testing');
+            var ms = el.querySelector('.pg-proxy-ms');
+            if (ms) ms.textContent = '…';
+        });
+        var tip = $('pgStoreSpeedTip');
+        if (tip) tip.textContent = '正在测速' + (only === undefined ? '（全部线路）' : '（当前线路）') + '…';
+
+        api(ST_SPEED, { method: 'POST', body: body }).then(function (d) {
+            paintProxyResult(d);
+            var best = null;
+            (d.results || []).forEach(function (r) { if (r.best) best = r; });
+            if (only !== undefined) {
+                // 只测当前线路：不抢选择权，只报结果
+                var one = (d.results || [])[0] || null;
+                if (tip) {
+                    tip.textContent = (one && one.ok)
+                        ? ('当前线路可用：' + fmtMs(one.ms))
+                        : ('当前线路没测通' + (one && one.error ? '：' + one.error : ''));
+                }
+                if (one && one.ok) toast('当前线路可用 · ' + fmtMs(one.ms), 'ok');
+                else toast('当前线路没测通，换一条或点「测速选最快」', 'err');
+                return;
+            }
+            if (best) {
+                setProxy(best.prefix);
+                var el = proxyEl(best.prefix);
+                if (el) {
+                    el.classList.add('best');
+                    // 自动滑动到最快的那条
+                    if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    else el.scrollIntoView(false);
+                }
+                if (tip) tip.textContent = '最快：' + best.label + '（' + fmtMs(best.ms) + '）已自动选中';
+                toast('已选中最快线路：' + best.label + ' · ' + fmtMs(best.ms), 'ok');
+            } else {
+                if (tip) tip.textContent = '全部线路都没测通，检查网络或换一条试试';
+                toast('所有线路都测不通，可先试试「原 GitHub（直连）」', 'err');
+            }
+        }).catch(function (e) {
+            if (tip) tip.textContent = '测速失败：' + e.message;
+            toast('测速失败：' + e.message, 'err');
+            if (box) Array.prototype.forEach.call(box.querySelectorAll('.pg-proxy'), function (el) {
+                el.classList.remove('testing');
+            });
+        }).then(function () {
+            S.storeBusy = '';
+            if (btn) { btn.disabled = false; btn.textContent = old || '测速选最快'; }
+        });
+    }
+
+    // ---- 商店列表 ----
+    function loadStore(force, silent) {
+        var jobs = [];
+        var needStatus = force || !S.storeStatus;
+        if (needStatus) {
+            jobs.push(api(ST_STATUS).then(function (d) {
+                S.storeStatus = d;
+                renderStoreProxies();
+                renderStoreSrc();
+            }));
+        }
+        jobs.push(api(ST_LIST + (force ? '?force=1' : '')).then(function (d) {
+            S.store = d;
+            S.storeLoaded = true;
+            if (force) S.storePage = 1;
+            renderStoreList();
+            renderStoreSrc();
+        }));
+        return Promise.all(jobs).catch(function (e) {
+            var box = $('pgStoreList');
+            if (box) box.innerHTML = '<div class="console-empty">读取插件源失败：' + esc(e.message)
+                + '</div><div class="pg-tip-inline">插件源地址在「设置 → 插件系统 → 插件源地址」里改。</div>';
+            var tip = $('pgStoreSrcTip');
+            if (tip) tip.textContent = '插件源：读取失败 · ' + e.message;
+            if (!silent) toast('读取插件源失败：' + e.message, 'err');
+            throw e;
+        });
+    }
+
+    function renderStoreSrc() {
+        var tip = $('pgStoreSrcTip');
+        var st = S.storeStatus || {};
+        var d = S.store;
+        var parts = [];
+        parts.push('插件源：' + (st.store_url || (d && d.store_url) || '（未配置）'));
+        if (d && d.total !== undefined) parts.push('共 ' + d.total + ' 个');
+        if (st.git) parts.push(st.git.available ? ('git ' + (st.git.version || '可用')) : 'git 不可用，无法安装');
+        if (st.proxy_count !== undefined) parts.push('加速地址 ' + st.proxy_count + ' 条');
+        if (d && d.cached) parts.push('缓存结果，点「刷新列表」重新拉');
+        if (tip) tip.textContent = parts.join(' · ');
+    }
+
+    function storeFiltered() {
+        var list = (S.store && S.store.plugins) || [];
+        var q = String(S.storeQ || '').trim().toLowerCase();
+        if (!q) return list;
+        return list.filter(function (p) {
+            var hay = [p.name, p.slug, p.chinese_name, p.author, p.about, p.description,
+                       p.repo_full_name, (p.tags || []).join(' ')].join(' ').toLowerCase();
+            return hay.indexOf(q) !== -1;
+        });
+    }
+
+    // 当前筛选结果的页码信息（顺便把越界的 S.storePage 拉回来）
+    function storePages() {
+        var list = storeFiltered();
+        var pages = Math.max(1, Math.ceil(list.length / ST_PAGE_SIZE));
+        if (S.storePage > pages) S.storePage = pages;
+        if (!S.storePage || S.storePage < 1) S.storePage = 1;
+        return { list: list, pages: pages };
+    }
+
+    function renderStoreList() {
+        var box = $('pgStoreList');
+        if (!box) return;
+        if (!S.store) {
+            box.innerHTML = '<div class="console-empty">正在读取插件源…</div>';
+            renderStorePager();
+            return;
+        }
+        var pg = storePages();
+        var list = pg.list;
+        var total = (S.store.plugins || []).length;
+        var hint = $('pgStoreCountHint');
+        if (hint) {
+            hint.textContent = (S.storeQ ? ('匹配 ' + list.length + ' / 共 ' + total) : ('共 ' + total + ' 个'))
+                + (S.store.installed_count ? ' · 已装 ' + S.store.installed_count : '')
+                + (list.length > ST_PAGE_SIZE ? ' · 第 ' + S.storePage + '/' + pg.pages + ' 页' : '');
+        }
+        if (!list.length) {
+            box.innerHTML = '<div class="console-empty">'
+                + (S.storeQ ? '没有匹配的插件，换个关键词试试。' : '插件源里还没有插件。')
+                + '</div>';
+            renderStorePager();
+            return;
+        }
+        // 3 列 × 5 行 = 一页 15 个
+        var start = (S.storePage - 1) * ST_PAGE_SIZE;
+        var slice = list.slice(start, start + ST_PAGE_SIZE);
+        box.innerHTML = slice.map(storeCardHtml).join('');
+        Array.prototype.forEach.call(box.querySelectorAll('.pg-card'), function (card) {
+            card.addEventListener('click', function () {
+                selectStorePlugin(card.getAttribute('data-key'));
+            });
+            var qi = card.querySelector('.pg-card-install');
+            if (qi) qi.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                selectStorePlugin(card.getAttribute('data-key'));
+                openInstallModal();
+            });
+        });
+        renderStorePager();
+    }
+
+    // 分页器：上一页 / 页码窗口 / 下一页
+    function renderStorePager() {
+        var box = $('pgStorePager');
+        if (!box) return;
+        if (!S.store) { box.innerHTML = ''; return; }
+        var list = storeFiltered();
+        var pages = Math.max(1, Math.ceil(list.length / ST_PAGE_SIZE));
+        if (pages <= 1) { box.innerHTML = ''; return; }
+        var cur = S.storePage;
+        var out = [];
+        out.push('<button type="button" class="pg-page-btn pg-page-nav" data-page="' + (cur - 1) + '"'
+            + (cur <= 1 ? ' disabled' : '') + '>上一页</button>');
+        var from = Math.max(1, cur - 2);
+        var to = Math.min(pages, cur + 2);
+        if (from > 1) {
+            out.push(pageBtnHtml(1, cur));
+            if (from > 2) out.push('<span class="pg-page-gap">…</span>');
+        }
+        for (var i = from; i <= to; i++) out.push(pageBtnHtml(i, cur));
+        if (to < pages) {
+            if (to < pages - 1) out.push('<span class="pg-page-gap">…</span>');
+            out.push(pageBtnHtml(pages, cur));
+        }
+        out.push('<button type="button" class="pg-page-btn pg-page-nav" data-page="' + (cur + 1) + '"'
+            + (cur >= pages ? ' disabled' : '') + '>下一页</button>');
+        out.push('<span class="pg-page-info">共 ' + list.length + ' 个 · ' + pages + ' 页</span>');
+        box.innerHTML = out.join('');
+        Array.prototype.forEach.call(box.querySelectorAll('.pg-page-btn'), function (b) {
+            b.addEventListener('click', function () {
+                var n = parseInt(b.getAttribute('data-page'), 10);
+                if (!n || n === S.storePage || n < 1 || n > pages) return;
+                S.storePage = n;
+                renderStoreList();
+                var blk = $('pgStoreList');
+                if (blk && blk.scrollIntoView) blk.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            });
+        });
+    }
+
+    function pageBtnHtml(n, cur) {
+        return '<button type="button" class="pg-page-btn' + (n === cur ? ' active' : '') + '"'
+            + ' data-page="' + n + '"' + (n === cur ? ' aria-current="page"' : '') + '>' + n + '</button>';
+    }
+
+    // 卡片：插件名 + 中文名 + 简介 + 作者 + GitHub star
+    function storeCardHtml(p) {
+        var key = storeKey(p);
+        var tags = [];
+        if (p.installed) tags.push('<span class="pg-tag ok">已安装</span>');
+        if (p.latest_version) tags.push('<span class="pg-tag info">v' + esc(p.latest_version) + '</span>');
+        if (p.archived) tags.push('<span class="pg-tag warn">已归档</span>');
+        (p.tags || []).slice(0, 2).forEach(function (t) {
+            tags.push('<span class="pg-tag">' + esc(t) + '</span>');
+        });
+        var name = p.name || p.slug || key;
+        var cn = p.chinese_name || '';
+        var desc = String(p.about || p.description || '').replace(/\s+/g, ' ').trim();
+        var author = p.author || p.owner || '';
+        var stars = (p.stars === null || p.stars === undefined) ? 0 : p.stars;
+        return '<article class="pg-card' + (key === S.storeSel ? ' active' : '') + '" data-key="' + esc(key) + '"'
+            + ' title="' + esc(p.repo_full_name || name) + '">'
+            + '<button type="button" class="pg-card-install" title="安装这个插件">安装</button>'
+            + '<div class="pg-card-top">'
+            +   '<span class="pg-dot ' + (p.installed ? 'on' : 'off') + '"></span>'
+            +   '<b class="pg-card-name">' + esc(name) + '</b>'
+            + '</div>'
+            + (cn && cn !== name ? '<div class="pg-card-cn">' + esc(cn) + '</div>' : '')
+            + '<div class="pg-card-desc">' + esc(desc ? desc.slice(0, 96) : '这个插件没有写简介。') + '</div>'
+            + '<div class="pg-card-foot">'
+            +   '<span class="pg-card-author" title="作者"><svg viewBox="0 0 16 16" aria-hidden="true">'
+            +     '<circle cx="8" cy="5.3" r="2.7"></circle>'
+            +     '<path d="M2.9 13.6c0-2.7 2.3-4.3 5.1-4.3s5.1 1.6 5.1 4.3"></path></svg>'
+            +     esc(author || '未知作者') + '</span>'
+            +   '<span class="pg-card-star" title="GitHub 星标数"><svg viewBox="0 0 16 16" aria-hidden="true">'
+            +     '<path d="M8 1.9l1.86 3.84 4.24.6-3.07 2.95.73 4.21L8 11.5l-3.76 2 .73-4.21L1.9 6.34l4.24-.6z"></path>'
+            +     '</svg>' + esc(stars) + '</span>'
+            + '</div>'
+            + (tags.length ? '<div class="pg-card-tags">' + tags.join('') + '</div>' : '')
+            + '</article>';
+    }
+
+    function storeKey(p) {
+        return String(p.slug || p.repo_full_name || p.repo || p.name || '').trim();
+    }
+
+    function storePlugin(key) {
+        var list = (S.store && S.store.plugins) || [];
+        for (var i = 0; i < list.length; i++) if (storeKey(list[i]) === key) return list[i];
+        return null;
+    }
+
+    function curStorePlugin() {
+        return S.storeSel ? storePlugin(S.storeSel) : null;
+    }
+
+    function selectStorePlugin(key) {
+        S.storeSel = key || '';
+        renderStoreList();
+        renderStoreDetail();
+        var box = $('pgStoreList');
+        if (box && key) {
+            var card = box.querySelector('.pg-card[data-key="' + cssAttr(key) + '"]');
+            if (card) card.classList.add('active');
+        }
+        // 详情里补一份源站数据（列表里可能没带全）
+        var p = curStorePlugin();
+        if (!p || S.storeDetail[key]) return;
+        api(ST_DETAIL + '?key=' + encodeURIComponent(key)).then(function (d) {
+            S.storeDetail[key] = d.plugin || {};
+            if (S.storeSel === key) renderStoreDetail();
+        }).catch(function () { /* 详情拿不到就用列表里的信息，不打扰用户 */ });
+    }
+
+    function cssAttr(s) {
+        return String(s).replace(/["\\]/g, '\\$&');
+    }
+
+    function storeInfo() {
+        var p = curStorePlugin();
+        if (!p) return null;
+        var rich = S.storeDetail[S.storeSel];
+        return rich ? mergeStore(p, rich) : p;
+    }
+
+    function mergeStore(base, rich) {
+        var out = {};
+        Object.keys(base).forEach(function (k) { out[k] = base[k]; });
+        Object.keys(rich || {}).forEach(function (k) {
+            if (rich[k] !== null && rich[k] !== undefined && rich[k] !== '') out[k] = rich[k];
+        });
+        return out;
+    }
+
+    function renderStoreDetail() {
+        var empty = $('pgStoreEmpty');
+        var det = $('pgStoreDetail');
+        var title = $('pgStoreDetailTitle');
+        var hint = $('pgStoreDetailHint');
+        var p = storeInfo();
+        if (!p) {
+            if (empty) empty.classList.remove('hidden');
+            if (det) det.classList.add('hidden');
+            if (title) title.textContent = '插件详情';
+            if (hint) hint.textContent = '从左边的网格里选一个插件';
+            return;
+        }
+        if (empty) empty.classList.add('hidden');
+        if (det) det.classList.remove('hidden');
+        if (title) title.textContent = p.name || p.slug || '插件详情';
+        var fold = guessFolder(p.clone_url || p.repo || '');
+        if (hint) hint.textContent = p.installed
+            ? ('已装在 plugins/' + (p.installed_folders || []).join('、'))
+            : ('将装到 plugins/' + (fold || '?'));
+
+        var rows = [
+            ['仓库', p.repo_full_name || '—', p.repo || ''],
+            ['作者', p.author || '—'],
+            ['许可', p.license || '—'],
+            ['版本', (p.latest_version ? 'v' + p.latest_version : '—') + (p.version_count > 1 ? '（共 ' + p.version_count + ' 个）' : '')],
+            ['分支', p.latest_branch || p.default_branch || '—'],
+            ['星标', p.stars == null ? '—' : (p.stars + ' ★ / ' + (p.forks || 0) + ' fork')],
+            ['最低 ILBB', p.min_ilbb || '—'],
+            ['更新时间', p.updated_at || p.uploaded_at || '—'],
+        ];
+        if ((p.tags || []).length) rows.push(['标签', (p.tags || []).join(' / ')]);
+        var meta = $('pgStoreMeta');
+        if (meta) {
+            meta.innerHTML = rows.map(function (r) {
+                return '<div class="pg-meta-row"><span class="k">' + esc(r[0]) + '</span>'
+                    + '<span class="v"' + (r[2] ? ' title="' + esc(r[2]) + '"' : '') + '>'
+                    + esc(String(r[1])) + '</span></div>';
+            }).join('');
+        }
+
+        var about = $('pgStoreAbout');
+        if (about) {
+            var text = p.description || p.about || '';
+            about.innerHTML = text
+                ? '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>'
+                : '<p class="pg-tip-inline">这个插件没有写介绍。</p>';
+        }
+
+        var nameEl = $('pgStoreName');
+        if (nameEl) nameEl.placeholder = '默认：' + (fold || '仓库名');
+
+        var acts = $('pgStoreActions');
+        if (acts) {
+            var h = '<button type="button" class="ws-btn pg-btn-primary" id="pgStoreOpenModalBtn">'
+                + (p.installed ? '重新安装…' : '安装到 plugins/…') + '</button>';
+            if (p.detail_url || p.repo) {
+                h += '<button type="button" class="ws-btn" id="pgStoreOpenBtn">源站页面</button>';
+            }
+            if (p.installed) {
+                h += '<button type="button" class="ws-btn pg-btn-danger" id="pgStoreDelBtn">卸载</button>';
+            }
+            acts.innerHTML = h;
+            bindStoreActions(p);
+        }
+        renderStoreRealUrl();
+        var ih = $('pgStoreInstallHint');
+        if (ih) {
+            ih.textContent = 'clone 深度 ' + ((S.storeStatus && S.storeStatus.git && S.storeStatus.git.depth) || 1)
+                + ' · 装好后热重载自动识别，不用重启';
+        }
+        if (!S.storeStatus || !S.storeStatus.git || !S.storeStatus.git.available) {
+            if (ih) ih.textContent = '没找到 git，装不了。请在设置里填「git 路径」或装上 git';
+        }
+    }
+
+    function bindStoreActions(p) {
+        var ins = $('pgStoreOpenModalBtn');
+        if (ins) ins.addEventListener('click', openInstallModal);
+        var del = $('pgStoreDelBtn');
+        if (del) del.addEventListener('click', function () { doStoreUninstall(p); });
+        var op = $('pgStoreOpenBtn');
+        if (op) op.addEventListener('click', function () {
+            var u = p.detail_url || p.repo;
+            if (!u) return;
+            var w = null;
+            try { w = window.open(u, '_blank'); } catch (e) { w = null; }
+            // 预览 / 内嵌环境常常拦掉新窗口，此时把地址给用户自己复制
+            if (!w) toast('浏览器拦了新窗口，地址：' + u, 'err');
+        });
+    }
+
+    // ---- 安装弹窗：在这里挑加速地址 + 调安装参数 ----
+    function openInstallModal() {
+        var p = curStorePlugin();
+        if (!p) { toast('先选一个插件', 'err'); return; }
+        if (!S.storeStatus || !S.storeStatus.git || !S.storeStatus.git.available) {
+            toast('没找到 git，装不了。请在设置里填「git 路径」或装上 git', 'err');
+            return;
+        }
+        var mod = $('pgStoreModal');
+        if (!mod) return;
+        var fold = guessFolder(p.clone_url || p.repo || '');
+
+        var mt = $('pgStoreModalTitle');
+        if (mt) mt.textContent = p.installed ? '重新安装插件' : '安装插件';
+        var mn = $('pgStoreModalName');
+        if (mn) mn.textContent = p.name || p.slug || p.chinese_name || '插件';
+        var mr = $('pgStoreModalRepo');
+        if (mr) mr.textContent = (p.author ? '作者 ' + p.author + ' · ' : '')
+            + (p.repo_full_name || p.repo || '');
+
+        var sh = $('pgStoreSpeedHint');
+        if (sh) sh.textContent = '共 ' + storeList().length + ' 条线路可选';
+        var st = $('pgStoreSpeedTip');
+        if (st) st.textContent = '还没测速';
+
+        var nameEl = $('pgStoreName');
+        if (nameEl) {
+            nameEl.value = '';
+            nameEl.placeholder = '默认：' + (fold || '仓库名');
+        }
+        var brEl = $('pgStoreBranch');
+        if (brEl) brEl.value = '';
+        var foEl = $('pgStoreForce');
+        if (foEl) foEl.checked = !!p.installed;      // 已装过的默认勾上，方便直接覆盖重装
+
+        var tip = $('pgStoreModalTip');
+        if (tip) tip.textContent = '装好后热重载自动识别，不用重启';
+        var ins = $('pgStoreInstallBtn');
+        if (ins) { ins.disabled = false; ins.textContent = p.installed ? '重新安装' : '开始安装'; }
+
+        mod.classList.remove('hidden');
+        document.body.classList.add('pg-modal-open');
+
+        renderStoreProxies();       // 内部会 syncProxyUI + 刷新实际地址
+        renderStoreRealUrl();
+        if (ins && ins.focus) ins.focus({ preventScroll: true });
+    }
+
+    function closeInstallModal() {
+        var mod = $('pgStoreModal');
+        if (!mod || mod.classList.contains('hidden')) return;
+        mod.classList.add('hidden');
+        document.body.classList.remove('pg-modal-open');
+        var b = $('pgStoreInstallBtn');
+        if (b && S.storeBusy !== 'install') {
+            var p = curStorePlugin();
+            b.textContent = (p && p.installed) ? '重新安装' : '开始安装';
+        }
+    }
+
+    function storeLog(kind, lines) {
+        var box = $('pgStoreLog');
+        if (!box) return;
+        box.classList.remove('hidden');
+        box.className = 'pg-store-log ' + (kind || '');
+        box.innerHTML = lines.map(function (l) {
+            return '<div class="pg-store-log-line">' + esc(l) + '</div>';
+        }).join('');
+    }
+
+    function doStoreInstall() {
+        if (S.storeBusy) return;
+        var p = curStorePlugin();
+        if (!p) { toast('先选一个插件', 'err'); return; }
+        if (!S.storeStatus || !S.storeStatus.git || !S.storeStatus.git.available) {
+            toast('没找到 git，无法安装', 'err');
+            return;
+        }
+        var repo = p.clone_url || p.repo || '';
+        if (!repo) { toast('这个插件没有仓库地址', 'err'); return; }
+        var prefix = proxyCurrent();
+        var label = proxyLabel(prefix);
+        var nameEl = $('pgStoreName');
+        var brEl = $('pgStoreBranch');
+        var foEl = $('pgStoreForce');
+        var name = (nameEl && nameEl.value || '').trim();
+        var branch = (brEl && brEl.value || '').trim();
+        var force = !!(foEl && foEl.checked);
+        var folder = name ? guessFolder(name) : guessFolder(repo);
+        var real = realUrl(prefix, repo);
+
+        S.storeBusy = 'install';
+        var btn = $('pgStoreInstallBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '安装中…'; }
+        var tip = $('pgStoreModalTip');
+        if (tip) tip.textContent = '正在用 ' + label + ' 拉取…';
+        storeLog('', [
+            '正在用 ' + label + ' 拉取…',
+            'git clone ' + real,
+            '目录 plugins/' + (folder || '(仓库名)') + '/'
+                + (branch ? ' · 分支 ' + branch : '')
+                + (force ? ' · 覆盖重装' : '')
+        ]);
+
+        api(ST_INSTALL, {
+            method: 'POST',
+            body: { repo: repo, proxy: prefix, branch: branch, name: name, force: force }
+        }).then(function (d) {
+            if (tip) tip.textContent = '✓ ' + (d.msg || '安装完成');
+            storeLog('ok', [
+                '✓ ' + (d.msg || '安装完成'),
+                '仓库：' + (d.repo || repo),
+                '线路：' + (d.proxy_label || label) + (d.proxy_ms ? '（' + fmtMs(d.proxy_ms) + '）' : ''),
+                '分支：' + (d.branch || 'default') + ' · 深度 ' + (d.depth || 1) + ' · 耗时 ' + (d.elapsed || 0) + 's'
+            ].concat(d.flattened ? ['提示：仓库里套了一层目录，已自动把内容提到 plugins/' + d.folder + '/'] : [])
+             .concat(d.warn ? ['警告：' + d.warn] : []));
+            toast(d.warn ? ('已装好，但有冲突：' + (d.id || d.folder)) : ('已装好：' + (d.id || d.folder)),
+                  d.warn ? 'err' : 'ok');
+            // 刷新商店（已安装标记）与插件列表（新插件）
+            return loadStore(true, true).then(function () {
+                if (S.storeSel) renderStoreDetail();
+                return load(true);
+            });
+        }).catch(function (e) {
+            if (tip) tip.textContent = '✗ 安装失败：' + e.message;
+            storeLog('err', ['✗ 安装失败：' + e.message]);
+            toast('安装失败：' + e.message, 'err');
+        }).then(function () {
+            S.storeBusy = '';
+            var b = $('pgStoreInstallBtn');
+            if (b) {
+                b.disabled = false;
+                b.textContent = p.installed ? '重新安装' : '开始安装';
+            }
+        });
+    }
+
+    function doStoreUninstall(p) {
+        if (S.storeBusy) { toast('上一个操作还没跑完，稍等一下', 'err'); return; }
+        var folders = (p && p.installed_folders) || [];
+        if (!folders.length) {
+            // 已安装标记和目录列表是同一次后端计算出来的，理论上不会只缺一个；
+            // 真缺了就让用户手动刷一下商店，别在这里瞎猜目录名删错东西。
+            toast('没找到它在 plugins/ 里的目录。点一下「刷新列表」再试', 'err');
+            storeLog('err', ['✗ 后端没给出这个插件的 plugins/ 目录名，'
+                + '点「刷新列表」重新读取一遍再试。']);
+            return;
+        }
+        var folder = String(folders[0]);
+        uiConfirm({
+            title: '卸载插件',
+            text: '确定要把 plugins/' + folder + '/ 整个删掉吗？\n\n'
+                + '该插件的配置文件也会被删掉，这个操作不能撤销。',
+            tip: '会删除 plugins/' + folder + '/',
+            okText: '卸载',
+            cancelText: '先不删'
+        }).then(function (yes) {
+            if (!yes) return;
+            S.storeBusy = 'install';
+            storeLog('', ['正在删除 plugins/' + folder + '/ …']);
+            return api(ST_UNINSTALL, { method: 'POST', body: { folder: folder } }).then(function (d) {
+                storeLog('ok', ['✓ ' + (d.msg || '已卸载')]);
+                toast('已卸载 ' + folder, 'ok');
+                S.storeDetail = {};
+                return loadStore(true, true).then(function () {
+                    if (S.storeSel) renderStoreDetail();
+                    return load(true);
+                });
+            }).catch(function (e) {
+                storeLog('err', ['✗ 卸载失败：' + e.message]);
+                toast('卸载失败：' + e.message, 'err');
+            }).then(function () { S.storeBusy = ''; });
+        });
+    }
+
+    function checkStoreEnv() {
+        api(ST_STATUS).then(function (d) {
+            S.storeStatus = d;
+            renderStoreProxies();
+            renderStoreSrc();
+            var g = d.git || {};
+            toast('插件源 ' + (d.store_url || '未配置') + ' · '
+                + (g.available ? ('git ' + (g.version || '')) : 'git 不可用')
+                + ' · 加速地址 ' + d.proxy_count + ' 条', g.available ? 'ok' : 'err');
+        }).catch(function (e) { toast('检查失败：' + e.message, 'err'); });
+    }
+
+    // ------------------------------------------------------------------
     // 绑定
     // ------------------------------------------------------------------
     function bind() {
@@ -883,10 +1699,60 @@
         $('pgResetBtn').addEventListener('click', reloadConfig);
         $('pgSearch').addEventListener('input', function () { S.filter = this.value || ''; renderList(); });
 
-        // 子选项：插件列表 / 独立页面
+        // 子选项：插件列表 / 插件商店 / 独立页面
         pgTabEls().forEach(function (b) {
             b.addEventListener('click', function () { switchPgTab(b.getAttribute('data-pg-tab')); });
         });
+
+        // ---- 插件商店 ----
+        S.storeProxy = lsGet(ST_PROXY_LS);          // 记住上次选的线路
+        $('pgStoreRefreshBtn').addEventListener('click', function () {
+            loadStore(true).then(function () { toast('插件源列表已刷新', 'ok'); })
+                .catch(function () { /* loadStore 里已经提示过了 */ });
+        });
+        $('pgStoreStatusBtn').addEventListener('click', checkStoreEnv);
+        $('pgStoreSearch').addEventListener('input', function () {
+            S.storeQ = this.value || '';
+            S.storePage = 1;                    // 换了关键词就回到第一页
+            renderStoreList();
+        });
+        $('pgStoreSpeedBtn').addEventListener('click', function () { runSpeed(); });
+        $('pgStoreProxyTestBtn').addEventListener('click', function () {
+            var tip = $('pgStoreSpeedTip');
+            if (tip) tip.textContent = '只测当前线路…';
+            runSpeed(proxyId(proxyCurrent()));
+        });
+
+        // 安装弹窗：遮罩 / 右上角 × / 取消 都带 data-pg-close，交给安装按钮
+        var mod = $('pgStoreModal');
+        if (mod) {
+            mod.addEventListener('click', function (ev) {
+                var t = ev.target;
+                if (t && t.getAttribute && t.getAttribute('data-pg-close')) closeInstallModal();
+            });
+        }
+        $('pgStoreInstallBtn').addEventListener('click', doStoreInstall);
+
+        // 通用确认弹窗：确定 / 取消 / 遮罩 / × 都用 data-pg-confirm 标记
+        var cmod = $('pgConfirmModal');
+        if (cmod) {
+            cmod.addEventListener('click', function (ev) {
+                var t = ev.target;
+                if (!t || !t.getAttribute) return;
+                var v = t.getAttribute('data-pg-confirm');
+                if (v === null) return;
+                if (confirmCb) confirmCb(v === '1'); else closeConfirmModal();
+            });
+        }
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key !== 'Escape' && ev.key !== 'Esc') return;
+            if (cmod && !cmod.classList.contains('hidden')) {
+                if (confirmCb) confirmCb(false); else closeConfirmModal();
+                return;
+            }
+            if (mod && !mod.classList.contains('hidden')) closeInstallModal();
+        });
+
         var rt = null;
         window.addEventListener('resize', function () {
             clearTimeout(rt);
@@ -923,6 +1789,12 @@
         if (document.querySelector('.view-switch.active[data-view="plugins"]')) enterPlugins();
         else load(true);
     }
+
+    // 其它脚本（console.js / main.js 等）复用同一套页面内确认框。
+    // 原生 confirm() 在预览 / 内嵌 iframe 里会被静默拦截并返回 false，
+    // 所以统一走这里；没有这个函数时调用方要自己兜底。
+    window.uiConfirm = uiConfirm;
+    window.uiConfirmClose = closeConfirmModal;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bind);

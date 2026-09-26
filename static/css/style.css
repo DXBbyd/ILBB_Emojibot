@@ -1568,6 +1568,7 @@ code { font-family: var(--mono); }
 .pg-tag.muted { background: rgba(0,0,0,.05); color: var(--ink-3); }
 .pg-tag.info { background: var(--blue-soft); color: var(--blue); }
 .pg-tag.web { background: var(--brand-soft); color: var(--brand-deep); }
+.pg-tag.warn { background: var(--amber-soft); color: var(--amber); }
 
 /* 空状态 */
 .pg-empty {
@@ -1658,6 +1659,218 @@ code { font-family: var(--mono); }
 .pg-web-note { display: block; margin: 0 0 12px; padding: 0 2px; }
 .pg-web-note code.ws-code { font-size: 11.5px; }
 
+/* ---- 插件商店：加速地址 + 安装 ---- */
+.pg-store-proxy-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+.pg-store-proxy-bar .ws-btn { padding: 8px 13px; font-size: 12.5px; border-radius: 9px; white-space: nowrap; }
+.pg-store-proxy-bar .pg-tip-inline { flex: 1 1 130px; min-width: 0; }
+.pg-store-proxies {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 42vh; overflow-y: auto; padding: 3px; margin: -3px;
+}
+.pg-proxy {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border: 1px solid var(--border-weak); border-radius: var(--radius);
+  background: var(--glass); cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.pg-proxy:hover { border-color: var(--brand-border); background: var(--brand-softer); }
+.pg-proxy.active { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(201,100,66,.10); }
+.pg-proxy-radio {
+  position: relative; flex-shrink: 0; width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid var(--border-strong); background: #fff;
+  transition: border-color .18s ease, background .18s ease;
+}
+.pg-proxy.active .pg-proxy-radio { border-color: var(--brand); background: var(--brand); }
+.pg-proxy.active .pg-proxy-radio::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #fff;
+}
+.pg-proxy-main { flex: 1; min-width: 0; }
+.pg-proxy-name {
+  display: block; font-size: 12.5px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-proxy-url {
+  display: block; margin-top: 2px; font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3); word-break: break-all;
+}
+.pg-proxy-ms {
+  flex-shrink: 0; font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  background: rgba(0,0,0,.04); color: var(--ink-3); white-space: nowrap;
+}
+.pg-proxy.ok .pg-proxy-ms { background: var(--ok-soft); color: var(--ok-text); }
+.pg-proxy.bad .pg-proxy-ms { background: var(--err-soft); color: var(--err-text); }
+.pg-proxy.testing { border-color: var(--brand-border); }
+.pg-proxy.testing .pg-proxy-ms { background: var(--brand-soft); color: var(--brand-deep); animation: pgPulse 1.2s ease-in-out infinite; }
+.pg-proxy.best { border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.pg-proxy.best .pg-proxy-name::after {
+  content: '最快'; margin-left: 7px; font-size: 10.5px; font-weight: 700;
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--ok-soft); color: var(--ok-text); vertical-align: 1px;
+}
+
+/* 详情里的插件介绍 + 实际下载地址 */
+.pg-store-about { margin: 0 0 14px; font-size: 12.5px; color: var(--ink-2); line-height: 1.75; }
+.pg-store-about p { margin: 0; }
+.pg-store-about p + p { margin-top: 8px; }
+.pg-store-url {
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  margin: 0 0 13px; padding: 9px 11px;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--bg-2);
+}
+.pg-store-url .k { flex-shrink: 0; font-size: 11.5px; color: var(--ink-3); }
+.pg-store-url code.pg-mono { font-size: 11.5px; color: var(--brand-deep); }
+
+/* 安装 / 卸载日志 */
+.pg-store-log {
+  margin-top: 13px; padding: 11px 13px; border-radius: var(--radius);
+  background: rgba(45, 38, 28, .05); border: 1px solid var(--border-weak);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.8;
+  color: var(--ink-2); max-height: 190px; overflow-y: auto; word-break: break-all;
+}
+.pg-store-log.ok { background: var(--ok-soft); border-color: var(--ok-border); color: var(--ok-text); }
+.pg-store-log.err { background: var(--err-soft); border-color: var(--err-soft); color: var(--err-text); }
+.pg-store-log-line { animation: wsFadeIn .2s ease backwards; }
+
+/* 危险按钮（卸载） */
+.pg-btn-danger { color: var(--err-text); border-color: var(--err-soft); background: rgba(255,255,255,.7); }
+.pg-btn-danger:hover { background: var(--err-soft); border-color: var(--err); color: var(--err-text); }
+
+/* ---- 插件商店：网格列表（3 列 × 5 行） + 分页 ---- */
+.pg-wrap-store { grid-template-columns: minmax(0, 1fr) minmax(292px, 356px); }
+.pg-wrap-store .pg-col-list .bot-block { position: static; }
+.pg-wrap-store .pg-col-detail .bot-block { position: sticky; top: 0; }
+
+.pg-store-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; align-content: start;
+  max-height: 70vh; overflow-y: auto; padding: 3px; margin: -3px;
+}
+.pg-store-grid > .console-empty { grid-column: 1 / -1; }
+.pg-store-grid .pg-card {
+  position: relative; flex-direction: column; align-items: stretch;
+  padding: 13px 13px 12px; min-height: 154px;
+}
+.pg-store-grid .pg-card:hover { transform: translateY(-2px); }
+.pg-store-grid .pg-card-top { padding-right: 44px; }
+.pg-store-grid .pg-card-name { font-size: 13px; }
+.pg-card-cn {
+  margin-top: 3px; font-size: 11.5px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-store-grid .pg-card-desc { flex: 1; -webkit-line-clamp: 3; }
+.pg-store-grid .pg-card-tags { margin-top: 7px; }
+
+/* 卡片底栏：作者 + GitHub star */
+.pg-card-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--border-weak);
+  font-size: 11.5px; color: var(--ink-3);
+}
+.pg-card-author {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-card-star {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-family: var(--mono); font-weight: 700; color: var(--amber);
+}
+.pg-card-foot svg {
+  flex-shrink: 0; width: 12px; height: 12px;
+  fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+}
+.pg-card-star svg { fill: currentColor; stroke: none; }
+
+/* 卡片右上角的快捷「安装」（悬停才出现） */
+.pg-card-install {
+  position: absolute; top: 9px; right: 9px; z-index: 2;
+  padding: 3px 9px; border: 1px solid var(--brand-border); border-radius: var(--radius-pill);
+  background: var(--brand-softer); color: var(--brand-deep);
+  font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  opacity: 0; transform: translateY(-3px);
+  transition: opacity .18s ease, transform .18s ease, background .18s ease, color .18s ease;
+}
+.pg-store-grid .pg-card:hover .pg-card-install,
+.pg-card-install:focus-visible { opacity: 1; transform: none; }
+.pg-card-install:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* 分页器 */
+.pg-pager { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.pg-pager:empty { display: none; }
+.pg-page-btn {
+  min-width: 30px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ink-2);
+  cursor: pointer; transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+.pg-page-btn:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-softer); color: var(--brand-deep); }
+.pg-page-btn.active { border-color: var(--brand); background: var(--brand); color: #fff; }
+.pg-page-btn:disabled { opacity: .42; cursor: not-allowed; }
+.pg-page-nav { padding: 5px 11px; white-space: nowrap; }
+.pg-page-gap { padding: 0 2px; font-size: 12px; color: var(--ink-4); }
+.pg-page-info { margin-left: auto; font-size: 11.5px; color: var(--ink-3); }
+
+/* ---- 安装弹窗 ---- */
+body.pg-modal-open { overflow: hidden; }
+.pg-modal {
+  position: fixed; inset: 0; z-index: 9998;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.pg-modal-mask {
+  position: absolute; inset: 0; background: rgba(38, 32, 24, .46);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: wsFadeIn .2s ease backwards;
+}
+.pg-modal-dialog {
+  position: relative; z-index: 1; width: min(780px, 100%); max-height: 88vh;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-0); box-shadow: var(--shadow-lg); overflow: hidden;
+  animation: botRise .3s cubic-bezier(.2,.9,.28,1.1) backwards;
+}
+.pg-modal-head {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  padding: 15px 18px; border-bottom: 1px solid var(--border-weak); background: var(--glass);
+}
+.pg-modal-head h3 { font-size: 14.5px; color: var(--ink); }
+.pg-modal-x {
+  margin-left: auto; flex-shrink: 0; width: 28px; height: 28px;
+  border: 1px solid transparent; border-radius: 8px; background: none;
+  font-size: 20px; line-height: 1; color: var(--ink-3); cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.pg-modal-x:hover { background: var(--brand-softer); border-color: var(--brand-border); color: var(--brand-deep); }
+.pg-modal-body {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 15px;
+}
+.pg-modal-plugin {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 10px 13px; border-radius: var(--radius);
+  background: var(--brand-softer); border: 1px solid var(--brand-border);
+}
+.pg-modal-plugin b { font-size: 13.5px; color: var(--brand-deep); }
+.pg-modal-repo { font-family: var(--mono); font-size: 11px; color: var(--ink-3); word-break: break-all; }
+.pg-modal-pick, .pg-modal-set {
+  padding: 13px 14px; border: 1px solid var(--border-weak);
+  border-radius: var(--radius); background: var(--glass);
+}
+.pg-modal-set { display: flex; flex-direction: column; gap: 12px; }
+.pg-modal-set .pg-field { background: #fff; }
+.pg-modal-set .pg-store-url { margin: 0; }
+.pg-modal-sec-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.pg-modal-sec-head h4 { font-size: 13px; color: var(--ink); letter-spacing: -.1px; }
+.pg-modal-sec-head h4::before {
+  content: ''; display: inline-block; width: 3px; height: 12px; margin-right: 8px;
+  border-radius: 2px; background: var(--brand); vertical-align: -1px;
+}
+.pg-modal .pg-store-proxies { max-height: 30vh; }
+.pg-modal-foot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 13px 18px; border-top: 1px solid var(--border-weak); background: var(--glass);
+}
+.pg-modal-foot .pg-tip-inline { flex: 1 1 160px; min-width: 0; }
+.pg-modal-foot .ws-btn { padding: 9px 16px; font-size: 12.5px; border-radius: 9px; }
+
 /* ---- 提示条 ---- */
 .pg-toast {
   position: fixed; left: 50%; bottom: 34px; z-index: 9999;
@@ -1672,11 +1885,25 @@ code { font-family: var(--mono); }
 .pg-toast.ok { background: rgba(79, 93, 58, .95); }
 .pg-toast.err { background: rgba(150, 44, 44, .95); }
 
+/* ---- 通用确认弹窗 ---- */
+.pg-confirm-text {
+  font-size: 13px; line-height: 1.75; color: var(--ink-2);
+  white-space: pre-line; word-break: break-word;
+}
+.pg-modal-dialog-sm { width: min(430px, 100%); }
+
 /* ---- 窄屏 ---- */
+/* 商店网格：宽度不够就从 3 列退到 2 列 */
+@media (max-width: 1240px) {
+  .pg-store-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 980px) {
   .pg-wrap { grid-template-columns: 1fr; }
   .pg-col-list .bot-block { position: static; }
   .pg-list { max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }
+  .pg-wrap-store { grid-template-columns: 1fr; }
+  .pg-wrap-store .pg-col-detail .bot-block { position: static; }
+  .pg-store-grid { max-height: none; overflow-y: visible; }
   .pg-web-frame { height: 420px; }
 }
 @media (max-width: 640px) {
@@ -1692,5 +1919,31 @@ code { font-family: var(--mono); }
   .pg-cmds { margin-left: 0; width: 100%; }
   .pg-cfg-foot .ws-btn { flex: 1; }
   .pg-web-frame { height: 340px; }
+  .pg-store-proxies { max-height: none; }
+  .pg-store-proxy-bar .ws-btn { flex: 1; }
+  .pg-proxy-url { display: none; }
+  /* 商店网格：手机上单列，快捷安装常驻显示 */
+  .pg-store-grid { grid-template-columns: 1fr; }
+  .pg-store-grid .pg-card { min-height: 0; }
+  .pg-card-install { opacity: 1; transform: none; }
+  .pg-pager { justify-content: center; }
+  .pg-page-info { margin-left: 0; width: 100%; text-align: center; }
+  /* 安装弹窗：手机上占满整屏 */
+  .pg-modal { padding: 0; }
+  .pg-modal-dialog { max-height: 100vh; border-radius: 0; border: 0; }
+  .pg-modal-body { padding: 14px; }
+  .pg-modal-head, .pg-modal-foot { padding: 12px 14px; }
+  .pg-modal-foot .ws-btn { flex: 1; }
   .pg-toast { bottom: 22px; max-width: 88vw; font-size: 12.5px; }
 }
+
+/* 确认弹窗不受上面「窄屏铺满整屏」的影响，始终是居中的小卡片 */
+#pgConfirmModal { padding: 22px; }
+#pgConfirmModal .pg-modal-dialog {
+  width: min(430px, 100%); max-height: 88vh;
+  border-radius: var(--radius-lg); border: 1px solid var(--border);
+}
+#pgConfirmModal .pg-modal-body { padding: 16px 18px; }
+#pgConfirmModal .pg-modal-head,
+#pgConfirmModal .pg-modal-foot { padding: 13px 18px; }
+#pgConfirmModal .pg-modal-foot .ws-btn { flex: 0 0 auto; }

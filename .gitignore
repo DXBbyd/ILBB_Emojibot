@@ -14,6 +14,7 @@ api_keys.json
 bg_config.json
 setup_state.json
 plugins_config.json
+plugins_store.json
 cache/
 temp/
 *.log

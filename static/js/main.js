@@ -220,9 +220,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateCacheStatus();
 
+    // 原生 confirm() 在预览 / 内嵌 iframe 里会被静默拦截并直接返回 false，
+    // 表现为「点了按钮没反应」。优先用 plugins.js 提供的页面内确认框，
+    // 实在取不到（脚本没加载）才退回原生实现。
+    function askConfirm(opts) {
+        if (typeof window.uiConfirm === 'function') return window.uiConfirm(opts);
+        return Promise.resolve(window.confirm(opts.text || '确定继续？'));
+    }
+
     // ===== 清空缓存 =====
     clearCacheBtn.addEventListener('click', async function() {
-        if (!confirm('确定要清空所有缓存图片吗？')) return;
+        var yes = await askConfirm({
+            title: '清空缓存',
+            text: '确定要清空所有缓存图片吗？',
+            tip: '清空后图片会在下次用到时重新下载',
+            okText: '清空'
+        });
+        if (!yes) return;
         try {
             var response = await fetch('/api/clear_cache', { method: 'POST' });
             var data = await response.json();

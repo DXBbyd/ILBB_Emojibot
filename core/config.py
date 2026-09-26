@@ -428,6 +428,40 @@ PLUGIN_WEB_TIMEOUT = max(1, get_int("PLUGIN_WEB_TIMEOUT", 4))
 # 单个插件单条指令回图上限（MB）。
 PLUGIN_MAX_IMAGE_MB = max(1, get_int("PLUGIN_MAX_IMAGE_MB", 8))
 
+# ---- 插件商店（从插件源服务器拉列表，选加速地址后 git clone 进 plugins/） ----
+# 商店总开关。
+PLUGIN_STORE_ENABLED = get_bool("PLUGIN_STORE_ENABLED", True)
+# 插件源服务器地址（末尾斜杠会自动去掉）。
+PLUGIN_STORE_URL = (get_str("PLUGIN_STORE_URL", "http://zako.zh.kg:5050").strip() or "").rstrip("/")
+# 访问插件源 / 测速的超时（秒）。
+PLUGIN_STORE_TIMEOUT = max(2, get_int("PLUGIN_STORE_TIMEOUT", 10))
+# 插件列表缓存秒数（0 = 每次都重新拉）。
+PLUGIN_STORE_TTL = max(0, get_int("PLUGIN_STORE_TTL", 60))
+# git 可执行文件名（不在 PATH 里时填绝对路径）。
+PLUGIN_GIT_BIN = get_str("PLUGIN_GIT_BIN", "git").strip() or "git"
+# git clone 超时（秒）。
+PLUGIN_GIT_TIMEOUT = max(10, get_int("PLUGIN_GIT_TIMEOUT", 180))
+# git clone 深度（1 = 只拉最新一次提交，最快）。
+PLUGIN_GIT_DEPTH = max(1, get_int("PLUGIN_GIT_DEPTH", 1))
+# 测速 / 试用安装用的示例仓库（商店里第一条记录）。
+PLUGIN_GIT_TEST_REPO = get_str(
+    "PLUGIN_GIT_TEST_REPO", "https://github.com/DXBbyd/ilbb_plugin_example.git").strip()
+# GitHub 加速地址清单：前缀式（<前缀>https://github.com/owner/repo.git），
+# 逗号 / 换行分隔，支持「名称|地址」写法自定义显示名。
+PLUGIN_GIT_PROXIES = get_str("PLUGIN_GIT_PROXIES", ",".join([
+    "https://gh.monlor.com/",
+    "https://cdn.akaere.online/",
+    "https://gh.llkk.cc/",
+    "https://github-proxy.memory-echoes.cn/",
+    "https://gitproxy.mrhjx.cn/",
+    "https://ghfile.geekertao.top/",
+    "https://ghproxy.imciel.com/",
+    "https://ghf.xn--eqrr82bzpe.top/",
+    "https://gh.xxooo.cf/",
+    "https://gh.inkchills.cn/",
+    "https://fastgit.cc/",
+])).strip()
+
 
 # ----------------------------------------------------------------------------
 # 供 WebUI 展示 / 启动日志
@@ -438,6 +472,16 @@ def _mask(token):
     if len(token) <= 4:
         return "*" * len(token)
     return token[:2] + "*" * (len(token) - 4) + token[-2:]
+
+
+def _split_list(raw):
+    """把「逗号 / 换行分隔」的文本切成列表（插件商店的加速地址清单用）。"""
+    out = []
+    for tok in re.split(r"[\s,;，、]+", str(raw or "")):
+        tok = tok.strip()
+        if tok:
+            out.append(tok)
+    return out
 
 
 def describe():
@@ -510,6 +554,12 @@ def describe():
             ["PLUGIN_POLL_SEC", PLUGIN_POLL_SEC, "热重载轮询间隔(秒)"],
             ["PLUGIN_WEB_SCHEME", PLUGIN_WEB_SCHEME, "插件自带 Web 的协议"],
             ["PLUGIN_WEB_PORT_BASE", PLUGIN_WEB_PORT_BASE, "插件 Web 端口分配起始"],
+            ["PLUGIN_STORE_ENABLED", "true" if PLUGIN_STORE_ENABLED else "false", "插件商店总开关"],
+            ["PLUGIN_STORE_URL", PLUGIN_STORE_URL or "（未配置）", "插件源服务器地址"],
+            ["PLUGIN_GIT_PROXIES", "%d 个加速地址" % len(_split_list(PLUGIN_GIT_PROXIES)),
+             "插件商店可选的 GitHub 加速地址（含「原 GitHub」直连）"],
+            ["PLUGIN_GIT_BIN", PLUGIN_GIT_BIN, "git 可执行文件（安装插件用）"],
+            ["PLUGIN_GIT_TIMEOUT", PLUGIN_GIT_TIMEOUT, "git clone 超时(秒)"],
         ]),
         ("Meme 素材", [
             ["MEME_ASSET_DIR", MEME_ASSET_DIR or "（引擎包内 memes/）", "素材目录"],
@@ -681,6 +731,27 @@ ENV_SCHEMA = [
          "min": 1, "max": 60, "hot": True, "desc": "探测插件 Web 是否就绪的超时（秒）"},
         {"key": "PLUGIN_MAX_IMAGE_MB", "label": "插件回图上限", "type": "int",
          "min": 1, "max": 50, "hot": True, "desc": "单个插件单条指令回图上限（MB）"},
+        {"key": "PLUGIN_STORE_ENABLED", "label": "插件商店", "type": "bool", "hot": True,
+         "desc": "在插件页显示「插件商店」子选项（从插件源拉列表并一键安装）"},
+        {"key": "PLUGIN_STORE_URL", "label": "插件源地址", "type": "text", "hot": True,
+         "maxlen": 200, "desc": "插件源服务器地址", "note": "末尾不用带斜杠；改完刷新插件页即可"},
+        {"key": "PLUGIN_STORE_TIMEOUT", "label": "插件源超时", "type": "int",
+         "min": 2, "max": 120, "hot": True,
+         "desc": "拉列表 / 测速的单次请求超时（秒）", "note": "测速也用它，太大会等很久"},
+        {"key": "PLUGIN_STORE_TTL", "label": "列表缓存", "type": "int",
+         "min": 0, "max": 3600, "hot": True, "desc": "插件列表缓存秒数，0 = 每次都重新拉"},
+        {"key": "PLUGIN_GIT_BIN", "label": "git 路径", "type": "text", "hot": True,
+         "maxlen": 260, "desc": "git 可执行文件", "note": "不在 PATH 里时填绝对路径，例如 C:\\Program Files\\Git\\cmd\\git.exe"},
+        {"key": "PLUGIN_GIT_TIMEOUT", "label": "clone 超时", "type": "int",
+         "min": 10, "max": 1800, "hot": True, "desc": "安装插件的 git clone 超时（秒）"},
+        {"key": "PLUGIN_GIT_DEPTH", "label": "clone 深度", "type": "int",
+         "min": 1, "max": 100, "hot": True,
+         "desc": "只拉最近几次提交，1 = 最快", "note": "改成 1 以上会明显变慢"},
+        {"key": "PLUGIN_GIT_TEST_REPO", "label": "测速用仓库", "type": "text", "hot": True,
+         "maxlen": 260, "desc": "「测速」默认拿这个仓库跑各加速地址"},
+        {"key": "PLUGIN_GIT_PROXIES", "label": "GitHub 加速地址", "type": "text", "hot": True,
+         "maxlen": 4000, "desc": "前缀式地址，逗号或换行分隔；「原 GitHub（直连）」无需写进来",
+         "note": "支持「名称|地址」自定义显示名，例如 我的代理|https://gh.example.com/"},
     ]),
     ("Meme 素材", [
         {"key": "MEME_ASSET_DIR", "label": "素材目录", "type": "path", "hot": False,

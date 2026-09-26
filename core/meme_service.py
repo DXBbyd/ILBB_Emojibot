@@ -7,13 +7,19 @@
 不接触 HTTP、不接触模板渲染。
 """
 import io
+import os
 import re
+import threading
 import typing
 from enum import Enum
 
 from PIL import Image as PILImage
 
-from meme_generator import get_meme, get_memes
+import config  # 必须排在引擎导入之前：config 会自举 vendor 并补出素材目录
+
+from meme_generator import get_meme as _engine_get_meme
+from meme_generator import get_memes as _engine_get_memes
+from meme_generator import load_memes as _engine_load_memes
 from meme_generator.exception import (
     ArgModelMismatch,
     ImageNumberMismatch,
@@ -33,6 +39,58 @@ KNOWN_ERRORS = (
     ArgModelMismatch,
     OpenImageFailed,
 )
+
+# 引擎只在 import meme_generator 那一刻扫一遍包内 memes/，而仓库不带素材本体
+# （见 .gitignore 的 vendor 分层），新克隆的机器上这次扫描是空的。这里在首次
+# 真正用到表情时按需补扫，素材补齐后无需重启；下载中途被抓到一半也没关系，
+# 下次调用发现磁盘上的表情变多了会再补一次。
+_memes_lock = threading.Lock()
+_memes_tried = ()       # 上次补扫的「目录 + 个数」签名，避免反复白扫
+
+
+def _asset_dir() -> str:
+    """素材目录；取不到就返回空串。"""
+    try:
+        import meme_assets
+        return meme_assets.asset_dir() or ""
+    except Exception:
+        return ""
+
+
+def _meme_names(d: str) -> set:
+    """素材目录下的表情目录名；目录不存在返回空集合。"""
+    try:
+        return {n for n in os.listdir(d)
+                if not n.startswith("_") and os.path.isdir(os.path.join(d, n))}
+    except OSError:
+        return set()
+
+
+def ensure_memes_loaded() -> int:
+    """确保素材已挂进引擎，返回当前表情总数。"""
+    global _memes_tried
+    with _memes_lock:
+        have = len(_engine_get_memes())
+        d = _asset_dir()
+        want = _meme_names(d) if d else set()
+        sig = (d, len(want))
+        if not want or have >= len(want) or sig == _memes_tried:
+            return have
+        _memes_tried = sig
+        _engine_load_memes(d)
+        return len(_engine_get_memes())
+
+
+def get_meme(key: str):
+    """按 key 取表情；首次调用会先补扫素材目录。"""
+    ensure_memes_loaded()
+    return _engine_get_meme(key)
+
+
+def get_memes() -> list:
+    """全部表情；首次调用会先补扫素材目录。"""
+    ensure_memes_loaded()
+    return _engine_get_memes()
 
 
 def _option_choices(annotation):

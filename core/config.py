@@ -49,6 +49,24 @@ ENV_FILE = os.path.join(ROOT, ".env")
 # 里带着源码，就把 vendor 目录挂到 sys.path，省掉手写 .pth 这一步。
 VENDOR_MEME_DIR = os.path.join(ROOT, "vendor", "meme-generator-main")
 
+# 引擎包内的素材目录。素材本体不跟仓库走（.gitignore 只入库引擎源码、字体与素材
+# 清单），克隆下来的仓库里这个目录并不存在；而 meme_generator 导入时会无条件
+# 遍历它，目录缺失就抛 FileNotFoundError —— app 连 import meme_service 这一步都
+# 过不去，那个负责下载素材的引导页自然也就进不去（先有鸡还是先有蛋）。这里先落
+# 一个空目录把导入链打通，素材留给引导页联网补全。
+VENDOR_MEME_ASSET_DIR = os.path.join(VENDOR_MEME_DIR, "meme_generator", "memes")
+
+
+def _ensure_vendor_meme_dir():
+    """建出引擎包内 memes/ 目录（空目录够用）。vendor 不在就什么都不做。"""
+    if not os.path.isdir(VENDOR_MEME_DIR) or os.path.isdir(VENDOR_MEME_ASSET_DIR):
+        return False
+    try:
+        os.makedirs(VENDOR_MEME_ASSET_DIR, exist_ok=True)
+        return True
+    except OSError:
+        return False
+
 
 def _bootstrap_vendor_meme():
     """把 vendor 里的 meme-generator 挂进 sys.path（仅当环境里没装时）。"""
@@ -64,6 +82,7 @@ def _bootstrap_vendor_meme():
     return True
 
 
+_ensure_vendor_meme_dir()
 VENDOR_MEME_BOOTSTRAPPED = _bootstrap_vendor_meme()
 
 _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

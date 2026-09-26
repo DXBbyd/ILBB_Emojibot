@@ -225,7 +225,7 @@ Move the project to a clean path like `/root/ilbb-bot`.
 Use `sudo ss -lntp | grep -E '5000|6700'` to find the process occupying it.
 
 **Forgot the admin password**
-Delete `api_keys.json` and restart; it will be regenerated and printed.
+Every startup prints the password currently in effect. Remove `admin_hash` from `api_keys.json` and restart to have a fresh temporary password generated and printed, or just open `/setup` and set a new one.
 
 ---
 

@@ -34,9 +34,9 @@ cp .env.example .env
 | `WEB_THREADED` | `true` | Handle requests with multiple threads, so slow requests do not block login |
 | `WEB_MAX_UPLOAD_MB` | `64` | Maximum request body size per request (MB); avatars/uploads go through base64 |
 | `SECRET_KEY` | empty | Session encryption key. **Empty** = randomly generated on every startup, so you must log in again after a restart (more secure); **a fixed value** = you stay logged in after a restart |
-| `INIT_ADMIN_PASSWORD` | empty | Initial admin password that takes effect **only on the first run**. Empty = randomly generate 8 characters and print them to the startup log |
+| `INIT_ADMIN_PASSWORD` | empty | Temporary password used until you set your own admin password. Empty = generate 8 characters at startup and print them to the startup log |
 
-> `INIT_ADMIN_PASSWORD` is only meaningful while `api_keys.json` does not yet have an admin password. To change the password afterwards, use "Settings → Change admin password" in the WebUI; changing this variable no longer has any effect.
+> This password is only temporary: once you set your own in step 4 of the setup wizard (or via "Settings → Change admin password"), it stops working and the terminal no longer prints it. Until then every startup prints it again, so missing it once costs nothing.
 
 ---
 
@@ -171,8 +171,10 @@ On the first startup, visiting `http://127.0.0.1:5000/setup` takes you to the se
 | --- | --- |
 | Environment self-check | Checks 7 dependencies one by one (flask / requests / pillow / websockets / skia-python / numpy / meme engine); a missing one points you to `uv pip install -r requirements.txt` |
 | Asset download | Pulls meme assets from the original repository to complete `vendor/.../memes/`, with progress and cancel |
-| Basic configuration | Sets the admin password, WebUI port, command prefix, etc., and writes back to `.env` |
-| Done | Redirects to the main interface |
+| Basic configuration | Sets the bot nickname, WebUI port, command prefix, etc., and writes back to `.env` |
+| Set admin password | Sets an admin password of your own (required); the temporary one stops working immediately |
+
+While the wizard is unfinished, visiting `/` brings you back to it (landing directly on step 4 when no password has been set yet).
 
 **Why the assets must be downloaded**: to keep the repository size down to a few tens of MB, the roughly 282 asset directories (about 254MB) under `vendor/meme-generator-main/meme_generator/memes/` are **not committed** and are completed over the network by this step. ILBB can start without downloading them, but meme generation will fail on a large scale.
 
@@ -190,7 +192,7 @@ Set `WS_CONFIG_PRIORITY=env`, then fix all WS parameters in the Docker environme
 
 **Scenario 3: you forgot the admin password**
 
-The password hash is stored in `api_keys.json`. After deleting that file (or deleting the admin password field in it) and restarting, the "first run" logic is triggered again: if `INIT_ADMIN_PASSWORD` is empty, an 8-character password is randomly generated and printed to the startup log.
+The password hash is stored in `api_keys.json`. Every startup prints the password currently in effect; delete `admin_hash` and restart to have a fresh temporary password generated and printed, and `/` will take you back to the setup wizard to set a new one.
 
 **Scenario 4: you changed `.env` but it does not take effect**
 

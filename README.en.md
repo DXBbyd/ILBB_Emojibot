@@ -36,7 +36,7 @@ No third-party cloud service required. Everything runs on your own machine.
 | Web workbench | Pairing-card generator, meme preview and debugging, command dry-run preview, web chat session (try commands without QQ) |
 | Integration panel | Start/stop the OneBot V11 reverse-WS server, edit its config, watch a live event stream with raw JSON, and use a debug panel for 30+ OneBot APIs |
 | Plugin system | One folder = one plugin, manifest-driven config, hot reload, optional bundled web page |
-| Setup wizard `/setup` | Environment check, online asset bootstrap and basic config in five steps — no manual file editing |
+| Setup wizard `/setup` | Environment check, online asset bootstrap, basic config and setting your admin password in four steps — no manual file editing |
 | OpenAI-compatible layer `/v1` | Exposes `/v1/images/generations`, `/v1/images/edits`, `/v1/cards`, etc., callable by any OpenAI client |
 
 ---
@@ -49,10 +49,10 @@ After startup, open `http://127.0.0.1:5000`:
 | --- | --- | --- |
 | Workbench | `/` | Main pairing-card generator |
 | Status | `/status` | Runtime status, cache and API call statistics |
-| Setup wizard | `/setup` | First-run guide (env check / asset download / config) |
+| Setup wizard | `/setup` | Wizard (env check / asset download / config / set admin password) |
 | Admin | `/admin` | Back-office panels (integration, plugins, command center) |
 
-On first launch a random admin password is generated and **printed to the terminal**. You can pre-set it via `INIT_ADMIN_PASSWORD` in `.env`.
+On first launch `/` sends you to the setup wizard, whose last step asks you to set your own admin password. Until then the terminal prints a temporary password on every startup (randomly generated, or taken from `INIT_ADMIN_PASSWORD` in `.env`); it stops working once you set your own.
 
 ---
 
@@ -99,7 +99,7 @@ Priority: **system environment variables > `.env` > built-in defaults**.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `WEB_HOST` / `WEB_PORT` | `0.0.0.0` / `5000` | Workbench bind address and port. Use `127.0.0.1` for local-only |
-| `INIT_ADMIN_PASSWORD` | empty | Initial admin password, used only on first run; empty = random and printed |
+| `INIT_ADMIN_PASSWORD` | empty | Temporary password used until you set your own admin password; empty = generated at startup and printed |
 | `SECRET_KEY` | empty | Session key. Empty = regenerated each start (re-login after restart) |
 | `WS_HOST` / `WS_PORT` / `WS_PATH` | `0.0.0.0` / `6700` / `/onebot/v11/ws` | OneBot V11 reverse-WS listener (NapCat connects here) |
 | `WS_ACCESS_TOKEN` | empty | Connection token; empty disables verification |
@@ -231,7 +231,7 @@ Start the app from the **project root** — those paths are relative.
 Check in order: WS server running → NapCat reverse-WS connected (the event stream scrolls) → `BOT_ENABLED=true` → correct prefix (default `/`) → private chat not disabled by `BOT_ALLOW_PRIVATE=false` → not hitting `BOT_COOLDOWN_SEC`.
 
 **I forgot the admin password.**
-Remove the password hash from `api_keys.json` and restart — a new one is generated and printed. Deleting the whole file also works.
+Every startup prints the password currently in effect: until you set your own, the temporary one is printed in plain text. To reset completely, remove `admin_hash` from `api_keys.json` and restart — a new one is generated and printed. Or just open `/setup` and set a new one.
 
 ---
 

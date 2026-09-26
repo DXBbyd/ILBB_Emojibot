@@ -94,7 +94,7 @@ Every item in `.env` has a default value and a Chinese comment, and **you can le
 | --- | --- | --- |
 | `WEB_HOST` | `0.0.0.0` | Change to `127.0.0.1` if you only want local access |
 | `WEB_PORT` | `5000` | Change when the port is occupied |
-| `INIT_ADMIN_PASSWORD` | empty | Fill it in if you want to set your own initial admin password; otherwise a random one is generated and printed in the terminal |
+| `INIT_ADMIN_PASSWORD` | empty | Temporary password used until you set your own admin password; empty = generated at startup and printed |
 | `BOT_NAME` | `我在哔哩学习` | Bot nickname, shown in the help image title |
 | `BOT_PREFIX` | `/` | Command prefix; changing it to something like `#` also works |
 
@@ -108,10 +108,14 @@ In the project root directory, run:
 & .venv\Scripts\python.exe app.py
 ```
 
-Seeing logs like the following means success (the admin password only appears the first time):
+Seeing logs like the following means success (as long as you haven't set your own password yet, this temporary one is printed again on every startup):
 
 ```
-[ILBB] 管理密码：xxxxxxxx
+========================================================
+[管理后台] 临时管理密码: xxxxxxxx（本次随机生成，重启后会再次打印）
+[管理后台] 打开 http://<本机IP>:5000/setup 设一个你自己的管理密码
+[管理后台] 设好后这枚临时密码作废，之后可在 设置→修改密码 中更换
+========================================================
  * Running on http://0.0.0.0:5000
 ```
 
@@ -120,7 +124,7 @@ Open `http://127.0.0.1:5000` in your browser; it will automatically jump to the 
 1. **Environment self-check** — checks those 7 dependencies one by one, and for anything missing it points you at `uv pip install -r requirements.txt`. Click "Re-check" to check again.
 2. **Meme assets** — one-click online download of the asset library (`vendor/.../meme_generator/memes/`). This step is the slowest, and the most likely to get stuck on network issues.
 3. **Basic configuration** — bot nickname, command prefix, ports, etc.
-4. **Done** — enter the workbench.
+4. **Done** — set an admin password of your own here, then enter the workbench. This field is required; the temporary password stops working the moment you submit.
 
 > It doesn't matter if the asset step fails; you can skip it and retry later from the settings page. Without assets, `/meme` will report that no meme can be found.
 
@@ -199,7 +203,7 @@ New-Item -ItemType Directory -Force vendor\meme-generator-main\meme_generator\me
 ```
 
 **Forgot the admin password**
-Delete `api_keys.json` and restart; it will be regenerated and printed to the terminal.
+Every startup prints the password currently in effect. Remove `admin_hash` from `api_keys.json` and restart to have a fresh temporary password generated and printed, or just open `/setup` and set a new one.
 
 ---
 

@@ -213,8 +213,8 @@ WEB_MAX_UPLOAD_BYTES = max(1, WEB_MAX_UPLOAD_MB) * 1024 * 1024
 SECRET_KEY = get_str("SECRET_KEY", "")
 SECRET_KEY_IS_RANDOM = SECRET_KEY.strip() == ""
 
-# 首次运行（api_keys.json 里还没有管理密码）时使用的初始密码；
-# 留空 = 随机生成 8 位并打印到启动日志。
+# 设置自己的管理密码之前临时使用的密码；
+# 留空 = 启动时随机生成 8 位并打印到启动日志。
 INIT_ADMIN_PASSWORD = get_str("INIT_ADMIN_PASSWORD", "")
 
 
@@ -454,7 +454,7 @@ def describe():
              "留空则重启后需要重新登录"],
             ["INIT_ADMIN_PASSWORD",
              "（已由 .env 指定）" if INIT_ADMIN_PASSWORD else "（随机生成）",
-             "仅首次运行生效，之后请在「设置」里改密码"],
+             "设置自己的管理密码之前的临时密码，之后请在「设置」里改"],
         ]),
         ("WS 服务器", [
             ["WS_HOST", WS_HOST, "OneBot V11 监听地址"],
@@ -557,8 +557,8 @@ ENV_SCHEMA = [
          "note": "需重启主服务"},
         {"key": "INIT_ADMIN_PASSWORD", "label": "初始管理密码", "type": "secret",
          "hot": False, "sensitive": True, "clearable": True,
-         "desc": "仅首次运行（还没有管理密码）时生效；留空 = 随机生成",
-         "note": "首次运行后请到「设置」里改密码"},
+         "desc": "设置自己的管理密码之前的临时密码；留空 = 随机生成",
+         "note": "在引导页或「设置」里设好自己的密码后即作废"},
     ]),
     ("WS 服务器", [
         {"key": "WS_HOST", "label": "监听地址", "type": "text", "hot": False,

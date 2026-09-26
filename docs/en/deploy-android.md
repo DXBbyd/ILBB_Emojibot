@@ -168,15 +168,15 @@ Confirm that the service is actually running (the terminal should show `Running 
 
 ---
 
-If you hit a pitfall on this route, or if you got it working successfully, feedback with the specific device model, Android version, Termux source, and error messages is welcome, as it can save a lot of time for those who come after.
-
----
-
 ## 7. Connect NapCat
 
 By this point the service is up; one step remains. Connect NapCat (NC) so the bot receives messages in QQ. The phone and the machine running NapCat must be on the same LAN, then in NapCat's network settings add a reverse WebSocket entry pointing at `ws://<phone IP>:6700/onebot/v11/ws` with the message format set to `array`.
 
 Find the phone IP with `ip -4 addr show | grep inet`. Full steps and troubleshooting are in [Platform Integration](platform-integration.md).
+
+---
+
+If you hit a pitfall on this route, or if you got it working successfully, feedback with the specific device model, Android version, Termux source, and error messages is welcome, as it can save a lot of time for those who come after.
 
 ---
 

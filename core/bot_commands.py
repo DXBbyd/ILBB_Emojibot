@@ -291,35 +291,108 @@ def _to_pil(raw):
         return None
 
 
+def _shrink_gif(im, limit: int):
+    """在体积上限内尽量保留动图：逐帧缩放 + 抽帧 + 减色，仍输出 GIF。
+
+    成功返回 (gif_bytes, note)；无法处理（例如只有一帧）返回 None，交回静态流程。
+    """
+    try:
+        n = int(getattr(im, "n_frames", 1) or 1)
+    except Exception:
+        n = 1
+    frames, durs = [], []
+    for i in range(n):
+        try:
+            im.seek(i)
+            frames.append(im.convert("RGBA").copy())
+            dur = int(im.info.get("duration", 0) or 0)
+        except Exception:
+            break
+        durs.append(max(40, min(500, dur)) if dur > 0 else 100)
+    if len(frames) < 2:
+        return None
+    w0, h0 = frames[0].size
+
+    # 依次放低要求：先等比缩小，再抽帧减色，命中上限即返回。
+    # 阶梯一直下探到 0.22 / 12 帧 / 64 色，尽量避免「压完还是超限」。
+    best = None
+    ladder = ((1.0, 60, 128), (0.75, 50, 128), (0.60, 40, 128),
+              (0.45, 32, 96), (0.33, 24, 64), (0.22, 12, 64))
+    for scale, cap, colors in ladder:
+        step = max(1, (len(frames) + cap - 1) // cap)
+        sel = frames[::step][:cap]
+        sdur = durs[::step][:cap]
+        w = max(1, int(w0 * scale))
+        h = max(1, int(h0 * scale))
+        imgs = []
+        for fr in sel:
+            sm = fr if scale >= 0.999 else fr.resize((w, h), Image.Resampling.LANCZOS)
+            imgs.append(sm.convert("RGB").convert("P", palette=Image.ADAPTIVE, colors=colors))
+        buf = io.BytesIO()
+        try:
+            imgs[0].save(buf, format="GIF", save_all=True, append_images=imgs[1:],
+                         duration=sdur, loop=0, disposal=2, optimize=True)
+        except Exception:
+            continue
+        out = buf.getvalue()
+        if best is None or len(out) < len(best):
+            best = out
+        if len(out) <= limit:
+            break
+    if best:
+        if len(best) > limit:
+            # 极限压缩后依然超限：仍回动图（比退回静态更符合预期），提示体积偏大
+            return best, "（动图已尽量压缩，体积仍偏大）"
+        return best, "（原图较大，已压缩动图）"
+    return None
+
+
 def _shrink(data: bytes) -> tuple:
-    """回图超过体积上限时降级：动图取首帧转静态 JPG，静态图等比缩小。
-    返回 (data, note)"""
+    """回图超过体积上限时降级。
+
+    - 动图（GIF/WebP 等）：保留动图，等比缩小 + 抽帧减色，仍输出 GIF；
+    - 静态图：等比缩小并转 JPG。
+    返回 (data, note)
+    """
     limit = _max_out_bytes()
     if not data or len(data) <= limit:
         return data, ""
     try:
         im = Image.open(io.BytesIO(data))
-        if getattr(im, "is_animated", False) and getattr(im, "n_frames", 1) > 1:
-            im.seek(0)
-        im = im.convert("RGB")
     except Exception:
         return data, ""
 
-    scale = 1.0
+    animated = bool(getattr(im, "is_animated", False)) and int(getattr(im, "n_frames", 1) or 1) > 1
+    if animated:
+        got = _shrink_gif(im, limit)
+        if got:
+            return got
+
+    try:
+        flat = im.convert("RGB")
+    except Exception:
+        return data, ""
+
+    # 静态图：等比缩小 + 逐步降质，命中上限即返回。
+    # 阶梯下探到 0.12 倍 / q72，尽量避免「压完还是超限」。
     out = data
-    while scale >= 0.25:
-        w = max(1, int(im.width * scale))
-        h = max(1, int(im.height * scale))
+    hit = False
+    for scale, quality in ((1.0, 92), (0.85, 90), (0.70, 90), (0.55, 88),
+                           (0.40, 86), (0.28, 84), (0.20, 78), (0.12, 72)):
+        w = max(1, int(flat.width * scale))
+        h = max(1, int(flat.height * scale))
         buf = io.BytesIO()
         try:
-            im.resize((w, h), Image.Resampling.LANCZOS).save(buf, format="JPEG", quality=88)
+            flat.resize((w, h), Image.Resampling.LANCZOS).save(buf, format="JPEG", quality=quality)
         except Exception:
             break
         out = buf.getvalue()
         if len(out) <= limit:
+            hit = True
             break
-        scale -= 0.15
-    return out, "（原图较大，已压缩为静态图）"
+    if hit:
+        return out, "（原图较大，已压缩为静态图）"
+    return out, "（原图极大，已尽量压缩，体积仍偏大）"
 
 
 # ----------------------------------------------------------------------------

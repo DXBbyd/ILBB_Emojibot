@@ -1,7 +1,8 @@
 /* ============================================================
  * 名言图（Quote）—— 合成大类 → 子选项「名言图」
- * 输出 JPG：随机背景 + 90% 黑色蒙版 + 左侧方形圆角头像
- *          + 右侧笑死气泡（文字 / 表情包）+ 右下角「—— 署名」
+ * 横屏 16:9：随机二次元背景 + 灰色蒙版（默认透明度 95%）
+ *          + 左半方形圆角头像 + 右半磨砂玻璃气泡（文字 / 表情包）
+ *          + 右下角「—— 署名」；静态内容出 JPG，动图出 GIF
  * 生成走后端 POST /api/quote/generate
  * ============================================================ */
 document.addEventListener('DOMContentLoaded', function() {
@@ -30,10 +31,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var loading = $('quoteLoading');
     var dlBtn = $('quoteDownloadBtn');
 
+    var globalFontSel = $('quoteGlobalFont');
+    var nameFontSel = $('quoteNameFont');
+
     var meta = $('quoteMeta');
     var metaName = $('quoteMetaName');
+    var metaFont = $('quoteMetaFont');
     var metaBg = $('quoteMetaBg');
     var metaBubble = $('quoteMetaBubble');
+    var metaFormat = $('quoteMetaFormat');
 
     var ph = $('quotePlaceholder');
     var previewWrap = $('quotePreviewWrap');
@@ -48,6 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
         bubbleDataURL: '', // 表情包 dataURL
         bgDataURL: '',     // 自定义背景 dataURL
         resultData: '',    // 上次生成结果的 base64（不含前缀）
+        resultMime: 'image/jpeg',
         resultName: 'quote.jpg',
         cfg: {}
     };
@@ -77,6 +84,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ===== 配置默认值 =====
+    function fillFontSelect(sel, options, current) {
+        if (!sel || !options || !options.length) return;
+        sel.innerHTML = options.map(function(o) {
+            return '<option value="' + o[0] + '">' + (o[1] || o[0]) + '</option>';
+        }).join('');
+        if (current != null) sel.value = String(current);
+        // 配置里的值不在候选里（例如字体被删）就退回第一项
+        if (!sel.value && options.length) sel.value = String(options[0][0]);
+    }
+
+    function fontLabel(options, value) {
+        var v = String(value == null ? '' : value);
+        var hit = (options || []).filter(function(o) { return String(o[0]) === v; })[0];
+        return hit ? (hit[1] || hit[0]) : (v || '跟随全局');
+    }
+
     (async function loadCfg() {
         try {
             var res = await fetch('/api/quote/config');
@@ -87,17 +110,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     nameInput.setAttribute('placeholder',
                         '留空则用昵称 / 默认「' + (data.name_default || '无名氏') + '」');
                 }
+                fillFontSelect(globalFontSel, data.font_options, data.font_current);
+                fillFontSelect(nameFontSel, data.name_font_options, data.name_font_current);
                 if (!data.enabled) {
                     genBtn.disabled = true;
                     genBtn.textContent = '名言合成已关闭';
                     setStatus('后端 QUOTE_ENABLED=false，名言合成已关闭', '#e05555');
                 } else {
-                    setStatus('输出 JPG · ' + data.width + 'px 宽 · 蒙版 ' +
-                        Math.round((data.mask_alpha || 0.9) * 100) + '%', '#8c8f9c');
+                    setStatus('输出 JPG / GIF · ' + data.width + '×' + (data.height || 720) +
+                        ' · 蒙版透明度 ' + Math.round((1 - (data.mask_alpha == null ? 0.05 : data.mask_alpha)) * 100) + '%',
+                        '#8c8f9c');
                 }
             }
         } catch (e) { /* 配置接口不可用不影响生成 */ }
     })();
+
+    // ===== 字体：全局字体立即写入设置并热生效；署名子体只影响本次生成 =====
+    if (globalFontSel) {
+        globalFontSel.addEventListener('change', async function() {
+            var val = globalFontSel.value;
+            if (!val) return;
+            globalFontSel.disabled = true;
+            try {
+                var res = await fetch('/api/env/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ updates: { FONT_FAMILY: val } })
+                });
+                var d = await res.json();
+                if (!res.ok || !d || d.ok === false) {
+                    toast('全局字体保存失败：' + ((d && d.error) || '未知错误'));
+                    return;
+                }
+                toast('全局字体已切换为「' + fontLabel(state.cfg.font_options, val) + '」' +
+                    ((d.restart || []).length ? '（部分项需重启）' : ''));
+                // 全局字体变了，署名子体若是「跟随全局」也跟着变：重新拉一次配置
+                try {
+                    var r2 = await fetch('/api/quote/config');
+                    var d2 = await r2.json();
+                    if (d2 && d2.ok) {
+                        state.cfg = d2;
+                        fillFontSelect(globalFontSel, d2.font_options, d2.font_current);
+                        fillFontSelect(nameFontSel, d2.name_font_options, nameFontSel.value || d2.name_font_current);
+                    }
+                } catch (e2) { /* 刷新失败不影响已保存 */ }
+            } catch (e) {
+                toast('网络错误，全局字体保存失败');
+            } finally {
+                globalFontSel.disabled = false;
+            }
+        });
+    }
 
     // ===== QQ 号取头像 + 昵称 =====
     fetchBtn.addEventListener('click', async function() {
@@ -215,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
             images: state.mode === 'image' && state.bubbleDataURL ? [state.bubbleDataURL] : [],
             no_bg: state.bg === 'none'
         };
+        if (nameFontSel && nameFontSel.value) payload.name_font = nameFontSel.value;
         if (state.bg === 'upload' && state.bgDataURL) payload.bg = state.bgDataURL;
         // 自定义背景但没选图 → 当作随机图（后端会走随机 API）
         // 头像：优先用已获取的 QQ 头像（不传则由后端按 qq 拉取）
@@ -237,17 +301,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             state.resultData = data.data;
-            state.resultName = 'quote_' + Date.now() + '.jpg';
-            var src = 'data:' + (data.mime || 'image/jpeg') + ';base64,' + data.data;
+            state.resultMime = data.mime || 'image/jpeg';
+            var ext = (state.resultMime === 'image/gif') ? '.gif'
+                    : (state.resultMime === 'image/webp') ? '.webp'
+                    : (state.resultMime === 'image/png') ? '.png' : '.jpg';
+            state.resultName = 'quote_' + Date.now() + ext;
+            var src = 'data:' + state.resultMime + ';base64,' + data.data;
             previewImg.src = src;
             ph.style.display = 'none';
             previewWrap.style.display = 'block';
-            previewTip.textContent = (data.bytes ? (Math.round(data.bytes / 1024) + ' KB · ') : '') + state.resultName;
+            previewTip.textContent = (data.bytes ? (Math.round(data.bytes / 1024) + ' KB · ') : '') +
+                (state.resultMime === 'image/gif' ? 'GIF 动图 · ' : '') + state.resultName;
 
             metaName.textContent = data.name || '(未署名)';
-            metaBg.textContent = data.has_bg ? (state.bg === 'upload' ? '自定义图' : '随机图') : '纯黑底';
+            if (metaFont) {
+                var nf = nameFontSel ? nameFontSel.value : '';
+                metaFont.textContent = (nf && nf !== 'inherit')
+                    ? fontLabel(state.cfg.name_font_options, nf)
+                    : ('跟随全局 · ' + fontLabel(state.cfg.font_options, state.cfg.font_current));
+            }
+            metaBg.textContent = data.has_bg ? (state.bg === 'upload' ? '自定义图' : '随机图') : '内置底色';
             metaBubble.textContent = data.bubble_image ? '表情包' : '文字';
+            if (metaFormat) metaFormat.textContent = data.animated ? 'GIF（动图）' : 'JPG（静态）';
             meta.classList.remove('hidden');
+            dlBtn.textContent = data.animated ? '下载 GIF' : '下载图片';
             dlBtn.classList.remove('hidden');
             if (data.note) toast(data.note);
         } catch (e) {
@@ -264,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var bin = atob(state.resultData);
         var buf = new Uint8Array(bin.length);
         for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        var url = URL.createObjectURL(new Blob([buf], { type: 'image/jpeg' }));
+        var url = URL.createObjectURL(new Blob([buf], { type: state.resultMime || 'image/jpeg' }));
         var a = document.createElement('a');
         a.href = url;
         a.download = state.resultName;

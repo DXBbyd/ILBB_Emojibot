@@ -32,7 +32,7 @@ No third-party cloud service required. Everything runs on your own machine.
 | --- | --- |
 | Meme generation `/meme` | 282 memes, 3,400+ asset files. Send a command plus text (optionally with an image, an `@mention` or a QQ number) and get a sticker back. Supports per-meme preset arguments |
 | Pairing card `/pair` | QQ-style pairing cards with three templates (classic / dark / paper); custom title, background and button labels |
-| Quote image `/quote` | Random web background + dark overlay + avatar + speech bubble + signature, exported as JPG |
+| Quote image `/quote` | Landscape 16:9: rounded square avatar in the left half, frosted-glass bubble in the right half (animated stickers supported), random anime background with a grey mask, and a signature at the bottom right; JPG for static content, GIF when animated, fonts switchable |
 | Image menu `/help` | Every command rendered as a clean, phone-friendly image |
 | Web workbench | Pairing-card generator, meme preview and debugging, command dry-run preview, web chat session (try commands without QQ) |
 | Integration panel | Start/stop the OneBot V11 reverse-WS server, edit its config, watch a live event stream with raw JSON, and use a debug panel for 30+ OneBot APIs |

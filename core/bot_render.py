@@ -10,7 +10,7 @@
 - render_meme_detail(token)      /meme help [ID]  单个表情的图文教程（含底图 / 预设 / 示例）
 - render_meme_list(page, query)  /meme list       表情素材列表（带列表 ID 分页）
 - render_pair_help()             /pair help       配对生图帮助
-- render_quote(text, name, ...)  /quote           名言图（JPG：随机背景 + 蒙版 + 头像 + 气泡 + 署名）
+- render_quote(text, name, ...)  /quote           名言图（横屏 16:9：左半头像 + 右半磨砂玻璃气泡 + 右下角署名）
 - render_quote_help()            /quote help      名言图帮助
 - render_notice(title, lines)    通用提示 / 错误图
 
@@ -26,7 +26,7 @@ import io
 import json
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 import config
 import meme_service
@@ -58,7 +58,7 @@ W = 960                       # 统一画布宽度
 SIDE = 28                     # 左右留白
 
 # 渲染版本号：改动版式/预览后 +1，会让 run_command 里的图片缓存自动失效重绘
-RENDER_VERSION = 3
+RENDER_VERSION = 4
 
 _CACHE_DIR = os.path.join(config.CACHE_DIR, "bot")   # 渲染结果缓存目录
 
@@ -73,10 +73,41 @@ _FONT_BOLD = ["C:/Windows/Fonts/msyhbd.ttc", "C:/Windows/Fonts/msyh.ttc",
 _font_cache: dict = {}
 
 
-def _pick_font_file(bold: bool):
-    for p in (_FONT_BOLD if bold else _FONT_READY):
-        if os.path.exists(p):
-            return p
+def clear_font_cache():
+    """清空字体对象缓存。
+
+    设置页改了「全局字体 / 字体目录 / 署名字体」后，config 会热重载并回调
+    app.py 里的 _apply_config_reload，那里会调本函数 —— 否则旧字体对象还在缓存里，
+    新配置不会生效。
+    """
+    _font_cache.clear()
+
+
+def _family_path(family):
+    """字体配置值 → 字体文件路径；system / 无效值 → None（交回系统字体查找）"""
+    try:
+        return config.font_path(family)
+    except Exception:
+        return None
+
+
+def _resolve_family(family):
+    """把 None / inherit / auto 归一成真正的字体配置值，再解析成文件路径"""
+    fam = getattr(config, "FONT_FAMILY", "system") if family is None else family
+    s = str(fam or "").strip()
+    if s.lower() in ("", "inherit", "auto"):
+        s = str(getattr(config, "FONT_FAMILY", "system") or "system")
+    return s, _family_path(s)
+
+
+def _pick_font_file(bold: bool, family=None):
+    """按「全局字体（或指定字体）→ 系统字体 → 项目 font/ 目录」的顺序找字体文件"""
+    _fam, p = _resolve_family(family)
+    if p:
+        return p
+    for p2 in (_FONT_BOLD if bold else _FONT_READY):
+        if os.path.exists(p2):
+            return p2
     # 退一步用项目 font/ 目录里的字体
     try:
         names = sorted(os.listdir(config.FONT_DIR))
@@ -88,12 +119,17 @@ def _pick_font_file(bold: bool):
     return None
 
 
-def font(size: int, bold: bool = False):
-    """取字体对象（按字号缓存）。找不到任何字体时退回 PIL 默认位图字体。"""
-    key = (int(size), bool(bold))
+def font(size: int, bold: bool = False, family=None):
+    """取字体对象（按「字体 + 字号 + 粗细」缓存）。
+
+    family 传 None 或 "inherit" 时跟 config.FONT_FAMILY（全局字体）；
+    找不到任何字体时退回 PIL 默认位图字体。
+    """
+    fam, _p = _resolve_family(family)
+    key = (fam, int(size), bool(bold))
     f = _font_cache.get(key)
     if f is None:
-        path = _pick_font_file(bold)
+        path = _pick_font_file(bold, fam)
         try:
             f = ImageFont.truetype(path, size) if path else ImageFont.load_default()
         except Exception:
@@ -1125,21 +1161,25 @@ def render_notice(title: str, lines: list, kind: str = "info") -> bytes:
 
 
 # ============================================================================
-# 7) /quote —— 名言图（随机背景 + 黑色蒙版 + 方形圆角头像 + 笑死气泡）
+# 7) /quote —— 名言图（横屏 16:9）
+#    以中线左右分栏：左半是方形圆角头像，右半是类主页 UI 的磨砂玻璃气泡；
+#    背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版
+#    （默认透明度 95% → 不透明度 0.05）；右下角「—— 用户名」。
+#    气泡内容是动图表情包时输出 GIF，否则输出 JPG。
 # ============================================================================
-QUOTE_PAD_X = 44            # 左右留白
-QUOTE_TOP = 64              # 顶部留白
-QUOTE_AV = 236              # 头像边长
-QUOTE_AV_R = 40             # 头像圆角半径
-QUOTE_AV_GAP = 30           # 头像与气泡的水平间距
-QUOTE_AV_DY = 14            # 气泡相对头像顶部的下移量
-QUOTE_BUB_PAD = 34          # 气泡内边距
-QUOTE_BUB_R = 30            # 气泡圆角
-QUOTE_MAX_BODY = 820        # 气泡内容区最大高度
-QUOTE_MIN_H = 1080          # 画布最小高度
-QUOTE_MAX_H = 2600          # 画布最大高度
+QUOTE_PAD_X = 56            # 左右留白
+QUOTE_PAD_Y = 48            # 上下留白
+QUOTE_AV = 236              # 头像边长（正方形）
+QUOTE_AV_R = 44             # 头像圆角半径
+QUOTE_AV_GAP = 44           # 气泡左边缘与中线的间距（头像与气泡之间的呼吸位）
+QUOTE_BUB_PAD = 36          # 气泡内边距
+QUOTE_BUB_R = 22            # 气泡圆角（对齐主页气泡观感）
+QUOTE_BUB_TAIL = 22         # 气泡左侧指向头像的小尖角长度
+QUOTE_BUB_MIN_H = 132       # 气泡最小高度
+QUOTE_MAX_BODY = 460        # 气泡内容区最大高度（可由 config.QUOTE_MAX_BODY 覆盖）
 QUOTE_NAME_SIZE = 40        # 右下角署名（破折号 + 用户名）字号
-QUOTE_TAIL = 30             # 气泡左侧小尖角长度
+QUOTE_NAME_DY = 56          # 署名基线距画布底部
+QUOTE_TAIL = QUOTE_BUB_TAIL  # 兼容旧名
 
 
 def _cover(img: Image.Image, w: int, h: int) -> Image.Image:
@@ -1155,11 +1195,16 @@ def _cover(img: Image.Image, w: int, h: int) -> Image.Image:
 
 
 def _quote_bg(w: int, h: int, bg_bytes: bytes | None) -> Image.Image:
-    """随机背景图 + 不透明黑色蒙版（不透明度取 config.QUOTE_MASK_ALPHA）"""
+    """背景层：随机二次元图（与主页背景同一个接口）+ 灰色蒙版。
+
+    蒙版不透明度取 config.QUOTE_MASK_ALPHA（默认 0.05 = 透明度 95%，背景清晰可见）。
+    注意顺序：蒙版只叠在背景层上；头像与气泡随后绘制，位于蒙版之上，
+    也就是「背景 → 灰色蒙版 → 前景（头像 / 气泡）」。
+    """
     try:
-        alpha = float(getattr(config, "QUOTE_MASK_ALPHA", 0.90))
+        alpha = float(getattr(config, "QUOTE_MASK_ALPHA", 0.05))
     except Exception:
-        alpha = 0.90
+        alpha = 0.05
     alpha = min(1.0, max(0.0, alpha))
 
     base = None
@@ -1168,15 +1213,15 @@ def _quote_bg(w: int, h: int, bg_bytes: bytes | None) -> Image.Image:
             base = _cover(_first_frame(bg_bytes).convert("RGB"), w, h)
         except Exception:
             base = None
-    if base is None:                       # 取不到背景时用深色渐变兜底
-        base = Image.new("RGB", (w, h), (26, 24, 30))
+    if base is None:                       # 取不到背景时用深灰渐变兜底
+        base = Image.new("RGB", (w, h), (48, 45, 54))
         dd = ImageDraw.Draw(base)
         for y in range(h):
             k = y / max(1, h - 1)
             dd.line([(0, y), (w, y)],
-                    fill=(int(38 - 20 * k), int(33 - 16 * k), int(44 - 22 * k)))
+                    fill=(int(82 - 36 * k), int(78 - 34 * k), int(96 - 42 * k)))
     if alpha > 0:
-        veil = Image.new("RGB", (w, h), (0, 0, 0))
+        veil = Image.new("RGB", (w, h), (128, 128, 128))    # 灰色蒙版
         base = Image.composite(veil, base, Image.new("L", (w, h), int(round(alpha * 255))))
     return base
 
@@ -1214,12 +1259,55 @@ def _quote_avatar(avatar: bytes | None, size: int, name: str) -> Image.Image:
     return _quote_default_avatar(size, ch)
 
 
-def _quote_bubble(d, x, y, w, h, fill=(255, 255, 255), radius=QUOTE_BUB_R):
-    """白色圆角气泡 + 左侧指向头像的小尖角"""
-    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=radius, fill=fill)
-    ty = y + max(20, min(56, h // 4))
-    tip = [(x + 3, ty), (x - QUOTE_TAIL, ty + QUOTE_TAIL // 2), (x + 3, ty + QUOTE_TAIL)]
-    d.polygon(tip, fill=fill)
+def _quote_bubble(canvas: Image.Image, x: int, y: int, w: int, h: int,
+                  radius: int = QUOTE_BUB_R, tail: int = QUOTE_BUB_TAIL):
+    """磨砂玻璃气泡（类主页 UI 气泡）。
+
+    做法：把气泡覆盖（含左侧小尖角）范围内的背景（此时已经叠过灰色蒙版）
+    裁出来做一次大半径高斯模糊，再混入半透明暖白玻璃 + 顶部反光，
+    最后以「圆角矩形 + 尖角」为蒙版贴回画布，并描一圈亮边。
+
+    气泡属于「前景」，画在灰色蒙版之上、内容之下。返回画布上的 ImageDraw。
+    """
+    mw, mh = int(w) + int(tail), int(h)
+    x, y, w, h = int(x), int(y), int(w), int(h)
+
+    # 圆角矩形 + 左侧指向头像的尖角，合成一张透明度蒙版
+    mask = Image.new("L", (mw, mh), 0)
+    md = ImageDraw.Draw(mask)
+    md.rounded_rectangle([tail, 0, tail + w - 1, h - 1], radius=radius, fill=255)
+    ty = max(18, min(60, h // 4))
+    md.polygon([(tail + 3, ty), (0, ty + tail // 2), (tail + 3, ty + tail)], fill=255)
+
+    ox, oy = x - tail, y
+    region = canvas.crop((ox, oy, ox + mw, oy + mh)).convert("RGB")
+    try:                                   # 磨砂：糊掉背后的背景图
+        blurred = region.filter(ImageFilter.GaussianBlur(radius=max(8, min(28, h // 10))))
+    except Exception:
+        blurred = region
+    glass = Image.new("RGB", (mw, mh), (255, 254, 251))
+    fused = Image.blend(blurred, glass, 0.62)          # 半透明暖白玻璃
+    try:
+        fused = ImageEnhance.Brightness(fused).enhance(1.05)
+    except Exception:
+        pass
+    canvas.paste(fused, (ox, oy), mask)
+
+    d = ImageDraw.Draw(canvas)
+    # 顶部一条淡淡的玻璃反光
+    shine = Image.new("L", (mw, mh), 0)
+    ImageDraw.Draw(shine).rounded_rectangle(
+        [tail + 5, 4, tail + w - 6, max(8, int(h * 0.34))],
+        radius=max(4, radius - 6), fill=48)
+    canvas.paste(Image.new("RGB", (mw, mh), (255, 255, 255)), (ox, oy), shine)
+
+    # 玻璃亮边（含尖角两边）
+    d = ImageDraw.Draw(canvas)
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=radius,
+                        outline=(255, 255, 255), width=2)
+    d.line([(x, ty), (x - tail, ty + tail // 2)], fill=(255, 255, 255), width=2)
+    d.line([(x - tail, ty + tail // 2), (x, ty + tail)], fill=(255, 255, 255), width=2)
+    return d
 
 
 def _quote_text_layout(meas, text: str, max_w: int, max_h: int):
@@ -1253,93 +1341,178 @@ def _quote_text_layout(meas, text: str, max_w: int, max_h: int):
     return f, lines, lh
 
 
-def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
-                 images: list | None = None, bg: bytes | None = None) -> bytes:
-    """名言图（JPG）：
+def _gif_frames(data: bytes) -> list:
+    """把一张（可能是动图的）图片拆成 [(RGBA 帧, 时长ms), ...]；解析失败返回 []。"""
+    out = []
+    if not data:
+        return out
+    try:
+        im = Image.open(io.BytesIO(data))
+    except Exception:
+        return out
+    try:
+        n = int(getattr(im, "n_frames", 1) or 1)
+    except Exception:
+        n = 1
+    for i in range(max(1, n)):
+        try:
+            im.seek(i)
+        except Exception:
+            break
+        try:
+            dur = int(im.info.get("duration", 0) or 0)
+        except Exception:
+            dur = 0
+        try:
+            fr = im.convert("RGBA")
+        except Exception:
+            continue
+        out.append((fr.copy(), dur))
+    return out
 
-    - 背景：随机图（由调用方取 BG_API 的图后传入）+ 90% 不透明黑色蒙版；
-    - 左侧：方形圆角头像；右侧：笑死气泡（内容为文字或表情包）；
-    - 文字自动字号；表情包自适应缩放且支持动图（取首帧）；
-    - 右下角：—— 用户名。
+
+def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
+                 images: list | None = None, bg: bytes | None = None,
+                 name_font=None) -> bytes:
+    """名言图（横屏 16:9）：
+
+    - 以中线左右分栏：左半是方形圆角头像，右半是类主页 UI 的磨砂玻璃气泡；
+    - 气泡内容为文字（自动字号）或表情包（自适应缩放）；内容是动图时输出 GIF；
+    - 背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版
+      （不透明度 config.QUOTE_MASK_ALPHA，默认 0.05 = 透明度 95%），
+      蒙版只压背景，头像与气泡都在蒙版之上；
+    - 右下角「—— 用户名」，字体默认取 config.QUOTE_NAME_FONT，
+      也可由 name_font 逐次指定（None / inherit = 跟随全局字体 config.FONT_FAMILY）。
+
+    返回 JPG 或 GIF 的字节流（调用方用 _sniff_image 判断 mime）。
     """
-    width = int(getattr(config, "QUOTE_WIDTH", W) or W)
-    px = QUOTE_PAD_X
+    width = max(480, int(getattr(config, "QUOTE_WIDTH", W) or W))
+    height = max(270, int(getattr(config, "QUOTE_HEIGHT", 720) or 720))
+    px, py = QUOTE_PAD_X, QUOTE_PAD_Y
+    name = str(name or "").strip() or str(getattr(config, "QUOTE_NAME", "无名氏"))
+
+    name_size = max(18, int(getattr(config, "QUOTE_NAME_SIZE", QUOTE_NAME_SIZE) or QUOTE_NAME_SIZE))
+    bottom_reserve = name_size + 34                 # 底部给署名让位
+    band_h = max(120, height - py * 2 - bottom_reserve)   # 气泡可用的纵向空间
+
+    # ---- 中线分栏：左半头像 / 右半气泡 ----
+    half = width // 2
     av = max(96, int(getattr(config, "QUOTE_AVATAR", QUOTE_AV) or QUOTE_AV))
-    bx = px + av + QUOTE_AV_GAP
+    av = int(min(av, half - px * 2, height - py * 2))
+    av_x = max(px, half // 2 - av // 2)
+    av_y = max(py, (height - av) // 2)
+
+    bx = half + QUOTE_AV_GAP
     bw = max(240, width - bx - px)
     inner_w = max(120, bw - QUOTE_BUB_PAD * 2)
     max_body = max(160, int(getattr(config, "QUOTE_MAX_BODY", QUOTE_MAX_BODY) or QUOTE_MAX_BODY))
-    name = str(name or "").strip() or str(getattr(config, "QUOTE_NAME", "无名氏"))
+    max_body = int(min(max_body, max(80, band_h - QUOTE_BUB_PAD * 2)))
 
     meas = ImageDraw.Draw(Image.new("RGB", (8, 8)))
 
-    body_img = None
-    body_h = 0
+    # ---- 气泡内容：优先表情包（动图则逐帧保留） ----
+    raw_frames = []
     if images:
         for data in images:
-            try:
-                fitted = _fit(_first_frame(data), inner_w, max_body)
-            except Exception:
-                continue
-            if fitted.size[0] > 0 and fitted.size[1] > 0:
-                body_img = fitted
-                body_h = fitted.size[1]
+            raw_frames = _gif_frames(data)
+            if raw_frames:
                 break
+    body_frames = []
+    for fr_img, dur in raw_frames:
+        try:
+            fitted = _fit(fr_img, inner_w, max_body)
+        except Exception:
+            continue
+        if fitted.size[0] > 0 and fitted.size[1] > 0:
+            body_frames.append((fitted, dur))
+    body_h = max([f.size[1] for f, _ in body_frames] or [0])
 
     f_text = lines = None
     line_h = 0
-    if body_img is None:
+    if not body_frames:
         payload = str(text or "").strip() or "……"
         f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, max_body)
         body_h = line_h * len(lines)
 
-    bub_h = max(120, body_h + QUOTE_BUB_PAD * 2)
-    vy = QUOTE_TOP
-    by = vy + QUOTE_AV_DY
+    bub_h = int(min(band_h, max(QUOTE_BUB_MIN_H, body_h + QUOTE_BUB_PAD * 2)))
+    by = max(py, (height - bub_h) // 2)
 
-    name_size = max(20, int(getattr(config, "QUOTE_NAME_SIZE", QUOTE_NAME_SIZE) or QUOTE_NAME_SIZE))
-    height = max(vy + av, by + bub_h) + 92 + name_size + 54
-    height = int(max(int(getattr(config, "QUOTE_MIN_H", QUOTE_MIN_H) or QUOTE_MIN_H),
-                     min(int(getattr(config, "QUOTE_MAX_H", QUOTE_MAX_H) or QUOTE_MAX_H), height)))
-
+    # ---- 背景（含灰色蒙版）→ 头像 → 磨砂玻璃气泡 → 署名：前景全在蒙版之上 ----
     canvas = _quote_bg(width, height, bg)
-    d = ImageDraw.Draw(canvas)
 
-    # 左侧方形圆角头像（白色描边）
     av_img = _quote_avatar(avatar, av, name)
-    canvas.paste(av_img, (px, vy), av_img)
-    d.rounded_rectangle([px, vy, px + av - 1, vy + av - 1],
-                        radius=QUOTE_AV_R, outline=(255, 255, 255), width=4)
+    canvas.paste(av_img, (av_x, av_y), av_img)
+    ImageDraw.Draw(canvas).rounded_rectangle(
+        [av_x, av_y, av_x + av - 1, av_y + av - 1],
+        radius=QUOTE_AV_R, outline=(255, 255, 255), width=4)
 
-    # 右侧笑死气泡
-    _quote_bubble(d, bx, by, bw, bub_h)
+    d = _quote_bubble(canvas, bx, by, bw, bub_h)
 
-    if body_img is not None:
-        ox = bx + QUOTE_BUB_PAD + max(0, (inner_w - body_img.size[0]) // 2)
-        oy = by + QUOTE_BUB_PAD + max(0, (body_h - body_img.size[1]) // 2)
-        canvas.paste(body_img, (int(ox), int(oy)),
-                     body_img if body_img.mode == "RGBA" else None)
-    elif lines:
-        yy = by + QUOTE_BUB_PAD
-        for ln in lines:
-            d.text((bx + QUOTE_BUB_PAD, yy), ln, font=f_text, fill=(38, 34, 28), anchor="la")
-            yy += line_h
+    body_ox = bx + QUOTE_BUB_PAD
+    body_oy = by + QUOTE_BUB_PAD
 
-    # 右下角：破折号 + 用户名
-    nf = font(name_size, True)
+    # ---- 右下角：破折号 + 用户名（字体可单独配置，inherit = 跟随全局字体） ----
+    if name_font is None:
+        name_family = str(getattr(config, "QUOTE_NAME_FONT", "inherit") or "inherit")
+    else:
+        name_family = str(name_font or "inherit") or "inherit"
+    nf = font(name_size, True, name_family)
     label = "—— " + name
-    nx, ny = width - px, height - 54
+    nx, ny = width - px, height - QUOTE_NAME_DY
     for dx, dy in ((2, 2), (-2, 2), (2, -2), (-2, -2)):
         d.text((nx + dx, ny + dy), label, font=nf, fill=(0, 0, 0), anchor="rs")
     d.text((nx, ny), label, font=nf, fill=(255, 255, 255), anchor="rs")
 
+    # ---- 文字 / 单帧表情包 → JPG ----
+    if not body_frames:
+        yy = body_oy
+        for ln in lines:
+            d.text((body_ox, yy), ln, font=f_text, fill=(38, 34, 28), anchor="la")
+            yy += line_h
+    elif len(body_frames) == 1:
+        single = body_frames[0][0]
+        ox = body_ox + max(0, (inner_w - single.size[0]) // 2)
+        oy = body_oy + max(0, (body_h - single.size[1]) // 2)
+        canvas.paste(single, (int(ox), int(oy)), single)
+
+    if len(body_frames) <= 1:
+        try:
+            quality = int(getattr(config, "QUOTE_JPG_QUALITY", 92))
+        except Exception:
+            quality = 92
+        buf = io.BytesIO()
+        canvas.convert("RGB").save(buf, format="JPEG", quality=max(60, min(100, quality)),
+                                   optimize=True, progressive=True)
+        return buf.getvalue()
+
+    # ---- 多帧表情包 → GIF（共用一个底图，只换气泡里那一块） ----
     try:
-        quality = int(getattr(config, "QUOTE_JPG_QUALITY", 92))
+        max_frames = max(2, int(getattr(config, "QUOTE_GIF_MAX_FRAMES", 60) or 60))
     except Exception:
-        quality = 92
+        max_frames = 60
+    try:
+        min_ms = max(20, int(getattr(config, "QUOTE_GIF_MIN_MS", 40) or 40))
+    except Exception:
+        min_ms = 40
+
+    step = max(1, (len(body_frames) + max_frames - 1) // max_frames)
+    picked = body_frames[::step][:max_frames]
+
+    out_frames, durations = [], []
+    for img, dur in picked:
+        frame = canvas.copy()
+        ox = body_ox + max(0, (inner_w - img.size[0]) // 2)
+        oy = body_oy + max(0, (body_h - img.size[1]) // 2)
+        frame.paste(img, (int(ox), int(oy)), img)
+        out_frames.append(frame.convert("RGB").convert("P", palette=Image.ADAPTIVE, colors=256))
+        if dur > 0:
+            durations.append(max(min_ms, min(500, dur)))
+        else:
+            durations.append(100)
+
     buf = io.BytesIO()
-    canvas.convert("RGB").save(buf, format="JPEG", quality=max(60, min(100, quality)),
-                               optimize=True, progressive=True)
+    out_frames[0].save(buf, format="GIF", save_all=True, append_images=out_frames[1:],
+                       duration=durations, loop=0, disposal=2, optimize=True)
     return buf.getvalue()
 
 
@@ -1362,11 +1535,12 @@ def render_quote_help() -> bytes:
     ])
 
     _group(cv, "成品长什么样", [
-        ("背景", "随机网络图片 + 90% 不透明黑色蒙版，保证文字清晰。"),
-        ("头像", "左侧方形圆角头像（有图用图，动图取首帧）。"),
-        ("气泡", "右侧笑死气泡：带文字时自动调整字号；带表情包时自适应缩放。"),
-        ("署名", "右下角「—— 用户名」。"),
-        ("格式", "统一输出 JPG。"),
+        ("版式", "横屏 16:9，以中线左右分栏。"),
+        ("背景", "随机二次元图（与主页背景同一个接口）+ 灰色蒙版（默认透明度 95%）。"),
+        ("头像", "左半边居中的方形圆角头像（有图用图，动图取首帧）。"),
+        ("气泡", "右半边磨砂玻璃气泡：带文字时自动调整字号；带表情包时自适应缩放。"),
+        ("署名", "右下角「—— 用户名」，字体可单独设置。"),
+        ("格式", "内容是文字或静态图 → JPG；内容是动图表情包 → GIF。"),
     ], accent=BLUE)
 
     _group(cv, "小提示", [

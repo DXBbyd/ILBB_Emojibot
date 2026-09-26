@@ -88,16 +88,20 @@ cp .env.example .env
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `QUOTE_ENABLED` | `true` | `/quote` 指令开关 |
-| `QUOTE_WIDTH` | `960` | 画布宽度（像素），输出统一为 JPG |
-| `QUOTE_MASK_ALPHA` | `0.90` | 背景黑色蒙版不透明度，`0.90` = 只透出 10% 背景 |
-| `QUOTE_JPG_QUALITY` | `92` | JPG 输出质量（60–100） |
-| `QUOTE_AVATAR` | `236` | 左侧方形圆角头像边长（像素） |
-| `QUOTE_TEXT_MAX` | `68` | 气泡内文字自动字号上限（像素） |
-| `QUOTE_TEXT_MIN` | `24` | 气泡内文字自动字号下限 |
-| `QUOTE_MAX_BODY` | `820` | 气泡内容区最大高度，超过则缩字号，到底线就截断加省略号 |
+| `QUOTE_WIDTH` | `1280` | 横屏画布宽度（像素），建议与高度保持 16:9 |
+| `QUOTE_HEIGHT` | `720` | 横屏画布高度（像素） |
+| `QUOTE_MASK_ALPHA` | `0.05` | 背景与前景之间的灰色蒙版不透明度，`0.05` = 透明度 95%（背景清晰） |
+| `QUOTE_JPG_QUALITY` | `92` | 静态图（JPG）输出质量（60–100） |
+| `QUOTE_AVATAR` | `236` | 左半边方形圆角头像边长（像素） |
+| `QUOTE_TEXT_MAX` | `56` | 气泡内文字自动字号上限（像素） |
+| `QUOTE_TEXT_MIN` | `22` | 气泡内文字自动字号下限 |
+| `QUOTE_MAX_BODY` | `500` | 气泡内容区最大高度，超过则缩字号，到底线就截断加省略号 |
 | `QUOTE_NAME_SIZE` | `40` | 右下角署名「—— 用户名」字号 |
+| `QUOTE_NAME_FONT` | `inherit` | 右下角署名字体；`inherit` = 跟随全局字体 `FONT_FAMILY` |
 | `QUOTE_NAME` | `无名氏` | 取不到昵称时的占位名字 |
 | `QUOTE_NAME_MAX` | `16` | 署名词最大显示字数 |
+| `QUOTE_GIF_MAX_FRAMES` | `60` | 气泡是动图时输出 GIF，超过此帧数则等间隔抽帧 |
+| `QUOTE_GIF_MIN_MS` | `40` | GIF 单帧最短时长（毫秒） |
 
 ---
 
@@ -126,6 +130,7 @@ cp .env.example .env
 | `TEMP_DIR` | `temp` | 临时文件目录 |
 | `CACHE_DIR` | `cache` | 生成图片缓存目录 |
 | `FONT_DIR` | `font` | 字体目录 |
+| `FONT_FAMILY` | `system` | 全局字体；`system` = 系统自带中文字体，也可填 `font/` 目录里的字体名 |
 | `BG_DIR` | `static/bg` | 背景图存放目录，由后端 `/bg/<文件名>` 提供 |
 | `BG_CONFIG_PATH` | `bg_config.json` | 背景配置（类型/链接/模糊/蒙版）持久化文件 |
 | `API_KEYS_PATH` | `api_keys.json` | 管理密码哈希 + API Key 存储文件 |

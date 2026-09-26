@@ -215,6 +215,52 @@ BG_URL_PREFIX = "/" + get_str("BG_URL_PREFIX", "bg").strip().strip("/")
 
 
 # ----------------------------------------------------------------------------
+# 字体：全局字体 + 名言图署名字体
+# 候选字体 = FONT_DIR 目录里放进去的字体文件；「system」= 用系统自带中文字体。
+# ----------------------------------------------------------------------------
+# 全局字体：所有机器人图片（菜单 / 帮助 / 名言图 …）统一使用。
+FONT_FAMILY = get_str("FONT_FAMILY", "system").strip() or "system"
+# 名言图右下角「—— 用户名」的字体：「inherit」= 跟随全局 FONT_FAMILY。
+QUOTE_NAME_FONT = get_str("QUOTE_NAME_FONT", "inherit").strip() or "inherit"
+
+# 这些值都表示「不指定具体字体文件，交给系统字体查找」
+_FONT_SYSTEM_ALIASES = ("", "system", "default", "inherit", "auto")
+
+
+def font_choices():
+    """FONT_DIR 里可用的字体 → [(文件名, 显示名)]，供设置页 / 前端下拉。"""
+    out = []
+    try:
+        names = sorted(os.listdir(FONT_DIR))
+    except Exception:
+        names = []
+    for fn in names:
+        if not fn.lower().endswith((".ttf", ".otf", ".ttc")):
+            continue
+        base = os.path.splitext(fn)[0]
+        # 去掉文件名尾部的「-2 / 2」之类版本号，让下拉更好看
+        label = base.rstrip(" -_0123456789").strip() or base
+        out.append((fn, label))
+    return out
+
+
+def font_path(name):
+    """字体配置值 → 字体文件绝对路径；system / inherit / 无效值 → None（= 用系统字体）。"""
+    n = str(name or "").strip()
+    if n.lower() in _FONT_SYSTEM_ALIASES:
+        return None
+    p = n if os.path.isabs(n) else os.path.join(FONT_DIR, n)
+    return p if os.path.isfile(p) else None
+
+
+def font_options(with_inherit: bool = False):
+    """设置页下来项的 options：[[值, 显示名], ...]"""
+    opts = [["inherit", "跟随全局字体"]] if with_inherit else [["system", "系统默认字体"]]
+    opts.extend([[fn, label] for fn, label in font_choices()])
+    return opts
+
+
+# ----------------------------------------------------------------------------
 # 缓存 / 画布
 # ----------------------------------------------------------------------------
 CACHE_EXPIRE_DAYS = max(1, get_int("CACHE_EXPIRE_DAYS", 30))
@@ -304,29 +350,35 @@ BOT_FOOTER = get_str("BOT_FOOTER", "我在哔哩学习 Emoji Bot · ILBB").strip
 
 
 # ----------------------------------------------------------------------------
-# 名言图（/quote）：随机背景 + 黑色蒙版 + 方形圆角头像 + 笑死气泡 + 署名
+# 名言图（/quote）：横屏 16:9 + 随机背景 + 灰色蒙版 + 方形圆角头像
+#                   + 磨砂玻璃气泡 + 右下角署名
 # ----------------------------------------------------------------------------
 # 名言图总开关：false 时 /quote 指令回提示图，不生成名言图。
 QUOTE_ENABLED = get_bool("QUOTE_ENABLED", True)
-# 画布宽度（输出 JPG）。
-QUOTE_WIDTH = max(480, get_int("QUOTE_WIDTH", 960))
-# 背景黑色蒙版的不透明度（0~1，用户要求 90%）。
-QUOTE_MASK_ALPHA = min(1.0, max(0.0, get_float("QUOTE_MASK_ALPHA", 0.90)))
-# 输出 JPG 质量。
+# 画布宽度 / 高度：默认 1280×720（16:9 横屏），以中间为界左右分栏。
+# 气泡里是静态内容 → 出 JPG；气泡里是动图 → 出 GIF。
+QUOTE_WIDTH = max(480, get_int("QUOTE_WIDTH", 1280))
+QUOTE_HEIGHT = max(270, get_int("QUOTE_HEIGHT", 720))
+# 背景与前景之间的灰色蒙版不透明度（0~1）。用户要求「透明度 95%」→ 0.05。
+QUOTE_MASK_ALPHA = min(1.0, max(0.0, get_float("QUOTE_MASK_ALPHA", 0.05)))
+# 静态图（JPG）输出质量。
 QUOTE_JPG_QUALITY = min(100, max(60, get_int("QUOTE_JPG_QUALITY", 92)))
 # 左侧方形圆角头像边长。
 QUOTE_AVATAR = max(96, get_int("QUOTE_AVATAR", 236))
 # 气泡内文字自动字号的上下限。
-QUOTE_TEXT_MAX = max(20, get_int("QUOTE_TEXT_MAX", 68))
-QUOTE_TEXT_MIN = max(12, get_int("QUOTE_TEXT_MIN", 24))
+QUOTE_TEXT_MAX = max(20, get_int("QUOTE_TEXT_MAX", 56))
+QUOTE_TEXT_MIN = max(12, get_int("QUOTE_TEXT_MIN", 22))
 # 气泡内容区最大高度（超过则缩字号 / 截断）。
-QUOTE_MAX_BODY = max(200, get_int("QUOTE_MAX_BODY", 820))
+QUOTE_MAX_BODY = max(200, get_int("QUOTE_MAX_BODY", 500))
 # 右下角署名字号。
 QUOTE_NAME_SIZE = max(18, get_int("QUOTE_NAME_SIZE", 40))
 # 没有署名时用的占位名字。
 QUOTE_NAME = get_str("QUOTE_NAME", "无名氏").strip() or "无名氏"
-# 署名是否去掉首尾空白 / 换行（清理群名片里的奇怪字符）。
+# 署名最大显示字数（超出截断）。
 QUOTE_NAME_MAX = max(4, get_int("QUOTE_NAME_MAX", 16))
+# 动图（GIF）输出的最多帧数与单帧最短时长（毫秒）。
+QUOTE_GIF_MAX_FRAMES = max(2, get_int("QUOTE_GIF_MAX_FRAMES", 60))
+QUOTE_GIF_MIN_MS = max(20, get_int("QUOTE_GIF_MIN_MS", 40))
 
 
 # ----------------------------------------------------------------------------
@@ -405,7 +457,8 @@ def describe():
         ("目录 / 数据", [
             ["TEMP_DIR", TEMP_DIR, "临时文件"],
             ["CACHE_DIR", CACHE_DIR, "图片缓存"],
-            ["FONT_DIR", FONT_DIR, "字体"],
+            ["FONT_DIR", FONT_DIR, "字体目录（放进去即可被选中）"],
+            ["FONT_FAMILY", FONT_FAMILY, "全局字体"],
             ["BG_DIR", BG_DIR, "背景图存放"],
             ["BG_CONFIG_PATH", BG_CONFIG_PATH, "背景配置"],
             ["API_KEYS_PATH", API_KEYS_PATH, "管理密码与 API Key"],
@@ -414,14 +467,17 @@ def describe():
         ("名言图", [
             ["QUOTE_ENABLED", "true" if QUOTE_ENABLED else "false", "/quote 指令开关"],
             ["QUOTE_WIDTH", QUOTE_WIDTH, "名言图画布宽度"],
-            ["QUOTE_MASK_ALPHA", QUOTE_MASK_ALPHA, "黑色蒙版不透明度（0~1）"],
+            ["QUOTE_HEIGHT", QUOTE_HEIGHT, "名言图画布高度（默认 16:9）"],
+            ["QUOTE_MASK_ALPHA", QUOTE_MASK_ALPHA, "灰色蒙版不透明度（0~1，0.05=透 95%）"],
             ["QUOTE_AVATAR", QUOTE_AVATAR, "方形圆角头像边长"],
             ["QUOTE_TEXT_MAX", QUOTE_TEXT_MAX, "气泡文字最大字号"],
             ["QUOTE_TEXT_MIN", QUOTE_TEXT_MIN, "气泡文字最小字号"],
             ["QUOTE_MAX_BODY", QUOTE_MAX_BODY, "气泡内容区最大高度"],
             ["QUOTE_NAME_SIZE", QUOTE_NAME_SIZE, "右下角署名字号"],
+            ["QUOTE_NAME_FONT", QUOTE_NAME_FONT, "右下角署名字体"],
             ["QUOTE_NAME", QUOTE_NAME, "无署名时的占位名字"],
             ["QUOTE_JPG_QUALITY", QUOTE_JPG_QUALITY, "JPG 输出质量"],
+            ["QUOTE_GIF_MAX_FRAMES", QUOTE_GIF_MAX_FRAMES, "动图最多保留帧数"],
         ]),
         ("插件系统", [
             ["PLUGIN_ENABLED", "true" if PLUGIN_ENABLED else "false", "插件总开关"],
@@ -529,7 +585,10 @@ ENV_SCHEMA = [
         {"key": "CACHE_DIR", "label": "图片缓存目录", "type": "path", "hot": True,
          "desc": "生成图片的缓存位置", "note": "bot 渲染缓存子目录重启后迁移"},
         {"key": "FONT_DIR", "label": "字体目录", "type": "path", "hot": True,
-         "desc": "绘制图片使用的字体"},
+         "desc": "把 .ttf/.otf/.ttc 丢进这个目录，即可在「全局字体」里选中"},
+        {"key": "FONT_FAMILY", "label": "全局字体", "type": "select", "hot": True,
+         "options": font_options(),
+         "desc": "所有机器人图片统一使用的字体；选「系统默认」则用系统自带中文字体"},
         {"key": "BG_DIR", "label": "背景图目录", "type": "path", "hot": True,
          "desc": "上传的背景图存放位置"},
         {"key": "BG_CONFIG_PATH", "label": "背景配置文件", "type": "path", "hot": True,
@@ -545,14 +604,17 @@ ENV_SCHEMA = [
     ("名言图", [
         {"key": "QUOTE_ENABLED", "label": "功能开关", "type": "bool", "hot": True,
          "desc": "关闭后 /quote 只回提示图"},
-        {"key": "QUOTE_WIDTH", "label": "画布宽度", "type": "int", "min": 480, "max": 3000,
-         "hot": True, "desc": "名言图输出宽度（高度按 4:5 推算）"},
+        {"key": "QUOTE_WIDTH", "label": "画布宽度", "type": "int", "min": 480, "max": 4000,
+         "hot": True, "desc": "横屏画布宽度（默认 1280；建议与高度保持 16:9）"},
+        {"key": "QUOTE_HEIGHT", "label": "画布高度", "type": "int", "min": 270, "max": 4000,
+         "hot": True, "desc": "横屏画布高度（默认 720）"},
         {"key": "QUOTE_MASK_ALPHA", "label": "蒙版不透明度", "type": "float",
-         "min": 0, "max": 1, "hot": True, "desc": "背景黑色蒙版强度（0~1）"},
+         "min": 0, "max": 1, "hot": True,
+         "desc": "背景与前景之间的灰色蒙版强度（0~1）。0.05 = 透明度 95%，背景清晰可见"},
         {"key": "QUOTE_JPG_QUALITY", "label": "JPG 质量", "type": "int",
-         "min": 60, "max": 100, "hot": True, "desc": "输出图片压缩质量"},
+         "min": 60, "max": 100, "hot": True, "desc": "静态图输出压缩质量"},
         {"key": "QUOTE_AVATAR", "label": "头像边长", "type": "int", "min": 96, "max": 800,
-         "hot": True, "desc": "左上角方形圆角头像边长"},
+         "hot": True, "desc": "左半边居中的方形圆角头像边长"},
         {"key": "QUOTE_TEXT_MAX", "label": "气泡最大字号", "type": "int",
          "min": 20, "max": 200, "hot": True, "desc": "自动字号的上级"},
         {"key": "QUOTE_TEXT_MIN", "label": "气泡最小字号", "type": "int",
@@ -560,11 +622,17 @@ ENV_SCHEMA = [
         {"key": "QUOTE_MAX_BODY", "label": "气泡最大高度", "type": "int",
          "min": 200, "max": 3000, "hot": True, "desc": "超出则继续缩字号 / 截断"},
         {"key": "QUOTE_NAME_SIZE", "label": "署名字号", "type": "int",
-         "min": 18, "max": 200, "hot": True, "desc": "右下角署名字号"},
+         "min": 18, "max": 200, "hot": True, "desc": "右下角「—— 用户名」字号"},
+        {"key": "QUOTE_NAME_FONT", "label": "署名字体", "type": "select", "hot": True,
+         "options": font_options(with_inherit=True),
+         "desc": "右下角署名字体；「跟随全局字体」= 用上面的全局字体"},
         {"key": "QUOTE_NAME", "label": "占位署名", "type": "text", "maxlen": 32,
          "hot": True, "desc": "取不到昵称时使用的名字"},
         {"key": "QUOTE_NAME_MAX", "label": "署名最大字数", "type": "int",
          "min": 4, "max": 64, "hot": True, "desc": "超出截断，避免撑破画布"},
+        {"key": "QUOTE_GIF_MAX_FRAMES", "label": "动图最大帧数", "type": "int",
+         "min": 2, "max": 300, "hot": True,
+         "desc": "气泡是动图时输出 GIF，超过此帧数则等间隔抽帧"},
     ]),
     ("插件系统", [
         {"key": "PLUGIN_ENABLED", "label": "插件总开关", "type": "bool", "hot": False,

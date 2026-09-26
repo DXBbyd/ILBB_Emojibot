@@ -1,12 +1,15 @@
 <!-- 名言图合成表单：合成大类 → 子选项「名言图」 -->
-<!-- 版式：JPG 输出 · 随机背景 + 90% 黑色蒙版 · 左侧方形圆角头像 · 右侧笑死气泡 · 右下角「—— 署名」 -->
+<!-- 版式：横屏 16:9 · 随机二次元背景 + 灰色蒙版（默认透明度 95%）· 左半方形圆角头像 -->
+<!-- 右半磨砂玻璃气泡 · 右下角「—— 署名」；静态内容出 JPG，动图表情包出 GIF -->
 <div class="main-panel">
     <!-- 左侧控制面板 -->
     <div class="control-panel">
         <div class="panel-title">名言图合成</div>
         <div class="panel-sub">
-            随机背景 + 黑色蒙版，左侧方形圆角头像，右侧笑死气泡里放文字或表情包，
-            右下角署名。自动调字号，表情包自适应（支持动图），输出 JPG。
+            横屏 16:9，以中线左右分栏：左半是方形圆角头像，右半是磨砂玻璃气泡，
+            里面放文字或表情包；背景随机取二次元图并压一层灰色蒙版，
+            右下角署名「—— 昵称」。文字自动调字号，表情包自适应；
+            内容是动图会输出 GIF，否则输出 JPG。
         </div>
 
         <!-- 头像 / 署名来源 -->
@@ -23,6 +26,24 @@
         <div class="form-group">
             <label>署名（显示在右下角，默认「—— 昵称」）</label>
             <input type="text" id="quoteName" placeholder="留空则用昵称 / 配置里的默认署名" maxlength="20">
+        </div>
+
+        <!-- 字体 -->
+        <div class="form-group">
+            <label>字体</label>
+            <div style="display:flex;gap:8px;">
+                <select id="quoteGlobalFont" style="flex:1;">
+                    <option value="">全局字体：读取中…</option>
+                </select>
+                <select id="quoteNameFont" style="flex:1;">
+                    <option value="inherit">署名子体：跟随全局</option>
+                </select>
+            </div>
+            <div style="font-size:12px;color:#b0b4c0;margin-top:6px;">
+                全局字体作用于所有图片文字（选完立即写入设置并热生效）；
+                「署名子体」只改右下角这句署名，本次生成即用。
+                字体文件放在 <code>font/</code> 目录即可出现在下拉里。
+            </div>
         </div>
 
         <!-- 气泡内容：文字 / 表情包 -->
@@ -49,7 +70,7 @@
                     <span id="quoteDropLabel">点击选择表情包（支持 GIF 动图）</span>
                 </label>
                 <div style="font-size:12px;color:#b0b4c0;margin-top:6px;">
-                    只取第一张，按气泡宽度自适应缩放；动图自动取首帧。
+                    只取第一张，按气泡区域自适应缩放；动图会保留动画，成品输出 GIF。
                 </div>
             </div>
         </div>
@@ -60,7 +81,7 @@
             <div class="bg-type-row" id="quoteBgRow">
                 <button type="button" class="bg-type active" data-qbg="random">随机图</button>
                 <button type="button" class="bg-type" data-qbg="upload">自定义图</button>
-                <button type="button" class="bg-type" data-qbg="none">纯黑底</button>
+                <button type="button" class="bg-type" data-qbg="none">内置底色</button>
             </div>
             <div class="bg-editor hidden" id="quoteBgUpload">
                 <label class="bg-upload">
@@ -77,12 +98,16 @@
             <span>正在合成名言图...</span>
         </div>
 
-        <button id="quoteDownloadBtn" class="btn-download hidden">下载 JPG</button>
+        <button id="quoteDownloadBtn" class="btn-download hidden">下载图片</button>
 
         <div id="quoteMeta" class="user-info-preview hidden">
             <div class="info-row">
                 <span class="label">署名</span>
                 <span class="value" id="quoteMetaName">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">字体</span>
+                <span class="value" id="quoteMetaFont">-</span>
             </div>
             <div class="info-row">
                 <span class="label">背景</span>
@@ -91,6 +116,10 @@
             <div class="info-row">
                 <span class="label">气泡</span>
                 <span class="value" id="quoteMetaBubble">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">格式</span>
+                <span class="value" id="quoteMetaFormat">-</span>
             </div>
         </div>
     </div>
@@ -102,12 +131,12 @@
         <div id="quotePlaceholder" class="preview-placeholder">
             <span class="icon">＋</span>
             点击「生成名言图」<br>
-            <span style="font-size:13px;color:#d0d4de;">名言图会在这里预览（JPG）</span>
+            <span style="font-size:13px;color:#d0d4de;">名言图会在这里预览（JPG / GIF）</span>
         </div>
 
-        <div id="quotePreviewWrap" style="display:none;width:100%;max-width:340px;">
+        <div id="quotePreviewWrap" style="display:none;width:100%;max-width:560px;">
             <img id="quotePreviewImg" src="" alt="名言图预览"
-                 style="width:100%;max-height:520px;object-fit:contain;border-radius:16px;
+                 style="width:100%;max-height:420px;object-fit:contain;border-radius:16px;
                         box-shadow:0 12px 32px rgba(0,0,0,0.18);">
             <div style="text-align:center;margin-top:12px;font-size:13px;color:#8c8f9c;"
                  id="quotePreviewTip">名言图预览</div>

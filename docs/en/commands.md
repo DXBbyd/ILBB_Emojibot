@@ -172,10 +172,13 @@ Give it an avatar + a sentence (or an emoji/sticker image) and it composes a quo
 
 Structure of the result:
 
-- **Background** —— a random web image + a 90% opaque black mask (`QUOTE_MASK_ALPHA`), to keep the text clear
-- **Avatar** —— a rounded square avatar on the left; for animated images the first frame is used
-- **Bubble** —— a "笑死" bubble on the right; when there is text it automatically tries font sizes from large to small, and truncates with an ellipsis if it does not fit; when there is an emoji/sticker it scales adaptively
-- **Signature** —— "—— 用户名" in the bottom right corner
+- **Layout** —— landscape 16:9 (`QUOTE_WIDTH` × `QUOTE_HEIGHT`, default 1280×720), split into a left and a right column by the centre line
+- **Background** —— a random anime image from the same API as the home page background (`BG_API`), with a grey mask layered between background and foreground (`QUOTE_MASK_ALPHA`, default `0.05` = 95% transparent)
+- **Avatar** —— a rounded square avatar centred in the left half; a built-in placeholder is used when none is given
+- **Bubble** —— a frosted-glass bubble in the right half; when there is text it automatically tries font sizes from large to small, and truncates with an ellipsis if it does not fit; when there is an emoji/sticker it scales adaptively, and **an animated sticker keeps its animation — the output is a GIF**, while static content outputs a JPG
+- **Signature** —— "—— 用户名" in the bottom right corner; its font can be set separately with `QUOTE_NAME_FONT` (`inherit` = follow the global font)
+
+Output: a JPG for static content, a GIF when the content is animated. The "Quote image" form in the web UI lets you switch the global font and the signature font directly.
 
 All layout-related parameters are adjustable; see [configuration.md](configuration.md#名言图-quote).
 

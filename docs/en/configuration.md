@@ -88,16 +88,20 @@ If you change configuration in the panel but it does not take effect, check this
 | Variable | Default | Description |
 | --- | --- | --- |
 | `QUOTE_ENABLED` | `true` | Switch for the `/quote` command |
-| `QUOTE_WIDTH` | `960` | Canvas width (pixels); output is always JPG |
-| `QUOTE_MASK_ALPHA` | `0.90` | Opacity of the black background mask; `0.90` = only 10% of the background shows through |
-| `QUOTE_JPG_QUALITY` | `92` | JPG output quality (60–100) |
-| `QUOTE_AVATAR` | `236` | Side length of the square rounded avatar on the left (pixels) |
-| `QUOTE_TEXT_MAX` | `68` | Upper limit of the auto font size for text inside the bubble (pixels) |
-| `QUOTE_TEXT_MIN` | `24` | Lower limit of the auto font size for text inside the bubble |
-| `QUOTE_MAX_BODY` | `820` | Maximum height of the bubble content area; beyond it the font shrinks, and at the bottom line it is truncated with an ellipsis |
+| `QUOTE_WIDTH` | `1280` | Landscape canvas width (pixels); keep it at 16:9 with the height |
+| `QUOTE_HEIGHT` | `720` | Landscape canvas height (pixels) |
+| `QUOTE_MASK_ALPHA` | `0.05` | Opacity of the grey mask between the background and the foreground; `0.05` = 95% transparent (background stays clear) |
+| `QUOTE_JPG_QUALITY` | `92` | JPG output quality for static images (60–100) |
+| `QUOTE_AVATAR` | `236` | Side length of the square rounded avatar in the left half (pixels) |
+| `QUOTE_TEXT_MAX` | `56` | Upper limit of the auto font size for text inside the bubble (pixels) |
+| `QUOTE_TEXT_MIN` | `22` | Lower limit of the auto font size for text inside the bubble |
+| `QUOTE_MAX_BODY` | `500` | Maximum height of the bubble content area; beyond it the font shrinks, and at the bottom line it is truncated with an ellipsis |
 | `QUOTE_NAME_SIZE` | `40` | Font size of the signature "—— username" at the bottom right |
+| `QUOTE_NAME_FONT` | `inherit` | Font of the signature; `inherit` = follow the global font `FONT_FAMILY` |
 | `QUOTE_NAME` | `无名氏` | Placeholder name used when no nickname can be obtained |
 | `QUOTE_NAME_MAX` | `16` | Maximum number of characters shown in the signature name |
+| `QUOTE_GIF_MAX_FRAMES` | `60` | When the bubble holds an animated emoji the output is a GIF; frames beyond this count are sampled evenly |
+| `QUOTE_GIF_MIN_MS` | `40` | Minimum duration of a single GIF frame (milliseconds) |
 
 ---
 
@@ -126,6 +130,7 @@ See the [Plugin Development Guide](plugin-dev.md) for details.
 | `TEMP_DIR` | `temp` | Temporary file directory |
 | `CACHE_DIR` | `cache` | Generated image cache directory |
 | `FONT_DIR` | `font` | Font directory |
+| `FONT_FAMILY` | `system` | Global font; `system` = the built-in CJK font, or a font name placed in `font/` |
 | `BG_DIR` | `static/bg` | Background image storage directory, served by the backend at `/bg/<filename>` |
 | `BG_CONFIG_PATH` | `bg_config.json` | Persistence file for the background configuration (type / link / blur / mask) |
 | `API_KEYS_PATH` | `api_keys.json` | Storage file for the admin password hash + API Keys |

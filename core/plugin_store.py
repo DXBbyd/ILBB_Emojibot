@@ -684,6 +684,7 @@ def install(repo_url, proxy="", branch="", name="", force=False):
     _log("安装完成 plugins/%s → id=%s，耗时 %ss" % (folder, pid, elapsed))
 
     # 撞 id 检查：插件 id 全局唯一，两个目录声明同一个 id 时热重载只会留一个
+    # （规则和 plugin_manager._scan 一致：目录名和 id 一致的那个生效）
     warn = ""
     try:
         man, _err = plugin_manager._read_manifest(target)
@@ -697,8 +698,12 @@ def install(repo_url, proxy="", branch="", name="", force=False):
                     continue
                 sman, _e2 = plugin_manager._read_manifest(sib)
                 if sman and sman.get("id") == new_id:
-                    warn = ("插件 id「%s」和 plugins/%s 重复了，两个只会生效一个；"
-                            "建议删掉旧的那个，或改掉新插件的 id。" % (new_id, name))
+                    # 目录名 == id 的那个算"正主"，另一个会被扫描阶段忽略
+                    ours_win = (folder == new_id) and (name != new_id)
+                    loser = name if ours_win else folder
+                    warn = ("插件 id「%s」和 plugins/%s 重复了，只会生效一个；"
+                            "plugins/%s 会被忽略。删掉其中一个，或改掉新插件的 id。"
+                            % (new_id, name, loser))
                     _log("警告：%s" % warn)
                     break
     except Exception:

@@ -584,7 +584,29 @@ def _scan():
             # 没有清单 / 清单不合法：也报出来，方便在 Web 上看到「装错了」
             found["__bad__" + name] = (folder, None, err)
             continue
-        found[manifest["id"]] = (folder, manifest, "")
+        pid = manifest["id"]
+        prev = found.get(pid)
+        if prev is not None:
+            # 两个目录声明了同一个 id（比如插件仓库叫 ilbb_plugin_example，
+            # 清单里却写 id=example）。以前是后扫到的静默顶掉先扫到的，
+            # 用户完全看不出来，现在改成「只留一个，另一个报到 Web 上」。
+            prev_folder = prev[0]
+            prev_name = os.path.basename(prev_folder)
+            # 目录名和 id 一致的那个更像"正主"，都不一致就保持先扫到的（排序在前）
+            if name == pid and prev_name != pid:
+                found[pid] = (folder, manifest, "")
+                loser_folder, loser_name = prev_folder, prev_name
+            else:
+                loser_folder, loser_name = folder, name
+            _log("plugins/%s 和 plugins/%s 的 id 都是「%s」，已忽略 plugins/%s"
+                 % (os.path.basename(found[pid][0]), loser_name, pid, loser_name),
+                 ws_server.C.YELLOW)
+            found["__bad__" + loser_name] = (
+                loser_folder, None,
+                "id「%s」和 plugins/%s 重复，命名冲突已忽略"
+                % (pid, os.path.basename(found[pid][0])))
+            continue
+        found[pid] = (folder, manifest, "")
     return found
 
 

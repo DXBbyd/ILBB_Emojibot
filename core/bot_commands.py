@@ -22,7 +22,7 @@
 /pair [QQ|@某人] [标题] [键=值…] 生成配对卡片并回图
 /quote                         名言图帮助（等同 /quote help）
 /quote help                    名言图帮助图
-/quote [@某人|QQ号] [文本…]     合成名言图（JPG：随机背景 + 黑色蒙版 + 方形圆角头像 + 笑死气泡 + 署名）
+/quote [@某人|QQ号] [文本…]     合成名言图（随机背景 + 灰色蒙版 + 正中全模糊托盘：左圆形头像 + 右内容 + 署名）
 
 设计要点
 --------
@@ -815,7 +815,7 @@ def _gen_quote(args, ctx) -> tuple:
             avatar = _qq_avatar(target)
     name = _clean_name(name) or str(getattr(config, "QUOTE_NAME", "无名氏"))
 
-    # ---- 气泡内容：优先用消息里（或引用的）图当表情包，没有就给文字 ----
+    # ---- 托盘内容：优先用消息里（或引用的）图当表情包，没有就给文字 ----
     images = [b for b in _ctx_images(ctx) if b]
     images = images[:1]
     if not body_text and not images:

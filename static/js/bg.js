@@ -113,23 +113,46 @@
         return h;
     }
 
+    // 生成一个 ILBB 自定义下拉（结构同主页那套，不用浏览器原生 select）
+    // 隐藏 input 上保留 data-env-key，collectEnvChanges 的取数契约完全不变。
+    function ilbbSelectHtml(cfg) {
+        var menu = cfg.opts.map(function (o) {
+            return '<li class="ilbb-select-opt" role="option" data-value="' + escHtml(o[0]) +
+                '" data-search="' + escHtml(o[1]) + '" aria-selected="false">' +
+                '<span class="ilbb-select-opt-main">' + escHtml(o[1]) + '</span>' +
+                '<span class="ilbb-select-tick">✓</span></li>';
+        }).join('');
+        return '<div class="ilbb-select" data-select="' + escHtml(cfg.select) +
+            '" data-target="' + escHtml(cfg.target) + '">' +
+            '<input type="hidden" id="' + escHtml(cfg.target) + '" ' + cfg.attrs +
+            ' value="' + escHtml(cfg.value) + '">' +
+            '<button type="button" class="ilbb-select-btn" aria-haspopup="listbox" aria-expanded="false">' +
+            '<span class="ilbb-select-text">请选择</span><span class="ilbb-select-caret"></span></button>' +
+            '<ul class="ilbb-select-menu" role="listbox">' + menu + '</ul></div>';
+    }
+
     function envControl(it) {
         var v = it.value == null ? '' : String(it.value);
-        var a = 'data-env-key="' + escHtml(it.key) + '"';
-        if (it.locked) a += ' disabled';
+        var a = 'data-env-key="' + escHtml(it.key) + '"' + (it.locked ? ' disabled' : '');
+        var hidId = 'env_' + it.key;
         if (it.type === 'bool') {
             var on = (v === 'true');
-            return '<select class="env-inp" ' + a + '>' +
-                '<option value="true"' + (on ? ' selected' : '') + '>开启</option>' +
-                '<option value="false"' + (!on ? ' selected' : '') + '>关闭</option>' +
-                '</select>';
+            return ilbbSelectHtml({
+                target: hidId, select: 'env_bool', attrs: a,
+                value: on ? 'true' : 'false',
+                opts: [['true', '开启'], ['false', '关闭']]
+            });
         }
         if (it.type === 'select') {
-            return '<select class="env-inp" ' + a + '>' + (it.options || []).map(function (o) {
-                return '<option value="' + escHtml(o[0]) + '"' +
-                    (String(o[0]).toLowerCase() === v.toLowerCase() ? ' selected' : '') + '>' +
-                    escHtml(o[1] || o[0]) + '</option>';
-            }).join('') + '</select>';
+            var opts = (it.options || []).map(function (o) { return [String(o[0]), o[1] || o[0]]; });
+            var hit = opts.filter(function (o) {
+                return o[0].toLowerCase() === v.toLowerCase();
+            })[0];
+            return ilbbSelectHtml({
+                target: hidId, select: 'env_select', attrs: a,
+                value: hit ? hit[0] : (opts[0] ? opts[0][0] : ''),
+                opts: opts
+            });
         }
         if (it.type === 'secret') {
             return '<input type="password" class="env-inp ws-mono" ' + a +
@@ -183,6 +206,7 @@
             h += '</div>';
         });
         gridEl.innerHTML = h;
+        if (window.ilbbInit) window.ilbbInit(gridEl);   // 接管本页新渲染出的自定义下拉
         updateEnvDirty();
     }
 

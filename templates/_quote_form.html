@@ -1,15 +1,15 @@
 <!-- 名言图合成表单：合成大类 → 子选项「名言图」 -->
-<!-- 版式：横屏 16:9 · 随机二次元背景 + 灰色蒙版（默认透明度 95%）· 左半方形圆角头像 -->
-<!-- 右半磨砂玻璃气泡 · 右下角「—— 署名」；静态内容出 JPG，动图表情包出 GIF -->
+<!-- 版式：横屏 16:9 · 随机二次元背景 + 灰色蒙版（默认不透明度 35%）· 左独立长方形圆角头像 -->
+<!-- 右侧铺满右半边的白色磨砂玻璃面板（左缘渐隐衔接背景）· 右下角「—— 署名」；静态出 JPG，动图出 GIF -->
 <div class="main-panel">
     <!-- 左侧控制面板 -->
     <div class="control-panel">
         <div class="panel-title">名言图合成</div>
         <div class="panel-sub">
-            横屏 16:9，以中线左右分栏：左半是方形圆角头像，右半是磨砂玻璃气泡，
-            里面放文字或表情包；背景随机取二次元图并压一层灰色蒙版，
-            右下角署名「—— 昵称」。文字自动调字号，表情包自适应；
-            内容是动图会输出 GIF，否则输出 JPG。
+            横屏 16:9，左侧一块独立的长方形圆角头像，右侧铺满右半边的白色磨砂玻璃面板，
+            面板左缘做横向渐变渐隐，和中间背景自然衔接；面板里放文字或表情包，
+            右下角署名「—— 昵称」。背景随机取二次元图并压一层灰色蒙版；
+            文字自动调字号，表情包自适应；内容是动图会输出 GIF，否则输出 JPG。
         </div>
 
         <!-- 头像 / 署名来源 -->
@@ -28,27 +28,30 @@
             <input type="text" id="quoteName" placeholder="留空则用昵称 / 配置里的默认署名" maxlength="20">
         </div>
 
-        <!-- 字体 -->
+        <!-- 字体（与主页同款 ILBB 自定义下拉，不用浏览器原生 select） -->
         <div class="form-group">
             <label>字体</label>
-            <div style="display:flex;gap:8px;">
-                <select id="quoteGlobalFont" style="flex:1;">
-                    <option value="">全局字体：读取中…</option>
-                </select>
-                <select id="quoteNameFont" style="flex:1;">
-                    <option value="inherit">署名子体：跟随全局</option>
-                </select>
+            <div id="quoteFontBox">
+                <div class="ilbb-select" data-select="font_family" data-target="quoteGlobalFont"
+                     data-prefix="全局字体：">
+                    <input type="hidden" id="quoteGlobalFont" value="">
+                    <button type="button" class="ilbb-select-btn" aria-haspopup="listbox"
+                            aria-expanded="false">
+                        <span class="ilbb-select-text">全局字体：读取中…</span>
+                        <span class="ilbb-select-caret"></span>
+                    </button>
+                    <ul class="ilbb-select-menu" role="listbox"></ul>
+                </div>
             </div>
             <div style="font-size:12px;color:#b0b4c0;margin-top:6px;">
-                全局字体作用于所有图片文字（选完立即写入设置并热生效）；
-                「署名子体」只改右下角这句署名，本次生成即用。
+                全局字体作用于所有图片文字（含右下角署名），选完立即写入设置并热生效。
                 字体文件放在 <code>font/</code> 目录即可出现在下拉里。
             </div>
         </div>
 
-        <!-- 气泡内容：文字 / 表情包 -->
+        <!-- 面板内容：文字 / 表情包 -->
         <div class="form-group">
-            <label>气泡内容</label>
+            <label>面板内容</label>
             <div class="quote-seg" id="quoteSeg">
                 <button type="button" class="quote-seg-btn active" data-qmode="text">文字</button>
                 <button type="button" class="quote-seg-btn" data-qmode="image">表情包</button>
@@ -70,7 +73,7 @@
                     <span id="quoteDropLabel">点击选择表情包（支持 GIF 动图）</span>
                 </label>
                 <div style="font-size:12px;color:#b0b4c0;margin-top:6px;">
-                    只取第一张，按气泡区域自适应缩放；动图会保留动画，成品输出 GIF。
+                    只取第一张，按右侧玻璃面板内容区自适应缩放；动图会保留动画，成品输出 GIF。
                 </div>
             </div>
         </div>
@@ -114,7 +117,7 @@
                 <span class="value" id="quoteMetaBg">-</span>
             </div>
             <div class="info-row">
-                <span class="label">气泡</span>
+                <span class="label">面板内容</span>
                 <span class="value" id="quoteMetaBubble">-</span>
             </div>
             <div class="info-row">

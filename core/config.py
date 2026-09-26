@@ -215,13 +215,11 @@ BG_URL_PREFIX = "/" + get_str("BG_URL_PREFIX", "bg").strip().strip("/")
 
 
 # ----------------------------------------------------------------------------
-# 字体：全局字体 + 名言图署名字体
+# 字体：全局字体
 # 候选字体 = FONT_DIR 目录里放进去的字体文件；「system」= 用系统自带中文字体。
 # ----------------------------------------------------------------------------
-# 全局字体：所有机器人图片（菜单 / 帮助 / 名言图 …）统一使用。
+# 全局字体：所有机器人图片（菜单 / 帮助 / 名言图 …）统一使用，署名也用它。
 FONT_FAMILY = get_str("FONT_FAMILY", "system").strip() or "system"
-# 名言图右下角「—— 用户名」的字体：「inherit」= 跟随全局 FONT_FAMILY。
-QUOTE_NAME_FONT = get_str("QUOTE_NAME_FONT", "inherit").strip() or "inherit"
 
 # 这些值都表示「不指定具体字体文件，交给系统字体查找」
 _FONT_SYSTEM_ALIASES = ("", "system", "default", "inherit", "auto")
@@ -253,9 +251,9 @@ def font_path(name):
     return p if os.path.isfile(p) else None
 
 
-def font_options(with_inherit: bool = False):
-    """设置页下来项的 options：[[值, 显示名], ...]"""
-    opts = [["inherit", "跟随全局字体"]] if with_inherit else [["system", "系统默认字体"]]
+def font_options():
+    """设置页字体下拉的选项：[[值, 显示名], ...]"""
+    opts = [["system", "系统默认字体"]]
     opts.extend([[fn, label] for fn, label in font_choices()])
     return opts
 
@@ -350,25 +348,30 @@ BOT_FOOTER = get_str("BOT_FOOTER", "我在哔哩学习 Emoji Bot · ILBB").strip
 
 
 # ----------------------------------------------------------------------------
-# 名言图（/quote）：横屏 16:9 + 随机背景 + 灰色蒙版 + 方形圆角头像
-#                   + 磨砂玻璃气泡 + 右下角署名
+# 名言图（/quote）：横屏 16:9 + 随机背景 + 灰色蒙版 + 全模糊托盘
+#                   （托盘内左圆形头像 + 右内容）+ 右下角署名
 # ----------------------------------------------------------------------------
 # 名言图总开关：false 时 /quote 指令回提示图，不生成名言图。
 QUOTE_ENABLED = get_bool("QUOTE_ENABLED", True)
-# 画布宽度 / 高度：默认 1280×720（16:9 横屏），以中间为界左右分栏。
-# 气泡里是静态内容 → 出 JPG；气泡里是动图 → 出 GIF。
+# 画布宽度 / 高度：默认 1280×720（16:9 横屏），画面正中一块全模糊托盘。
+# 托盘内是静态内容 → 出 JPG；托盘内是动图 → 出 GIF。
 QUOTE_WIDTH = max(480, get_int("QUOTE_WIDTH", 1280))
 QUOTE_HEIGHT = max(270, get_int("QUOTE_HEIGHT", 720))
-# 背景与前景之间的灰色蒙版不透明度（0~1）。用户要求「透明度 95%」→ 0.05。
-QUOTE_MASK_ALPHA = min(1.0, max(0.0, get_float("QUOTE_MASK_ALPHA", 0.05)))
+# 背景与前景之间的灰色蒙版不透明度（0~1）。0.35 = 压 35% 灰，背景仍可辨认；
+# 数值越大背景越暗，内容（托盘 / 头像 / 文字）始终绘制在蒙版之上。
+QUOTE_MASK_ALPHA = min(1.0, max(0.0, get_float("QUOTE_MASK_ALPHA", 0.35)))
 # 静态图（JPG）输出质量。
 QUOTE_JPG_QUALITY = min(100, max(60, get_int("QUOTE_JPG_QUALITY", 92)))
-# 左侧方形圆角头像边长。
+# 托盘内左侧圆形头像的直径。
 QUOTE_AVATAR = max(96, get_int("QUOTE_AVATAR", 236))
-# 气泡内文字自动字号的上下限。
+# 托盘内背景的模糊半径（「全模糊」的核心，越大越糊）。
+QUOTE_TRAY_BLUR = max(6.0, get_float("QUOTE_TRAY_BLUR", 30.0))
+# 模糊层之上叠加的暖白玻璃浓度（0.2~0.92，越大越白、越不透）。
+QUOTE_TRAY_GLASS = min(0.92, max(0.20, get_float("QUOTE_TRAY_GLASS", 0.58)))
+# 托盘内文字自动字号的上下限。
 QUOTE_TEXT_MAX = max(20, get_int("QUOTE_TEXT_MAX", 56))
 QUOTE_TEXT_MIN = max(12, get_int("QUOTE_TEXT_MIN", 22))
-# 气泡内容区最大高度（超过则缩字号 / 截断）。
+# 托盘内容区最大高度（超过则缩字号 / 截断）。
 QUOTE_MAX_BODY = max(200, get_int("QUOTE_MAX_BODY", 500))
 # 右下角署名字号。
 QUOTE_NAME_SIZE = max(18, get_int("QUOTE_NAME_SIZE", 40))
@@ -468,13 +471,14 @@ def describe():
             ["QUOTE_ENABLED", "true" if QUOTE_ENABLED else "false", "/quote 指令开关"],
             ["QUOTE_WIDTH", QUOTE_WIDTH, "名言图画布宽度"],
             ["QUOTE_HEIGHT", QUOTE_HEIGHT, "名言图画布高度（默认 16:9）"],
-            ["QUOTE_MASK_ALPHA", QUOTE_MASK_ALPHA, "灰色蒙版不透明度（0~1，0.05=透 95%）"],
-            ["QUOTE_AVATAR", QUOTE_AVATAR, "方形圆角头像边长"],
-            ["QUOTE_TEXT_MAX", QUOTE_TEXT_MAX, "气泡文字最大字号"],
-            ["QUOTE_TEXT_MIN", QUOTE_TEXT_MIN, "气泡文字最小字号"],
-            ["QUOTE_MAX_BODY", QUOTE_MAX_BODY, "气泡内容区最大高度"],
-            ["QUOTE_NAME_SIZE", QUOTE_NAME_SIZE, "右下角署名字号"],
-            ["QUOTE_NAME_FONT", QUOTE_NAME_FONT, "右下角署名字体"],
+            ["QUOTE_MASK_ALPHA", QUOTE_MASK_ALPHA, "灰色蒙版不透明度（0~1，0.35=压 35% 灰）"],
+            ["QUOTE_AVATAR", QUOTE_AVATAR, "左侧独立圆角矩形头像的宽度"],
+            ["QUOTE_TRAY_BLUR", QUOTE_TRAY_BLUR, "右侧玻璃面板的模糊半径（越大越糊）"],
+            ["QUOTE_TRAY_GLASS", QUOTE_TRAY_GLASS, "右侧玻璃面板浓度（0.2~0.96，越大越白）"],
+            ["QUOTE_TEXT_MAX", QUOTE_TEXT_MAX, "面板文字最大字号"],
+            ["QUOTE_TEXT_MIN", QUOTE_TEXT_MIN, "面板文字最小字号"],
+            ["QUOTE_MAX_BODY", QUOTE_MAX_BODY, "面板内容区最大高度"],
+            ["QUOTE_NAME_SIZE", QUOTE_NAME_SIZE, "署名（面板右下角）字号"],
             ["QUOTE_NAME", QUOTE_NAME, "无署名时的占位名字"],
             ["QUOTE_JPG_QUALITY", QUOTE_JPG_QUALITY, "JPG 输出质量"],
             ["QUOTE_GIF_MAX_FRAMES", QUOTE_GIF_MAX_FRAMES, "动图最多保留帧数"],
@@ -610,29 +614,33 @@ ENV_SCHEMA = [
          "hot": True, "desc": "横屏画布高度（默认 720）"},
         {"key": "QUOTE_MASK_ALPHA", "label": "蒙版不透明度", "type": "float",
          "min": 0, "max": 1, "hot": True,
-         "desc": "背景与前景之间的灰色蒙版强度（0~1）。0.05 = 透明度 95%，背景清晰可见"},
+         "desc": "背景上那层灰色蒙版强度（0~1）。0.35 = 压 35% 灰，背景仍可辨认；数值越大背景越暗；左侧头像、右侧玻璃面板与文字都在蒙版之上"},
         {"key": "QUOTE_JPG_QUALITY", "label": "JPG 质量", "type": "int",
          "min": 60, "max": 100, "hot": True, "desc": "静态图输出压缩质量"},
-        {"key": "QUOTE_AVATAR", "label": "头像边长", "type": "int", "min": 96, "max": 800,
-         "hot": True, "desc": "左半边居中的方形圆角头像边长"},
-        {"key": "QUOTE_TEXT_MAX", "label": "气泡最大字号", "type": "int",
+        {"key": "QUOTE_AVATAR", "label": "头像宽度", "type": "int", "min": 96, "max": 800,
+         "hot": True, "desc": "画面左侧独立圆角矩形头像的宽度（高度约为它的 1.32 倍）"},
+        {"key": "QUOTE_TRAY_BLUR", "label": "玻璃模糊半径", "type": "float",
+         "min": 6, "max": 120, "hot": True,
+         "desc": "右侧白色磨砂玻璃面板覆盖的背景整块高斯模糊，这里控制模糊强度（越大越糊）"},
+        {"key": "QUOTE_TRAY_GLASS", "label": "玻璃浓度", "type": "float",
+         "min": 0.2, "max": 0.96, "hot": True,
+         "desc": "模糊层之上叠加的暖白玻璃浓度：越大越白、越不透，"
+                 "0.2 左右「重模糊」，0.8 以上「牛奶玻璃」"},
+        {"key": "QUOTE_TEXT_MAX", "label": "文字最大字号", "type": "int",
          "min": 20, "max": 200, "hot": True, "desc": "自动字号的上级"},
-        {"key": "QUOTE_TEXT_MIN", "label": "气泡最小字号", "type": "int",
+        {"key": "QUOTE_TEXT_MIN", "label": "文字最小字号", "type": "int",
          "min": 12, "max": 200, "hot": True, "desc": "自动字号的级"},
-        {"key": "QUOTE_MAX_BODY", "label": "气泡最大高度", "type": "int",
+        {"key": "QUOTE_MAX_BODY", "label": "内容最大高度", "type": "int",
          "min": 200, "max": 3000, "hot": True, "desc": "超出则继续缩字号 / 截断"},
         {"key": "QUOTE_NAME_SIZE", "label": "署名字号", "type": "int",
-         "min": 18, "max": 200, "hot": True, "desc": "右下角「—— 用户名」字号"},
-        {"key": "QUOTE_NAME_FONT", "label": "署名字体", "type": "select", "hot": True,
-         "options": font_options(with_inherit=True),
-         "desc": "右下角署名字体；「跟随全局字体」= 用上面的全局字体"},
+         "min": 18, "max": 200, "hot": True, "desc": "玻璃面板右下角「—— 用户名」字号"},
         {"key": "QUOTE_NAME", "label": "占位署名", "type": "text", "maxlen": 32,
          "hot": True, "desc": "取不到昵称时使用的名字"},
         {"key": "QUOTE_NAME_MAX", "label": "署名最大字数", "type": "int",
          "min": 4, "max": 64, "hot": True, "desc": "超出截断，避免撑破画布"},
         {"key": "QUOTE_GIF_MAX_FRAMES", "label": "动图最大帧数", "type": "int",
          "min": 2, "max": 300, "hot": True,
-         "desc": "气泡是动图时输出 GIF，超过此帧数则等间隔抽帧"},
+         "desc": "面板内容是动图时输出 GIF，超过此帧数则等间隔抽帧"},
     ]),
     ("插件系统", [
         {"key": "PLUGIN_ENABLED", "label": "插件总开关", "type": "bool", "hot": False,

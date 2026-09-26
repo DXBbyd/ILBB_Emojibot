@@ -676,7 +676,7 @@ def _apply_config_reload(changed=None):
     CANVAS_W, CANVAS_H = config.CANVAS_W, config.CANVAS_H
     BG_CONFIG_PATH = config.BG_CONFIG_PATH
     BG_API = config.BG_API
-    # 全局字体 / 字体目录 / 署名字体一改，必须把渲染层的字体对象缓存清掉，
+    # 全局字体 / 字体目录一改，必须把渲染层的字体对象缓存清掉，
     # 否则 ImageFont 旧对象还在，新字体不会生效。
     try:
         bot_render.clear_font_cache()
@@ -1380,9 +1380,10 @@ BOT_CATALOG = [
     {"cmd": "quote", "usage": "/quote", "name": "名言图帮助",
      "desc": "返回名言图帮助图：横屏版式、JPG/GIF 输出规则、署名与字体设置。"},
     {"cmd": "quote 生成", "usage": "/quote @某人 这就是名言", "name": "名言图生成",
-     "desc": "合成名言图：随机二次元背景 + 灰色蒙版（默认透明度 95%），"
-             "左半方形圆角头像，右半磨砂玻璃气泡放文字或表情包，"
-             "右下角署名「—— 用户名」。静态内容出 JPG，动图表情包出 GIF。"},
+     "desc": "合成名言图：随机二次元背景 + 灰色蒙版（默认不透明度 35%），"
+             "画面正中一块全模糊托盘（托盘内背景整块高斯模糊 + 暖白玻璃），"
+             "托盘内左圆形头像、右文字或表情包，右下角署名「—— 用户名」。"
+             "静态内容出 JPG，动图表情包出 GIF。"},
 ]
 
 
@@ -1485,8 +1486,9 @@ def bot_preview():
 
 # ==================== 名言图合成（/quote） ====================
 # 与机器人 /quote 指令共用 bot_render.render_quote，前端「合成 → 名言图」表单走这里：
-# 横屏 16:9；随机二次元背景 + 灰色蒙版（默认透明度 95%）+ 左半方形圆角头像
-# + 右半磨砂玻璃气泡 + 右下角署名「—— 用户名」；静态出 JPG，动图出 GIF。
+# 横屏 16:9；随机二次元背景 + 灰色蒙版（默认不透明度 35%）+ 左独立圆角头像
+# + 右半边白色磨砂玻璃面板 + 右下角署名「—— 用户名」（字体跟随全局 FONT_FAMILY）；
+# 静态出 JPG，动图出 GIF。
 @app.route('/api/quote/config', methods=['GET'])
 def quote_config():
     """名言图表单默认值（供前端填默认值与下拉/滑块范围）。"""
@@ -1495,9 +1497,11 @@ def quote_config():
         'enabled': bool(getattr(config, 'QUOTE_ENABLED', True)),
         'width': int(getattr(config, 'QUOTE_WIDTH', 1280)),
         'height': int(getattr(config, 'QUOTE_HEIGHT', 720)),
-        'mask_alpha': float(getattr(config, 'QUOTE_MASK_ALPHA', 0.05)),
+        'mask_alpha': float(getattr(config, 'QUOTE_MASK_ALPHA', 0.35)),
         'jpg_quality': int(getattr(config, 'QUOTE_JPG_QUALITY', 92)),
         'avatar': int(getattr(config, 'QUOTE_AVATAR', 236)),
+        'tray_blur': float(getattr(config, 'QUOTE_TRAY_BLUR', 30.0)),
+        'tray_glass': float(getattr(config, 'QUOTE_TRAY_GLASS', 0.58)),
         'text_max': int(getattr(config, 'QUOTE_TEXT_MAX', 56)),
         'text_min': int(getattr(config, 'QUOTE_TEXT_MIN', 22)),
         'max_body': int(getattr(config, 'QUOTE_MAX_BODY', 500)),
@@ -1505,11 +1509,9 @@ def quote_config():
         'gif_min_ms': int(getattr(config, 'QUOTE_GIF_MIN_MS', 40)),
         'name_default': str(getattr(config, 'QUOTE_NAME', '无名氏')),
         'name_max': int(getattr(config, 'QUOTE_NAME_MAX', 16)),
-        # 全局字体（跟随设置页 FONT_FAMILY）与署名专用字体（inherit = 跟随全局）
+        # 全局字体（跟随设置页 FONT_FAMILY），署名与正文都用它
         'font_current': str(getattr(config, 'FONT_FAMILY', 'system')),
         'font_options': config.font_options(),
-        'name_font_current': str(getattr(config, 'QUOTE_NAME_FONT', 'inherit')),
-        'name_font_options': config.font_options(with_inherit=True),
         'prefix': config.BOT_PREFIX,
     })
 
@@ -1519,7 +1521,7 @@ def quote_generate():
     """合成一张名言图，返回 base64 图片（JPG 或 GIF）。
 
     请求：{text, name, qq, gid, avatar:dataURL, images:[dataURL], bg:dataURL,
-           no_bg:bool, name_font:str}
+           no_bg:bool}
     """
     if not _bot_ok():
         return jsonify({'ok': False, 'error': 'bot_commands 模块不可用'}), 500
@@ -1547,7 +1549,7 @@ def quote_generate():
             name = ''
     name = bot_commands._clean_name(name) or str(getattr(config, 'QUOTE_NAME', '无名氏'))
 
-    # ---- 气泡内容：只取第一张（表情包） ----
+    # ---- 表情包内容：只取第一张 ----
     bubble = []
     for raw in (payload.get('images') or []):
         b = _decode_data_url(raw)
@@ -1566,14 +1568,9 @@ def quote_generate():
         except Exception:
             bg = None
 
-    # ---- 署名子体：表单可单独选，留空则跟随全局/配置 ----
-    name_font = str(payload.get('name_font') or '').strip()
-    if not name_font or not (config.font_path(name_font) or name_font.lower() in
-                             ('system', 'inherit', 'auto', 'default')):
-        name_font = None
-
+    # ---- 署名：字体跟随全局 FONT_FAMILY，不再单独传字体 ----
     try:
-        data = bot_render.render_quote(text, name, avatar, bubble, bg, name_font)
+        data = bot_render.render_quote(text, name, avatar, bubble, bg)
     except Exception as e:
         import traceback as _tb5
         _tb5.print_exc()

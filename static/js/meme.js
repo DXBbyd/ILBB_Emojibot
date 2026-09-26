@@ -89,6 +89,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+    // 写进 HTML 属性（data-value / value）时还得把双引号也转掉
+    function escAttr(s) {
+        return esc(s).replace(/"/g, '&quot;');
+    }
 
     memeSearch.addEventListener('input', function() { renderList(memeSearch.value); });
 
@@ -144,8 +148,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // 选项
         if (item.options && item.options.length) {
             html += '<div class="form-group"><label>选项</label>';
-            item.options.forEach(function(o) {
+            item.options.forEach(function(o, oi) {
                 var glued = o.default == null ? '' : String(o.default);
+                var optId = 'meme_opt_' + oi;   // 每个选项控件的 id（ILBB 下拉靠它认隐藏 input）
                 // 布尔开关：渲染为拨杆式 toggle（meme-switch）而非裸复选框；data-type="bool" 供 collectOpts 读取并提交 true/false（避免误报 "on"）。
                 if (o.type === 'bool') {
                     var _on = glued === 'True' || glued === 'true';
@@ -153,14 +158,26 @@ document.addEventListener('DOMContentLoaded', function() {
                         '<input type="checkbox" class="meme-opt" data-name="' + esc(o.name) + '" data-type="bool"' + (_on ? ' checked' : '') + '>' +
                         '<span class="track"></span></span></label>';
                 } else if (o.type === 'int' && o.min != null && o.max != null) {
-                    // 变体选择器（如举牌编号）：渲染为下拉，第一项“随机/自动”对应默认值（通常 0）
-                    var sel = '<div class="meme-opt-row"><span>' + esc(o.name) + '</span><select class="meme-opt" data-name="' + esc(o.name) + '" data-type="int">';
-                    sel += '<option value="' + esc(glued) + '"' + (String(glued) === String(o.default) ? ' selected' : '') + '>随机/自动(' + esc(glued) + ')</option>';
+                    // 变体选择器（如举牌编号）：ILBB 自定义下拉，第一项“随机/自动”对应默认值（通常 0）
+                    var men = '<li class="ilbb-select-opt" role="option" data-value="' + escAttr(glued) +
+                        '" data-search="随机/自动(' + escAttr(glued) + ')" aria-selected="false">' +
+                        '<span class="ilbb-select-opt-main">随机/自动(' + esc(glued) + ')</span>' +
+                        '<span class="ilbb-select-opt-code">' + esc(glued) + '</span>' +
+                        '<span class="ilbb-select-tick">✓</span></li>';
                     for (var vv = o.min; vv <= o.max; vv++) {
-                        sel += '<option value="' + vv + '"' + (String(vv) === glued ? ' selected' : '') + '>' + vv + '</option>';
+                        men += '<li class="ilbb-select-opt" role="option" data-value="' + vv +
+                            '" data-search="' + vv + '" aria-selected="false">' +
+                            '<span class="ilbb-select-opt-main">' + vv + '</span>' +
+                            '<span class="ilbb-select-opt-code">' + vv + '</span>' +
+                            '<span class="ilbb-select-tick">✓</span></li>';
                     }
-                    sel += '</select></div>';
-                    html += sel;
+                    html += '<div class="meme-opt-row"><span>' + esc(o.name) + '</span>' +
+                        '<div class="ilbb-select" data-select="meme_int" data-target="' + optId + '">' +
+                        '<input type="hidden" class="meme-opt" id="' + optId + '"' +
+                        ' data-name="' + escAttr(o.name) + '" data-type="int" value="' + escAttr(glued) + '">' +
+                        '<button type="button" class="ilbb-select-btn" aria-haspopup="listbox" aria-expanded="false">' +
+                        '<span class="ilbb-select-text">请选择</span><span class="ilbb-select-caret"></span></button>' +
+                        '<ul class="ilbb-select-menu" role="listbox">' + men + '</ul></div></div>';
                 } else if (o.type === 'int') {
                     html += '<div class="meme-opt-row"><span>' + o.name + '</span><input type="number" step="1" class="meme-opt" data-name="' + o.name + '" data-type="' + o.type + '" value="' + glued + '"></div>';
                 } else if (o.type === 'float') {
@@ -168,12 +185,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (o.type === 'choose') {
                     var cs = (o.choices || []).slice();
                     if (glued !== '' && cs.indexOf(glued) < 0) cs.unshift(glued);
-                    var sel = '<div class="meme-opt-row"><span>' + esc(o.name) + '</span><select class="meme-opt" data-name="' + esc(o.name) + '" data-type="choose">';
-                    cs.forEach(function(c) {
-                        sel += '<option value="' + esc(c) + '"' + (String(c) === glued ? ' selected' : '') + '>' + esc(c) + '</option>';
-                    });
-                    sel += '</select></div>';
-                    html += sel;
+                    // ILBB 自定义下拉（同主页那套），真实值写进隐藏 input 供 collectOpts 读
+                    var men2 = cs.map(function(c) {
+                        return '<li class="ilbb-select-opt" role="option" data-value="' + escAttr(c) +
+                            '" data-search="' + escAttr(c) + '" aria-selected="false">' +
+                            '<span class="ilbb-select-opt-main">' + esc(c) + '</span>' +
+                            '<span class="ilbb-select-tick">✓</span></li>';
+                    }).join('');
+                    html += '<div class="meme-opt-row"><span>' + esc(o.name) + '</span>' +
+                        '<div class="ilbb-select" data-select="meme_choose" data-target="' + optId + '">' +
+                        '<input type="hidden" class="meme-opt" id="' + optId + '"' +
+                        ' data-name="' + escAttr(o.name) + '" data-type="choose" value="' + escAttr(glued) + '">' +
+                        '<button type="button" class="ilbb-select-btn" aria-haspopup="listbox" aria-expanded="false">' +
+                        '<span class="ilbb-select-text">请选择</span><span class="ilbb-select-caret"></span></button>' +
+                        '<ul class="ilbb-select-menu" role="listbox">' + men2 + '</ul></div></div>';
                 } else {
                     html += '<div class="meme-opt-row"><span>' + o.name + '</span><input type="text" class="meme-opt" data-name="' + o.name + '" data-type="text" value="' + glued + '"></div>';
                 }
@@ -215,6 +240,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         var ctl = memeForm.querySelector('.meme-opt[data-name="' + name + '"]');
                         if (!ctl) return;
                         ctl.value = val;
+                        // 自定义下拉：改的是隐藏 input，得同步一下按钮上的显示文字
+                        if (window.ILBBSelect && window.ILBBSelect.sync) window.ILBBSelect.sync(memeForm);
                         collectOpts();
                         var act = memeForm.querySelector('.meme-style.active');
                         if (act) act.classList.remove('active');
@@ -260,6 +287,8 @@ document.addEventListener('DOMContentLoaded', function() {
             c.addEventListener('change', collectOpts);
             c.addEventListener('input', collectOpts);
         });
+        // 接管本表单里刚渲染出来的 ILBB 自定义下拉（按钮文案 / 选中态同步）
+        if (window.ilbbInit) window.ilbbInit(memeForm);
         collectOpts();
     }
 

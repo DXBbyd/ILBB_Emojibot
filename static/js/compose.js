@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var HINTS = {
         meme: '表情合成 · 配对生图 · 名言图',
         pair: '表情合成 · 配对生图 · 名言图',
-        quote: '随机背景 · 黑蒙版 · 气泡 · 署名'
+        quote: '随机背景 · 灰蒙版 · 全模糊托盘 · 署名'
     };
 
     if (!tabsWrap || !pill) return;

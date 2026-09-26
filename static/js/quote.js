@@ -1,8 +1,9 @@
 /* ============================================================
  * 名言图（Quote）—— 合成大类 → 子选项「名言图」
- * 横屏 16:9：随机二次元背景 + 灰色蒙版（默认透明度 95%）
- *          + 左半方形圆角头像 + 右半磨砂玻璃气泡（文字 / 表情包）
- *          + 右下角「—— 署名」；静态内容出 JPG，动图出 GIF
+ * 横屏 16:9：随机二次元背景 + 灰色蒙版（默认不透明度 35%）
+ *          + 左侧独立长方形圆角头像 + 右侧铺满右半边的白色磨砂玻璃面板
+ *          + 右下角「—— 署名」（字体跟随全局 FONT_FAMILY）；静态出 JPG，动图出 GIF
+ * 字体下拉复用主页那套 ILBB 自定义下拉（window.ILBBSelect）
  * 生成走后端 POST /api/quote/generate
  * ============================================================ */
 document.addEventListener('DOMContentLoaded', function() {
@@ -32,7 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var dlBtn = $('quoteDownloadBtn');
 
     var globalFontSel = $('quoteGlobalFont');
-    var nameFontSel = $('quoteNameFont');
 
     var meta = $('quoteMeta');
     var metaName = $('quoteMetaName');
@@ -83,21 +83,91 @@ document.addEventListener('DOMContentLoaded', function() {
         fr.readAsDataURL(file);
     }
 
-    // ===== 配置默认值 =====
-    function fillFontSelect(sel, options, current) {
-        if (!sel || !options || !options.length) return;
-        sel.innerHTML = options.map(function(o) {
-            return '<option value="' + o[0] + '">' + (o[1] || o[0]) + '</option>';
+    // ===== 字体下拉 =====
+    // 与主页同款 ILBB 自定义下拉：真实取值写在与 data-target 同 id 的隐藏 input 里，
+    // 选项是 ul.ilbb-select-menu 里的一串 li.ilbb-select-opt，交互由 ws.js 的
+    // window.ILBBSelect 统一接管。这里只负责「填选项 + 同步显示 + 初始化」。
+    var fontBox = $('quoteFontBox');
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function escAttr(s) {
+        return escHtml(s).replace(/"/g, '&quot;');
+    }
+
+    function selOf(hid) {
+        if (!hid || !hid.closest) return null;
+        return hid.closest('.ilbb-select');
+    }
+
+    // 填选项并同步隐藏 input；current 不在候选里就退回第一项
+    function fillFontSelect(hid, options, current) {
+        var sel = selOf(hid);
+        if (!sel) return;
+        var menu = sel.querySelector('.ilbb-select-menu');
+        if (!menu) return;
+        if (!options || !options.length) {
+            menu.innerHTML = '';
+            sel.setAttribute('data-state', 'error');
+            syncFontSelects();
+            return;
+        }
+        var val = current == null ? '' : String(current);
+        var has = options.some(function(o) { return String(o[0]) === val; });
+        if (!has) val = String(options[0][0]);
+        if (hid) hid.value = val;
+        sel.removeAttribute('data-state');
+        menu.innerHTML = options.map(function(o) {
+            var v = String(o[0]);
+            var label = o[1] || v;
+            return '<li class="ilbb-select-opt" role="option" data-value="' + escAttr(v) + '"'
+                + ' data-search="' + escAttr(label + ' ' + v) + '" aria-selected="false">'
+                + '<span class="ilbb-select-opt-main">' + escHtml(label) + '</span>'
+                + '<span class="ilbb-select-opt-code">' + escHtml(v) + '</span>'
+                + '<span class="ilbb-select-tick">✓</span></li>';
         }).join('');
-        if (current != null) sel.value = String(current);
-        // 配置里的值不在候选里（例如字体被删）就退回第一项
-        if (!sel.value && options.length) sel.value = String(options[0][0]);
+        syncFontSelects();
+    }
+
+    // quote.js 比 ws.js 先加载，此刻 window.ILBBSelect 可能还没挂上：轮询等它就绪
+    var fontInitTimer = 0;
+    function syncFontSelects() {
+        if (!fontBox) return;
+        var api = window.ILBBSelect;
+        if (api && api.init) { api.init(fontBox); return; }
+        if (fontInitTimer) return;
+        fontInitTimer = setInterval(function() {
+            if (window.ILBBSelect && window.ILBBSelect.init) {
+                clearInterval(fontInitTimer);
+                fontInitTimer = 0;
+                window.ILBBSelect.init(fontBox);
+            }
+        }, 60);
+    }
+
+    // 字体下拉的按钮（写着状态文案的那个），保存期间禁用它
+    function fontBtnOf(hid) {
+        var sel = selOf(hid);
+        return sel ? sel.querySelector('.ilbb-select-btn') : null;
     }
 
     function fontLabel(options, value) {
         var v = String(value == null ? '' : value);
         var hit = (options || []).filter(function(o) { return String(o[0]) === v; })[0];
         return hit ? (hit[1] || hit[0]) : (v || '跟随全局');
+    }
+
+    // 配置读不到时别把「读取中…」一直挂着——直接写明失败原因
+    function fontCfgFailed(msg) {
+        [globalFontSel].forEach(function(hid) {
+            var sel = selOf(hid);
+            if (!sel) return;
+            sel.setAttribute('data-state', 'error');
+            var txt = sel.querySelector('.ilbb-select-text');
+            if (txt) txt.textContent = (sel.getAttribute('data-prefix') || '') + msg;
+        });
     }
 
     (async function loadCfg() {
@@ -111,26 +181,32 @@ document.addEventListener('DOMContentLoaded', function() {
                         '留空则用昵称 / 默认「' + (data.name_default || '无名氏') + '」');
                 }
                 fillFontSelect(globalFontSel, data.font_options, data.font_current);
-                fillFontSelect(nameFontSel, data.name_font_options, data.name_font_current);
                 if (!data.enabled) {
                     genBtn.disabled = true;
                     genBtn.textContent = '名言合成已关闭';
                     setStatus('后端 QUOTE_ENABLED=false，名言合成已关闭', '#e05555');
                 } else {
                     setStatus('输出 JPG / GIF · ' + data.width + '×' + (data.height || 720) +
-                        ' · 蒙版透明度 ' + Math.round((1 - (data.mask_alpha == null ? 0.05 : data.mask_alpha)) * 100) + '%',
+                        ' · 蒙版不透明度 ' + Math.round((data.mask_alpha == null ? 0.35 : data.mask_alpha) * 100) + '%',
                         '#8c8f9c');
                 }
+            } else {
+                fontCfgFailed('读取失败（' + res.status + '），刷新重试');
             }
-        } catch (e) { /* 配置接口不可用不影响生成 */ }
+        } catch (e) {
+            fontCfgFailed('读取失败，刷新重试');
+        }
     })();
 
-    // ===== 字体：全局字体立即写入设置并热生效；署名子体只影响本次生成 =====
+    // ===== 字体：全局字体立即写入设置并热生效（署名跟随全局字体） =====
+    // 监听的是隐藏 input 的 change（ILBB 下拉选完会广播一次），
+    // 这样「用下拉选」和「代码里直接改 value」两条路径都能被同一处接住。
     if (globalFontSel) {
         globalFontSel.addEventListener('change', async function() {
             var val = globalFontSel.value;
             if (!val) return;
-            globalFontSel.disabled = true;
+            var gBtn = fontBtnOf(globalFontSel);
+            if (gBtn) gBtn.disabled = true;
             try {
                 var res = await fetch('/api/env/config', {
                     method: 'POST',
@@ -144,20 +220,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 toast('全局字体已切换为「' + fontLabel(state.cfg.font_options, val) + '」' +
                     ((d.restart || []).length ? '（部分项需重启）' : ''));
-                // 全局字体变了，署名子体若是「跟随全局」也跟着变：重新拉一次配置
+                // 全局字体变了，署名跟着变，所以重新拉一次配置刷新下拉
                 try {
                     var r2 = await fetch('/api/quote/config');
                     var d2 = await r2.json();
                     if (d2 && d2.ok) {
                         state.cfg = d2;
                         fillFontSelect(globalFontSel, d2.font_options, d2.font_current);
-                        fillFontSelect(nameFontSel, d2.name_font_options, nameFontSel.value || d2.name_font_current);
                     }
                 } catch (e2) { /* 刷新失败不影响已保存 */ }
             } catch (e) {
                 toast('网络错误，全局字体保存失败');
             } finally {
-                globalFontSel.disabled = false;
+                if (gBtn) gBtn.disabled = false;
             }
         });
     }
@@ -195,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') { e.preventDefault(); fetchBtn.click(); }
     });
 
-    // ===== 气泡内容：文字 / 表情包 =====
+    // ===== 面板内容：文字 / 表情包 =====
     Array.prototype.slice.call(seg.querySelectorAll('.quote-seg-btn')).forEach(function(btn) {
         btn.addEventListener('click', function() {
             Array.prototype.slice.call(seg.querySelectorAll('.quote-seg-btn')).forEach(function(b) {
@@ -278,7 +353,6 @@ document.addEventListener('DOMContentLoaded', function() {
             images: state.mode === 'image' && state.bubbleDataURL ? [state.bubbleDataURL] : [],
             no_bg: state.bg === 'none'
         };
-        if (nameFontSel && nameFontSel.value) payload.name_font = nameFontSel.value;
         if (state.bg === 'upload' && state.bgDataURL) payload.bg = state.bgDataURL;
         // 自定义背景但没选图 → 当作随机图（后端会走随机 API）
         // 头像：优先用已获取的 QQ 头像（不传则由后端按 qq 拉取）
@@ -315,10 +389,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             metaName.textContent = data.name || '(未署名)';
             if (metaFont) {
-                var nf = nameFontSel ? nameFontSel.value : '';
-                metaFont.textContent = (nf && nf !== 'inherit')
-                    ? fontLabel(state.cfg.name_font_options, nf)
-                    : ('跟随全局 · ' + fontLabel(state.cfg.font_options, state.cfg.font_current));
+                // 署名没有独立字体了：恒为「跟随全局」+ 当前全局字体名
+                metaFont.textContent = '跟随全局 · ' +
+                    fontLabel(state.cfg.font_options, state.cfg.font_current);
             }
             metaBg.textContent = data.has_bg ? (state.bg === 'upload' ? '自定义图' : '随机图') : '内置底色';
             metaBubble.textContent = data.bubble_image ? '表情包' : '文字';

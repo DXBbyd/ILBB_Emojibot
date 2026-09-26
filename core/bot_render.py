@@ -10,7 +10,7 @@
 - render_meme_detail(token)      /meme help [ID]  单个表情的图文教程（含底图 / 预设 / 示例）
 - render_meme_list(page, query)  /meme list       表情素材列表（带列表 ID 分页）
 - render_pair_help()             /pair help       配对生图帮助
-- render_quote(text, name, ...)  /quote           名言图（横屏 16:9：左半头像 + 右半磨砂玻璃气泡 + 右下角署名）
+- render_quote(text, name, ...)  /quote           名言图（横屏 16:9：左独立圆角头像 + 右半边磨砂玻璃面板 + 右下角署名）
 - render_quote_help()            /quote help      名言图帮助
 - render_notice(title, lines)    通用提示 / 错误图
 
@@ -76,7 +76,7 @@ _font_cache: dict = {}
 def clear_font_cache():
     """清空字体对象缓存。
 
-    设置页改了「全局字体 / 字体目录 / 署名字体」后，config 会热重载并回调
+    设置页改了「全局字体 / 字体目录」后，config 会热重载并回调
     app.py 里的 _apply_config_reload，那里会调本函数 —— 否则旧字体对象还在缓存里，
     新配置不会生效。
     """
@@ -239,8 +239,12 @@ def _ellipsis(d, s, f, max_w):
 def _round_img(img: Image.Image, radius: int) -> Image.Image:
     img = img.convert("RGBA")
     mask = Image.new("L", img.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, img.size[0] - 1, img.size[1] - 1], radius=radius, fill=255)
+    dr = ImageDraw.Draw(mask)
+    box = [0, 0, img.size[0] - 1, img.size[1] - 1]
+    if radius * 2 >= min(img.size):
+        dr.ellipse(box, fill=255)          # 半径够大 → 直接画正圆
+    else:
+        dr.rounded_rectangle(box, radius=radius, fill=255)
     out = Image.new("RGBA", img.size, (0, 0, 0, 0))
     out.paste(img, (0, 0), mask)
     return out
@@ -729,8 +733,9 @@ def render_menu() -> bytes:
         (f"{p}quote", "打开名言图帮助（等同 " + p + "quote help）。"),
         (f"{p}quote help", "名言图帮助图：布局、格式与用法说明。"),
         (f"{p}quote [@/QQ] 文本…",
-         "合成名言图：随机背景 + 黑色蒙版，左侧方形圆角头像，右侧笑死气泡里放文字或表情包，"
-         "右下角署名「—— 用户名」，输出 JPG。"),
+         "合成名言图：随机二次元背景 + 灰色蒙版，画面正中一块全模糊托盘，"
+         "托盘内左圆形头像、右文字或表情包，右下角署名「—— 用户名」；"
+         "静态内容出 JPG，动图表情包出 GIF。"),
     ], accent=WARN)
 
     _group(cv, "通用 · help", [
@@ -1162,24 +1167,25 @@ def render_notice(title: str, lines: list, kind: str = "info") -> bytes:
 
 # ============================================================================
 # 7) /quote —— 名言图（横屏 16:9）
-#    以中线左右分栏：左半是方形圆角头像，右半是类主页 UI 的磨砂玻璃气泡；
-#    背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版
-#    （默认透明度 95% → 不透明度 0.05）；右下角「—— 用户名」。
-#    气泡内容是动图表情包时输出 GIF，否则输出 JPG。
+#    左侧一块独立的长方形圆角头像；右侧铺满右半边的白色磨砂玻璃面板，
+#    面板左缘用横向渐变蒙版渐隐，和中间的背景有过渡（不会出现硬边）。
+#    背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版；
+#    右下角「—— 用户名」（字体跟随全局 FONT_FAMILY）。
+#    内容是动图表情包时输出 GIF，否则输出 JPG。
 # ============================================================================
 QUOTE_PAD_X = 56            # 左右留白
 QUOTE_PAD_Y = 48            # 上下留白
-QUOTE_AV = 236              # 头像边长（正方形）
-QUOTE_AV_R = 44             # 头像圆角半径
-QUOTE_AV_GAP = 44           # 气泡左边缘与中线的间距（头像与气泡之间的呼吸位）
-QUOTE_BUB_PAD = 36          # 气泡内边距
-QUOTE_BUB_R = 22            # 气泡圆角（对齐主页气泡观感）
-QUOTE_BUB_TAIL = 22         # 气泡左侧指向头像的小尖角长度
-QUOTE_BUB_MIN_H = 132       # 气泡最小高度
-QUOTE_MAX_BODY = 460        # 气泡内容区最大高度（可由 config.QUOTE_MAX_BODY 覆盖）
+QUOTE_AV = 236              # 左侧独立头像的宽度（高度 = 宽度 × QUOTE_AV_RATIO）
+QUOTE_AV_RATIO = 1.32       # 头像高宽比（长方形圆角）
+QUOTE_AV_R = 30             # 头像圆角
+QUOTE_TRAY_PAD = 48         # 玻璃面板内边距
+QUOTE_TRAY_GAP = 40         # 头像与玻璃面板之间的呼吸位
+QUOTE_TRAY_BLUR = 30        # 玻璃面板的模糊半径（磨砂核心）
+QUOTE_TRAY_GLASS = 0.58     # 玻璃浓度（越大越白、越不透）
+QUOTE_TRAY_FADE = 0.16      # 面板左缘渐隐过渡区占面板宽度的比例
+QUOTE_MAX_BODY = 460        # 内容区最大高度（可由 config.QUOTE_MAX_BODY 覆盖）
 QUOTE_NAME_SIZE = 40        # 右下角署名（破折号 + 用户名）字号
 QUOTE_NAME_DY = 56          # 署名基线距画布底部
-QUOTE_TAIL = QUOTE_BUB_TAIL  # 兼容旧名
 
 
 def _cover(img: Image.Image, w: int, h: int) -> Image.Image:
@@ -1197,14 +1203,14 @@ def _cover(img: Image.Image, w: int, h: int) -> Image.Image:
 def _quote_bg(w: int, h: int, bg_bytes: bytes | None) -> Image.Image:
     """背景层：随机二次元图（与主页背景同一个接口）+ 灰色蒙版。
 
-    蒙版不透明度取 config.QUOTE_MASK_ALPHA（默认 0.05 = 透明度 95%，背景清晰可见）。
-    注意顺序：蒙版只叠在背景层上；头像与气泡随后绘制，位于蒙版之上，
-    也就是「背景 → 灰色蒙版 → 前景（头像 / 气泡）」。
+    蒙版不透明度取 config.QUOTE_MASK_ALPHA（默认 0.35 = 35% 灰，背景仍可辨认）。
+    注意顺序：蒙版只叠在背景层上；托盘、头像与文字随后绘制，位于蒙版之上，
+    也就是「背景 → 灰色蒙版 → 前景（托盘 / 头像 / 文字）」。
     """
     try:
-        alpha = float(getattr(config, "QUOTE_MASK_ALPHA", 0.05))
+        alpha = float(getattr(config, "QUOTE_MASK_ALPHA", 0.35))
     except Exception:
-        alpha = 0.05
+        alpha = 0.35
     alpha = min(1.0, max(0.0, alpha))
 
     base = None
@@ -1222,33 +1228,39 @@ def _quote_bg(w: int, h: int, bg_bytes: bytes | None) -> Image.Image:
                     fill=(int(82 - 36 * k), int(78 - 34 * k), int(96 - 42 * k)))
     if alpha > 0:
         veil = Image.new("RGB", (w, h), (128, 128, 128))    # 灰色蒙版
-        base = Image.composite(veil, base, Image.new("L", (w, h), int(round(alpha * 255))))
+        # 用 blend 按比例真正混色；旧版 composite 的 mask 只有 alpha*255，
+        # 取整后基本全取原图，等于「蒙版被背景图完全挡住」。
+        base = Image.blend(base, veil, alpha)
     return base
 
 
 def _quote_default_avatar(size: int, ch: str = "") -> Image.Image:
-    """没有头像时的占位：深色渐变方块 + 首字（同样方形圆角）"""
-    im = Image.new("RGB", (size, size), (52, 48, 60))
+    """没有头像时的占位：深色渐变长方形圆角 + 首字"""
+    w = int(size)
+    h = int(round(size * QUOTE_AV_RATIO))
+    im = Image.new("RGB", (w, h), (52, 48, 60))
     dd = ImageDraw.Draw(im)
-    for y in range(size):
-        k = y / max(1, size - 1)
-        dd.line([(0, y), (size, y)],
+    for y in range(h):
+        k = y / max(1, h - 1)
+        dd.line([(0, y), (w, y)],
                 fill=(int(78 - 30 * k), int(70 - 26 * k), int(92 - 34 * k)))
     if ch:
         try:
-            f = font(int(size * 0.42), True)
-            dd.text((size / 2, size / 2), ch, font=f, fill=(255, 255, 255), anchor="mm")
+            f = font(max(18, int(w * 0.42)), True)
+            dd.text((w / 2, h / 2), ch, font=f, fill=(255, 255, 255), anchor="mm")
         except Exception:
             pass
-    return _round_img(im, QUOTE_AV_R)
+    return _round_img(im, min(QUOTE_AV_R, min(w, h) // 2))
 
 
 def _quote_avatar(avatar: bytes | None, size: int, name: str) -> Image.Image:
-    """方形圆角头像：有图就用图（动图取首帧），否则占位"""
+    """左侧独立头像：长方形圆角，有图就用图（动图取首帧），否则占位"""
+    w = int(size)
+    h = int(round(size * QUOTE_AV_RATIO))
     if avatar:
         try:
-            src = _cover(_first_frame(avatar).convert("RGB"), size, size)
-            return _round_img(src, QUOTE_AV_R)
+            src = _cover(_first_frame(avatar).convert("RGB"), w, h)
+            return _round_img(src, min(QUOTE_AV_R, min(w, h) // 2))
         except Exception:
             pass
     ch = ""
@@ -1259,59 +1271,71 @@ def _quote_avatar(avatar: bytes | None, size: int, name: str) -> Image.Image:
     return _quote_default_avatar(size, ch)
 
 
-def _quote_bubble(canvas: Image.Image, x: int, y: int, w: int, h: int,
-                  radius: int = QUOTE_BUB_R, tail: int = QUOTE_BUB_TAIL):
-    """磨砂玻璃气泡（类主页 UI 气泡）。
+def _quote_panel(canvas: Image.Image, x: int, y: int, w: int, h: int,
+                 fade: int | None = None):
+    """白色磨砂玻璃面板（铺满右半边）。
 
-    做法：把气泡覆盖（含左侧小尖角）范围内的背景（此时已经叠过灰色蒙版）
-    裁出来做一次大半径高斯模糊，再混入半透明暖白玻璃 + 顶部反光，
-    最后以「圆角矩形 + 尖角」为蒙版贴回画布，并描一圈亮边。
+    做法：把面板覆盖范围内的背景（已经叠过灰色蒙版）整块裁出来做一次
+    大半径高斯模糊 —— 这就是「磨砂」；再压一层高浓度暖白玻璃 + 顶部反光。
+    贴回时用一张横向渐变蒙版：面板左缘 alpha 从 0 递增到满，
+    于是左边缘整体透明、和中间的背景自然衔接（没有硬边）。
 
-    气泡属于「前景」，画在灰色蒙版之上、内容之下。返回画布上的 ImageDraw。
+    面板属于「前景」，画在灰色蒙版之上、头像与文字之下。返回画布上的 ImageDraw。
     """
-    mw, mh = int(w) + int(tail), int(h)
     x, y, w, h = int(x), int(y), int(w), int(h)
-
-    # 圆角矩形 + 左侧指向头像的尖角，合成一张透明度蒙版
-    mask = Image.new("L", (mw, mh), 0)
-    md = ImageDraw.Draw(mask)
-    md.rounded_rectangle([tail, 0, tail + w - 1, h - 1], radius=radius, fill=255)
-    ty = max(18, min(60, h // 4))
-    md.polygon([(tail + 3, ty), (0, ty + tail // 2), (tail + 3, ty + tail)], fill=255)
-
-    ox, oy = x - tail, y
-    region = canvas.crop((ox, oy, ox + mw, oy + mh)).convert("RGB")
-    try:                                   # 磨砂：糊掉背后的背景图
-        blurred = region.filter(ImageFilter.GaussianBlur(radius=max(8, min(28, h // 10))))
+    region = canvas.crop((x, y, x + w, y + h)).convert("RGB")
+    try:
+        radius = float(getattr(config, "QUOTE_TRAY_BLUR", QUOTE_TRAY_BLUR) or QUOTE_TRAY_BLUR)
+    except Exception:
+        radius = float(QUOTE_TRAY_BLUR)
+    try:
+        blurred = region.filter(ImageFilter.GaussianBlur(radius=max(6.0, radius)))
     except Exception:
         blurred = region
-    glass = Image.new("RGB", (mw, mh), (255, 254, 251))
-    fused = Image.blend(blurred, glass, 0.62)          # 半透明暖白玻璃
     try:
-        fused = ImageEnhance.Brightness(fused).enhance(1.05)
+        amount = float(getattr(config, "QUOTE_TRAY_GLASS", QUOTE_TRAY_GLASS) or QUOTE_TRAY_GLASS)
+    except Exception:
+        amount = float(QUOTE_TRAY_GLASS)
+    glass = Image.new("RGB", (w, h), (255, 254, 251))
+    fused = Image.blend(blurred, glass, min(0.96, max(0.20, amount)))
+    try:
+        fused = ImageEnhance.Brightness(fused).enhance(1.04)
     except Exception:
         pass
-    canvas.paste(fused, (ox, oy), mask)
 
-    d = ImageDraw.Draw(canvas)
-    # 顶部一条淡淡的玻璃反光
-    shine = Image.new("L", (mw, mh), 0)
-    ImageDraw.Draw(shine).rounded_rectangle(
-        [tail + 5, 4, tail + w - 6, max(8, int(h * 0.34))],
-        radius=max(4, radius - 6), fill=48)
-    canvas.paste(Image.new("RGB", (mw, mh), (255, 255, 255)), (ox, oy), shine)
+    if fade is None:
+        fade = int(max(60.0, w * QUOTE_TRAY_FADE))
+    fade = int(max(0, min(w, fade)))
 
-    # 玻璃亮边（含尖角两边）
-    d = ImageDraw.Draw(canvas)
-    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=radius,
-                        outline=(255, 255, 255), width=2)
-    d.line([(x, ty), (x - tail, ty + tail // 2)], fill=(255, 255, 255), width=2)
-    d.line([(x - tail, ty + tail // 2), (x, ty + tail)], fill=(255, 255, 255), width=2)
-    return d
+    mask = Image.new("L", (w, h), 0)
+    md = ImageDraw.Draw(mask)
+    if fade > 0:
+        # 左缘渐变：0 → 255，幂次让过渡更柔（前面慢、后面快）
+        for i in range(fade):
+            a = int(round(255.0 * ((i + 1) / float(fade)) ** 1.6))
+            md.line([(i, 0), (i, h - 1)], fill=max(0, min(255, a)))
+        if fade < w:
+            md.rectangle([fade, 0, w - 1, h - 1], fill=255)
+    else:
+        md.rectangle([0, 0, w - 1, h - 1], fill=255)
+    canvas.paste(fused, (x, y), mask)
+
+    # 顶部一条淡淡的玻璃反光（同样跟随渐变蒙版，别在左缘切出硬边）
+    shine = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(shine).rectangle([0, 0, w - 1, max(8, int(h * 0.16))], fill=38)
+    if fade > 0:
+        for i in range(fade):
+            k = (i + 1) / float(fade)
+            for yy in range(0, max(8, int(h * 0.16))):
+                cur = shine.getpixel((i, yy))
+                shine.putpixel((i, yy), int(cur * (k ** 1.6)))
+    canvas.paste(Image.new("RGB", (w, h), (255, 255, 255)), (x, y), shine)
+
+    return ImageDraw.Draw(canvas)
 
 
 def _quote_text_layout(meas, text: str, max_w: int, max_h: int):
-    """自动字号：从大往小试探，直到换行后的总高度能装进气泡；返回 (font, lines, line_h)"""
+    """自动字号：从大往小试探，直到换行后的总高度能装进玻璃面板内容区；返回 (font, lines, line_h)"""
     try:
         hi = int(getattr(config, "QUOTE_TEXT_MAX", 68))
     except Exception:
@@ -1372,17 +1396,17 @@ def _gif_frames(data: bytes) -> list:
 
 
 def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
-                 images: list | None = None, bg: bytes | None = None,
-                 name_font=None) -> bytes:
+                 images: list | None = None, bg: bytes | None = None) -> bytes:
     """名言图（横屏 16:9）：
 
-    - 以中线左右分栏：左半是方形圆角头像，右半是类主页 UI 的磨砂玻璃气泡；
-    - 气泡内容为文字（自动字号）或表情包（自适应缩放）；内容是动图时输出 GIF；
+    - 左侧一块独立的长方形圆角头像（高度 = 宽度 × QUOTE_AV_RATIO），垂直居中；
+    - 右侧是铺满右半边的白色磨砂玻璃面板，面板左缘做横向渐变渐隐，
+      和中间的背景自然衔接；面板里放文字（自动字号）或表情包（自适应缩放）；
+    - 内容是动图时输出 GIF，否则输出 JPG；
     - 背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版
-      （不透明度 config.QUOTE_MASK_ALPHA，默认 0.05 = 透明度 95%），
-      蒙版只压背景，头像与气泡都在蒙版之上；
-    - 右下角「—— 用户名」，字体默认取 config.QUOTE_NAME_FONT，
-      也可由 name_font 逐次指定（None / inherit = 跟随全局字体 config.FONT_FAMILY）。
+      （不透明度 config.QUOTE_MASK_ALPHA，默认 0.35），蒙版只压背景，
+      玻璃面板与头像都在蒙版之上；
+    - 右下角「—— 用户名」，字体跟随全局 config.FONT_FAMILY（不单独配置）。
 
     返回 JPG 或 GIF 的字节流（调用方用 _sniff_image 判断 mime）。
     """
@@ -1392,25 +1416,32 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
     name = str(name or "").strip() or str(getattr(config, "QUOTE_NAME", "无名氏"))
 
     name_size = max(18, int(getattr(config, "QUOTE_NAME_SIZE", QUOTE_NAME_SIZE) or QUOTE_NAME_SIZE))
-    bottom_reserve = name_size + 34                 # 底部给署名让位
-    band_h = max(120, height - py * 2 - bottom_reserve)   # 气泡可用的纵向空间
 
-    # ---- 中线分栏：左半头像 / 右半气泡 ----
-    half = width // 2
+    # ---- 玻璃面板：铺满右半边（整高），左缘一段渐变用来「衔接」背景 ----
+    panel_x = int(width // 2)
+    panel_w = int(width - panel_x)
+    fade = int(max(60.0, panel_w * QUOTE_TRAY_FADE))
+    fade = int(min(fade, max(0, panel_w - 120)))
+
+    # ---- 左侧独立头像：长方形圆角，垂直居中 ----
     av = max(96, int(getattr(config, "QUOTE_AVATAR", QUOTE_AV) or QUOTE_AV))
-    av = int(min(av, half - px * 2, height - py * 2))
-    av_x = max(px, half // 2 - av // 2)
-    av_y = max(py, (height - av) // 2)
+    av = int(min(av, max(96, panel_x - px - QUOTE_TRAY_GAP - 120)))
+    av_h = int(round(av * QUOTE_AV_RATIO))
+    if av_h > height - py * 2:
+        av_h = max(120, height - py * 2)
+        av = int(round(av_h / QUOTE_AV_RATIO))
+    av_x = px
+    av_y = max(py, (height - av_h) // 2)
 
-    bx = half + QUOTE_AV_GAP
-    bw = max(240, width - bx - px)
-    inner_w = max(120, bw - QUOTE_BUB_PAD * 2)
-    max_body = max(160, int(getattr(config, "QUOTE_MAX_BODY", QUOTE_MAX_BODY) or QUOTE_MAX_BODY))
-    max_body = int(min(max_body, max(80, band_h - QUOTE_BUB_PAD * 2)))
+    # ---- 面板内的内容区（避开左缘渐隐区，右下角给署名留位） ----
+    tray_pad = QUOTE_TRAY_PAD
+    inner_x = panel_x + fade + int(tray_pad * 0.6)
+    inner_w = max(160, width - px - inner_x)
+    inner_h = max(120, height - py * 2 - name_size - 24)
 
     meas = ImageDraw.Draw(Image.new("RGB", (8, 8)))
 
-    # ---- 气泡内容：优先表情包（动图则逐帧保留） ----
+    # ---- 内容：优先表情包（动图则逐帧保留），否则文字自动字号 ----
     raw_frames = []
     if images:
         for data in images:
@@ -1420,43 +1451,39 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
     body_frames = []
     for fr_img, dur in raw_frames:
         try:
-            fitted = _fit(fr_img, inner_w, max_body)
+            fitted = _fit(fr_img, inner_w, inner_h)
         except Exception:
             continue
         if fitted.size[0] > 0 and fitted.size[1] > 0:
             body_frames.append((fitted, dur))
     body_h = max([f.size[1] for f, _ in body_frames] or [0])
+    content_w = max([f.size[0] for f, _ in body_frames] or [0])
 
     f_text = lines = None
     line_h = 0
     if not body_frames:
         payload = str(text or "").strip() or "……"
-        f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, max_body)
+        f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, inner_h)
         body_h = line_h * len(lines)
+        try:
+            content_w = max([int(meas.textlength(ln, font=f_text)) for ln in lines] or [0])
+        except Exception:
+            content_w = inner_w
+    content_w = int(min(inner_w, max(120, content_w)))
 
-    bub_h = int(min(band_h, max(QUOTE_BUB_MIN_H, body_h + QUOTE_BUB_PAD * 2)))
-    by = max(py, (height - bub_h) // 2)
-
-    # ---- 背景（含灰色蒙版）→ 头像 → 磨砂玻璃气泡 → 署名：前景全在蒙版之上 ----
+    # ---- 背景（含灰色蒙版）→ 右半边磨砂玻璃 → 左侧头像 → 内容：前景全在蒙版之上 ----
     canvas = _quote_bg(width, height, bg)
+
+    d = _quote_panel(canvas, panel_x, 0, panel_w, height, fade)
 
     av_img = _quote_avatar(avatar, av, name)
     canvas.paste(av_img, (av_x, av_y), av_img)
-    ImageDraw.Draw(canvas).rounded_rectangle(
-        [av_x, av_y, av_x + av - 1, av_y + av - 1],
-        radius=QUOTE_AV_R, outline=(255, 255, 255), width=4)
 
-    d = _quote_bubble(canvas, bx, by, bw, bub_h)
+    body_ox = inner_x + max(0, (inner_w - content_w) // 2)
+    body_oy = max(py, (height - body_h) // 2)
 
-    body_ox = bx + QUOTE_BUB_PAD
-    body_oy = by + QUOTE_BUB_PAD
-
-    # ---- 右下角：破折号 + 用户名（字体可单独配置，inherit = 跟随全局字体） ----
-    if name_font is None:
-        name_family = str(getattr(config, "QUOTE_NAME_FONT", "inherit") or "inherit")
-    else:
-        name_family = str(name_font or "inherit") or "inherit"
-    nf = font(name_size, True, name_family)
+    # ---- 右下角：破折号 + 用户名（字体跟随全局字体，不再单独配置） ----
+    nf = font(name_size, True)
     label = "—— " + name
     nx, ny = width - px, height - QUOTE_NAME_DY
     for dx, dy in ((2, 2), (-2, 2), (2, -2), (-2, -2)):
@@ -1471,7 +1498,7 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
             yy += line_h
     elif len(body_frames) == 1:
         single = body_frames[0][0]
-        ox = body_ox + max(0, (inner_w - single.size[0]) // 2)
+        ox = body_ox + max(0, (content_w - single.size[0]) // 2)
         oy = body_oy + max(0, (body_h - single.size[1]) // 2)
         canvas.paste(single, (int(ox), int(oy)), single)
 
@@ -1485,7 +1512,7 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
                                    optimize=True, progressive=True)
         return buf.getvalue()
 
-    # ---- 多帧表情包 → GIF（共用一个底图，只换气泡里那一块） ----
+    # ---- 多帧表情包 → GIF（共用一个底图，只换托盘里那一块） ----
     try:
         max_frames = max(2, int(getattr(config, "QUOTE_GIF_MAX_FRAMES", 60) or 60))
     except Exception:
@@ -1501,7 +1528,7 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
     out_frames, durations = [], []
     for img, dur in picked:
         frame = canvas.copy()
-        ox = body_ox + max(0, (inner_w - img.size[0]) // 2)
+        ox = body_ox + max(0, (content_w - img.size[0]) // 2)
         oy = body_oy + max(0, (body_h - img.size[1]) // 2)
         frame.paste(img, (int(ox), int(oy)), img)
         out_frames.append(frame.convert("RGB").convert("P", palette=Image.ADAPTIVE, colors=256))
@@ -1535,16 +1562,17 @@ def render_quote_help() -> bytes:
     ])
 
     _group(cv, "成品长什么样", [
-        ("版式", "横屏 16:9，以中线左右分栏。"),
-        ("背景", "随机二次元图（与主页背景同一个接口）+ 灰色蒙版（默认透明度 95%）。"),
-        ("头像", "左半边居中的方形圆角头像（有图用图，动图取首帧）。"),
-        ("气泡", "右半边磨砂玻璃气泡：带文字时自动调整字号；带表情包时自适应缩放。"),
+        ("版式", "横屏 16:9，画面正中一块全模糊托盘，里面左头像、右内容。"),
+        ("背景", "随机二次元图（与主页背景同一个接口）+ 灰色蒙版（默认不透明度 35%）。"),
+        ("托盘", "托盘范围内的背景整块高斯模糊，再压一层暖白玻璃，边缘带亮边。"),
+        ("头像", "托盘左侧的圆形头像（有图用图，动图取首帧）。"),
+        ("内容", "托盘右侧放文字或表情包：文字自动调整字号，表情包自适应缩放。"),
         ("署名", "右下角「—— 用户名」，字体可单独设置。"),
         ("格式", "内容是文字或静态图 → JPG；内容是动图表情包 → GIF。"),
     ], accent=BLUE)
 
     _group(cv, "小提示", [
-        ("附图当内容", "把表情包和指令一起发（或引用一张图），气泡里就会显示这张图。"),
+        ("附图当内容", "把表情包和指令一起发（或引用一张图），托盘里就会显示这张图。"),
         ("文字兜底", "既没附文字也没附图时，会给一句占位文案，避免出空图。"),
     ], accent=OK)
 

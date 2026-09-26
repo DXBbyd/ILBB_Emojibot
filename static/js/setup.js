@@ -423,6 +423,8 @@
             h += '</div>';
         });
         $('cfgBox').innerHTML = h;
+        // 接管刚渲染出来的 ILBB 自定义下拉（按钮文案 / 选中态同步）
+        if (window.ilbbInit) window.ilbbInit($('cfgBox'));
     }
 
     function fieldHtml(it) {
@@ -439,11 +441,27 @@
                 (on ? ' checked' : '') + dis + '><span class="sw-track"></span>' +
                 '<span class="sw-txt" data-sw="' + id + '">' + (on ? '开' : '关') + '</span></label>';
         } else if (type === 'select') {
+            // ILBB 自定义下拉（不用浏览器原生 select）；真实值写进隐藏 input，
+            // 隐藏 input 保留 id 与 data-key，collectConfig 的取数契约完全不变。
             var opts = (it.options || []).map(function (o) {
-                var v = o[0], lb = (o.length > 1 && o[1] !== '') ? o[1] : o[0];
-                return '<option value="' + esc(v) + '"' + (String(v) === val ? ' selected' : '') + '>' + esc(lb) + '</option>';
+                var v = String(o[0]), lb = (o.length > 1 && o[1] !== '') ? String(o[1]) : String(o[0]);
+                return { v: v, lb: lb };
+            });
+            var hit = opts.filter(function (o) { return o.v.toLowerCase() === val.toLowerCase(); })[0];
+            var cur = hit ? hit.v : (opts[0] ? opts[0].v : '');
+            var men = opts.map(function (o) {
+                return '<li class="ilbb-select-opt" role="option" data-value="' + esc(o.v) +
+                    '" data-search="' + esc(o.lb) + '" aria-selected="false">' +
+                    '<span class="ilbb-select-opt-main">' + esc(o.lb) + '</span>' +
+                    '<span class="ilbb-select-opt-code">' + esc(o.v) + '</span>' +
+                    '<span class="ilbb-select-tick">✓</span></li>';
             }).join('');
-            ctrl = '<select class="inp" id="' + id + '" data-key="' + esc(key) + '">' + opts + '</select>';
+            ctrl = '<div class="ilbb-select" data-select="setup_' + esc(key) + '" data-target="' + id + '">' +
+                '<input type="hidden" id="' + id + '" data-key="' + esc(key) + '" value="' + esc(cur) + '"' +
+                dis + '>' +
+                '<button type="button" class="ilbb-select-btn" aria-haspopup="listbox" aria-expanded="false">' +
+                '<span class="ilbb-select-text">请选择</span><span class="ilbb-select-caret"></span></button>' +
+                '<ul class="ilbb-select-menu" role="listbox">' + men + '</ul></div>';
         } else if (type === 'secret') {
             ctrl = '<input type="password" class="inp" id="' + id + '" data-key="' + esc(key) + '" data-type="secret" value=""' +
                 ' placeholder="' + (it.configured ? '已设置，留空表示不改动' : '未设置') + '" autocomplete="new-password"' + dis + '>';
@@ -601,6 +619,127 @@
             goto(3);
         }).catch(function (e) { toast(e.message, 'err'); });
     }
+
+    // ---------- ILBB 自定义下拉（本页精简版，无动态数据源） ----------
+    // 结构 / 类名与主页完全一致（.ilbb-select > 隐藏 input + button + ul），样式共用 css/ilbb.css。
+    // 引导页不加载 ws.js，所以这里自带一套交互；若主页那套已存在则让位（两页不会同时出现）。
+    function ilbbInput(box) {
+        var tid = box.getAttribute('data-target');
+        var inp = tid ? document.getElementById(tid) : null;
+        return inp || box.querySelector('input[type="hidden"]');
+    }
+
+    function ilbbOptText(li) {
+        var m = li.querySelector('.ilbb-select-opt-main');
+        return (m ? m.textContent : li.getAttribute('data-value')) || '';
+    }
+
+    // 把隐藏 input 的真实值回显到按钮文字 + 勾选态
+    function ilbbSync(root) {
+        var scope = root || document;
+        if (!scope.querySelectorAll) return;
+        Array.prototype.forEach.call(scope.querySelectorAll('.ilbb-select'), function (box) {
+            var inp = ilbbInput(box);
+            if (!inp) return;
+            var cur = inp.value == null ? '' : String(inp.value);
+            var hit = null;
+            Array.prototype.forEach.call(box.querySelectorAll('.ilbb-select-opt'), function (li) {
+                var on = String(li.getAttribute('data-value')) === cur;
+                li.setAttribute('aria-selected', on ? 'true' : 'false');
+                if (on) hit = li;
+            });
+            var txt = box.querySelector('.ilbb-select-text');
+            if (txt) txt.textContent = hit ? ilbbOptText(hit) : '请选择';
+            var btn = box.querySelector('.ilbb-select-btn');
+            if (btn) {
+                btn.disabled = !!inp.disabled;
+                btn.setAttribute('aria-expanded', box.classList.contains('open') ? 'true' : 'false');
+            }
+        });
+    }
+
+    function ilbbCloseAll(except) {
+        Array.prototype.forEach.call(document.querySelectorAll('.ilbb-select.open'), function (b) {
+            if (b === except) return;
+            b.classList.remove('open');
+            var btn = b.querySelector('.ilbb-select-btn');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function ilbbToggle(box, force) {
+        var btn = box.querySelector('.ilbb-select-btn');
+        if (!btn || btn.disabled) return;
+        var open = (typeof force === 'boolean') ? force : !box.classList.contains('open');
+        ilbbCloseAll(open ? box : null);
+        box.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function ilbbPick(box, li) {
+        var inp = ilbbInput(box);
+        if (!inp || inp.disabled || !li) return;
+        inp.value = li.getAttribute('data-value');
+        ilbbToggle(box, false);
+        ilbbSync(box);
+        var btn = box.querySelector('.ilbb-select-btn');
+        if (btn) {
+            btn.classList.remove('just-picked');
+            void btn.offsetWidth;                       // 强制重排，让动画能连点重放
+            btn.classList.add('just-picked');
+        }
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    var _ilbbBound = false;
+    function ilbbBind() {
+        if (_ilbbBound) return;
+        _ilbbBound = true;
+
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            var opt = t.closest('.ilbb-select-opt');
+            if (opt) {
+                var ob = opt.closest('.ilbb-select');
+                if (ob) { e.preventDefault(); ilbbPick(ob, opt); return; }
+            }
+            var btn = t.closest('.ilbb-select-btn');
+            if (btn) {
+                var bb = btn.closest('.ilbb-select');
+                if (bb) { e.preventDefault(); ilbbToggle(bb); return; }
+            }
+            if (!t.closest('.ilbb-select-menu')) ilbbCloseAll(null);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            var box = document.querySelector('.ilbb-select.open');
+            if (!box) return;
+            if (e.key === 'Escape') { ilbbToggle(box, false); return; }
+            var lis = Array.prototype.slice.call(box.querySelectorAll('.ilbb-select-opt'));
+            if (!lis.length) return;
+            var cur = box.querySelector('.ilbb-select-opt.hover');
+            var at = lis.indexOf(cur);
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                at = (e.key === 'ArrowDown')
+                    ? (at < 0 ? 0 : Math.min(lis.length - 1, at + 1))
+                    : (at < 0 ? lis.length - 1 : Math.max(0, at - 1));
+                lis.forEach(function (l) { l.classList.remove('hover'); });
+                lis[at].classList.add('hover');
+                if (lis[at].scrollIntoView) lis[at].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                ilbbPick(box, at >= 0 ? lis[at] : lis[0]);
+            }
+        });
+    }
+
+    window.ILBBSelect = { sync: ilbbSync };             // 与主页同名 API，供共用代码调用
+    window.ilbbInit = function (root) {                 // 渲染完一批下拉后调用
+        ilbbBind();
+        ilbbSync(root || document);
+    };
 
     // ---------- 绑定 ----------
     function bind() {

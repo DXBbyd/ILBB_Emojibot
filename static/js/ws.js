@@ -1102,7 +1102,9 @@
             var st = sel.getAttribute('data-state');
             if (!(st === 'loading' || (st === 'error' && !val))) {
                 var main = hit ? hit.querySelector('.ilbb-select-opt-main') : null;
-                txt.textContent = main ? main.textContent : (val ? val : '请选择');
+                // data-prefix 只是可选前缀（名言图那个字体下拉要显示「全局字体：」）
+                var pf = sel.getAttribute('data-prefix') || '';
+                txt.textContent = pf + (main ? main.textContent : (val ? val : '请选择'));
             }
         }
         // 动态下拉：按钮左侧同步所选对象头像
@@ -1119,8 +1121,10 @@
         all('.ilbb-select', root || document).forEach(syncOneSelect);
     }
 
+    // 不要限定在 #wsApiParams 里 —— 名言图等面板也用同一套下拉，
+    // 限定作用域会导致在那些面板里点空白处 / 按 Esc 收不起来。
     function closeSelects(except) {
-        all('#wsApiParams .ilbb-select.open').forEach(function (s) {
+        all('.ilbb-select.open').forEach(function (s) {
             if (s === except) return;
             s.classList.remove('open');
             var b = s.querySelector('.ilbb-select-btn');
@@ -1130,7 +1134,11 @@
 
     function pickOption(sel, opt) {
         var hid = $(sel.getAttribute('data-target'));
-        if (hid) hid.value = opt.getAttribute('data-value') || '';
+        if (hid) {
+            hid.value = opt.getAttribute('data-value') || '';
+            // 广播 change：让别处复用这套下拉的面板（如名言图字体）能跟着自己的下拉一起变
+            try { hid.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { /* 忽略 */ }
+        }
         sel.classList.remove('open');
         var btn = sel.querySelector('.ilbb-select-btn');
         if (btn) {
@@ -1188,6 +1196,14 @@
         all('.ilbb-select', root).forEach(function (sel) {
             var btn = sel.querySelector('.ilbb-select-btn');
             if (!btn) return;
+            if (sel.getAttribute('data-ilbb-bound') === '1') {
+                // 已经初始化过：只补绑外部（如名言图字体）新填进来的选项并同步显示，
+                // 免得重复挂监听导致点一次开合两回。
+                bindOptions(sel);
+                syncOneSelect(sel);
+                return;
+            }
+            sel.setAttribute('data-ilbb-bound', '1');
             var menu = sel.querySelector('.ilbb-select-menu');
             if (menu) {
                 // 菜单内部的一切点击都不该冒泡到 document（否则会立刻收起）
@@ -1213,10 +1229,20 @@
                 });
             }
             bindOptions(sel);
+            // 视口下方放不下浮层时改成向上展开（配合 ilbb.css 的 .drop-up）
+            function placeMenu() {
+                sel.classList.remove('drop-up');
+                var r = btn.getBoundingClientRect();
+                var below = window.innerHeight - r.bottom;
+                var menu = sel.querySelector('.ilbb-select-menu');
+                var need = menu ? Math.min(menu.scrollHeight || 264, 264) + 14 : 278;
+                if (below < need && r.top > below) sel.classList.add('drop-up');
+            }
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var willOpen = !sel.classList.contains('open');
                 closeSelects(sel);
+                if (willOpen) placeMenu();
                 all('.ilbb-select-opt', sel).forEach(function (o) { o.classList.remove('hover'); });
                 sel.classList.toggle('open', willOpen);
                 btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
@@ -1405,6 +1431,9 @@
         document.addEventListener('click', function () { closeSelects(); });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSelects(); });
 
+        // 页面里静态写死的 ILBB 下拉（如配对卡字体）统一在这里初始化
+        initSelects(document);
+
         // 二级 tabs 滑块：初始定位 + 窗口尺寸变化后重新贴合
         movePill(true);
         var rsTimer = null;
@@ -1451,6 +1480,20 @@
         fetchFriends: fetchFriendList,
         fetchGroups: fetchGroupList,
         fetchMembers: fetchMemberList
+    };
+
+    // 通用便捷入口：别的脚本（比 ws.js 先加载）动态渲染出 .ilbb-select 后可调它初始化，
+    // 内部自动等 window.ILBBSelect 就绪（轮询），省得每个脚本各写一份定时器。
+    window.ilbbInit = function (root) {
+        var tries = 0;
+        (function tick() {
+            if (window.ILBBSelect && window.ILBBSelect.init) {
+                try { window.ILBBSelect.init(root || document); } catch (e) { /* 忽略 */ }
+                return;
+            }
+            if (tries++ > 60) return;      // 最多等 3 秒
+            setTimeout(tick, 50);
+        })();
     };
 
     if (document.readyState === 'loading') {

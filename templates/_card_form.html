@@ -10,14 +10,28 @@
             <input type="text" id="qqInput" placeholder="例如：3157037483" maxlength="11" pattern="\d*">
         </div>
 
-        <!-- 字体选择 -->
+        <!-- 字体选择（ILBB 自定义下拉，不用浏览器原生 select） -->
         <div class="form-group">
             <label>字体</label>
-            <select id="fontSelect">
-                {% for key, name in font_options.items() %}
-                <option value="{{ key }}" {% if loop.first %}selected{% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
+            <div class="ilbb-select" data-select="card_font" data-target="fontSelect">
+                <input type="hidden" id="fontSelect"
+                       value="{{ (font_options.keys() | list | first) if font_options else '' }}">
+                <button type="button" class="ilbb-select-btn" aria-haspopup="listbox"
+                        aria-expanded="false">
+                    <span class="ilbb-select-text">读取中…</span>
+                    <span class="ilbb-select-caret"></span>
+                </button>
+                <ul class="ilbb-select-menu" role="listbox">
+                    {% for key, name in font_options.items() %}
+                    <li class="ilbb-select-opt" role="option" data-value="{{ key }}"
+                        data-search="{{ name }}" aria-selected="false">
+                        <span class="ilbb-select-opt-main">{{ name }}</span>
+                        <span class="ilbb-select-opt-code">{{ key }}</span>
+                        <span class="ilbb-select-tick">✓</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
             <div style="font-size:12px;color:#b0b4c0;margin-top:4px;">
                 字体文件存放在 <code style="background:#f0f2f5;padding:1px 8px;border-radius:4px;">font/</code> 文件夹
             </div>

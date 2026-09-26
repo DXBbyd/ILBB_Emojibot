@@ -56,14 +56,57 @@ document.addEventListener('DOMContentLoaded', function() {
                 var slot = document.createElement('div');
                 slot.className = 'btn-slot';
 
-                var sel = document.createElement('select');
+                // 类型选择用 ILBB 自定义下拉（不用浏览器原生 select）；
+                // sel 仍是承载真实值的隐藏 input，sel.value / change 契约完全不变。
+                var sel = document.createElement('input');
+                sel.type = 'hidden';
                 sel.className = 'slot-type';
+                sel.id = 'slotType' + idx;
+                sel.value = 'text';
+
+                var selBox = document.createElement('div');
+                selBox.className = 'ilbb-select';
+                selBox.setAttribute('data-select', 'slot_type_' + idx);
+                selBox.setAttribute('data-target', sel.id);
+
+                var selBtn = document.createElement('button');
+                selBtn.type = 'button';
+                selBtn.className = 'ilbb-select-btn';
+                selBtn.setAttribute('aria-haspopup', 'listbox');
+                selBtn.setAttribute('aria-expanded', 'false');
+                var selTxt = document.createElement('span');
+                selTxt.className = 'ilbb-select-text';
+                selTxt.textContent = '请选择';
+                var selCaret = document.createElement('span');
+                selCaret.className = 'ilbb-select-caret';
+                selBtn.appendChild(selTxt);
+                selBtn.appendChild(selCaret);
+
+                var selMenu = document.createElement('ul');
+                selMenu.className = 'ilbb-select-menu';
+                selMenu.setAttribute('role', 'listbox');
                 var opts = [['text', '纯文字'], ['icon_text', '图标+文字'], ['image', '纯图片']];
                 opts.forEach(function(o) {
-                    var opt = document.createElement('option');
-                    opt.value = o[0]; opt.textContent = o[1];
-                    sel.appendChild(opt);
+                    var li = document.createElement('li');
+                    li.className = 'ilbb-select-opt';
+                    li.setAttribute('role', 'option');
+                    li.setAttribute('data-value', o[0]);
+                    li.setAttribute('data-search', o[1]);
+                    li.setAttribute('aria-selected', 'false');
+                    var liMain = document.createElement('span');
+                    liMain.className = 'ilbb-select-opt-main';
+                    liMain.textContent = o[1];
+                    var liTick = document.createElement('span');
+                    liTick.className = 'ilbb-select-tick';
+                    liTick.textContent = '✓';
+                    li.appendChild(liMain);
+                    li.appendChild(liTick);
+                    selMenu.appendChild(li);
                 });
+
+                selBox.appendChild(sel);
+                selBox.appendChild(selBtn);
+                selBox.appendChild(selMenu);
 
                 var inp = document.createElement('input');
                 inp.type = 'text'; inp.className = 'slot-text'; inp.placeholder = '按钮文字';
@@ -77,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 lbl.className = 'slot-upload-label'; lbl.textContent = '上传图片';
                 up.appendChild(fi); up.appendChild(lbl);
 
-                slot.appendChild(sel);
+                slot.appendChild(selBox);
                 slot.appendChild(inp);
                 slot.appendChild(up);
 
@@ -123,6 +166,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 syncUI();
             })(i);
         }
+        // 槽位是动态生成的，渲染完统一初始化里面的自定义下拉
+        if (window.ilbbInit) window.ilbbInit(btnSlotGrid);
     }
 
     function slotUpdate() {

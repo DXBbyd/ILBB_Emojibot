@@ -15,7 +15,7 @@
 | 架构 | x86_64 / arm64 | 32 位（armv7 / i386）装不了 `skia-python` |
 | Python | **3.10 – 3.13，推荐 3.13** | 版本写死：`skia-python`、`Pillow` 等只发预编译 wheel，版本对不上直接装不上。**3.14 暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，10.x 没有 3.14 的 wheel） |
 | 磁盘 | ≥ 2 GB | 项目 + venv + 素材 |
-| 系统库 | fontconfig、libGL、libjpeg | 缺了运行时会报缺 `.so` |
+| 系统库 | fontconfig、libGL、libEGL、libjpeg | 缺了运行时会报缺 `.so` |
 | 路径 | **无空格、无中文** | 推荐 `/root/ilbb-bot` |
 | 端口 | 5000、6700 | 5000 = 工作台，6700 = OneBot V11 |
 
@@ -25,8 +25,10 @@
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
+sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
 ```
+
+`libegl1` 不能省：`skia-python` 从 138 版起在 Linux 上硬性依赖 `libEGL.so.1`，没有它启动就会报 `ImportError: libEGL.so.1: cannot open shared object file`。无头服务器还建议补上 `libgl1-mesa-dri`，让 OpenGL 能走 mesa 软件渲染兜底。
 
 中文字体项目已自带 3 个（在 `font/`），够用；想再补一套可装：
 
@@ -189,7 +191,15 @@ server {
 系统缺库，按提示补：
 
 ```bash
-sudo apt-get install -y libfontconfig1 libgl1 libjpeg-dev
+sudo apt-get install -y libfontconfig1 libgl1 libegl1 libjpeg-dev
+```
+
+**启动报 `ImportError: libEGL.so.1: cannot open shared object file`**
+就是上面那条里漏装 `libegl1`。`skia-python` 从 138 版起在 Linux 上必须有 `libEGL.so`，无头服务器再补一个软件渲染兜底：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri
 ```
 
 **`uv pip install skia-python` 报找不到匹配版本**

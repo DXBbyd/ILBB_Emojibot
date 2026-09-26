@@ -7,7 +7,7 @@
 | 你的机器 | 走这一篇 | 路上会碰到什么 |
 | --- | --- | --- |
 | Windows 10 / 11（64 位） | [Windows 部署](deploy-windows.md) | Python 可以跳过不装，交给 uv 拉；`icudtl.dat` 得拷进 Python 安装目录；防火墙放行 5000 / 6700 |
-| Linux 服务器 / 云主机 | [Linux 部署](deploy-linux.md) | 补 `libfontconfig1`、`libgl1` 等系统库；可以用 systemd 常驻，前面挂 Nginx |
+| Linux 服务器 / 云主机 | [Linux 部署](deploy-linux.md) | 补 `libfontconfig1`、`libgl1`、`libegl1` 等系统库；可以用 systemd 常驻，前面挂 Nginx |
 | 安卓手机（Termux） | [Android 部署](deploy-android.md) | 能跑，但 `skia-python` 在手机上没现成轮子，要自己编译；未做充分验证，请自行测试 |
 
 第一次接触这个项目，建议先在本机把 `/setup` 引导页跑通、素材下载完，再考虑搬到服务器或手机上。

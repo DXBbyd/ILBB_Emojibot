@@ -7,7 +7,7 @@ Three routes for three kinds of machines. The steps do not overlap, so pick one 
 | Your machine | Take this route | What you will run into |
 | --- | --- | --- |
 | Windows 10 / 11 (64-bit) | [Windows deployment](deploy-windows.md) | You can skip installing Python entirely and let uv fetch it; copy `icudtl.dat` into the Python install dir; open ports 5000 / 6700 in the firewall |
-| Linux server / cloud host | [Linux deployment](deploy-linux.md) | Install `libfontconfig1`, `libgl1` and friends; keep it alive with systemd and put Nginx in front |
+| Linux server / cloud host | [Linux deployment](deploy-linux.md) | Install `libfontconfig1`, `libgl1`, `libegl1` and friends; keep it alive with systemd and put Nginx in front |
 | Android phone (Termux) | [Android deployment](deploy-android.md) | It runs, but there is no prebuilt `skia-python` wheel for phones so you compile it yourself; not thoroughly validated, test at your own risk |
 
 If this is your first time with the project, get `/setup` working and the assets downloaded on your own machine first, then move to a server or a phone.

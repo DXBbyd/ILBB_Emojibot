@@ -52,7 +52,7 @@ From here on, all commands are executed inside this Ubuntu environment (the prom
 
 ```bash
 apt-get update
-apt-get install -y curl git libfontconfig1 libgl1 libjpeg-dev
+apt-get install -y curl git libfontconfig1 libgl1 libegl1 libjpeg-dev
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 uv --version

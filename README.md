@@ -61,15 +61,15 @@
 
 ### 1. 准备环境
 
-- **Python 3.10 – 3.13（64 位），推荐 3.13** —— 版本与位数是写死的：`skia-python`、`Pillow` 等依赖只发预编译 wheel，对不上直接装不上。**3.14 及更高暂不支持**（meme 引擎锁了 `Pillow ^10.0.0`，而 10.x 没有 3.14 的 wheel）。
-- Windows：从 [python.org](https://www.python.org/downloads/) 或 Microsoft Store 安装，安装时勾选 `Add to PATH`。
+- **Python 3.10 – 3.13（64 位），推荐 3.13**
+- Windows：从 [python.org](https://www.python.org/downloads/)  `Add to PATH`。
 - Linux：用发行版包管理器或 `uv`（见 [Linux 部署](docs/zh/deploy-linux.md)）。
 
 ### 2. 获取代码
 
 ```bash
-git clone -b beta https://github.com/<你的用户名>/<仓库名>.git
-cd <仓库名>
+git clone -b beta https://github.com/DXBbyd/ILBB_Emojibot.git
+cd ILBB_Emojibot
 ```
 
 > 当前发布在 **`beta`** 分支；仓库**不含 meme 素材**（约 254MB），克隆后首次启动由引导页自动联网补全。

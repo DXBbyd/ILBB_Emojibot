@@ -63,6 +63,9 @@
         clear: document.getElementById('wcClearBtn'),
         seed: document.getElementById('wcSeedBtn'),
         quick: document.getElementById('wcQuick'),
+        panel: document.getElementById('wcPanel'),
+        slash: document.getElementById('wcSlashBtn'),
+        panelClose: document.getElementById('wcPanelClose'),
         uid: document.getElementById('wcUid'),
         uname: document.getElementById('wcUname'),
         peerName: document.getElementById('wcPeerName'),
@@ -310,6 +313,46 @@
         }).join('');
     }
 
+    // ---------------------------------------------------------------- 斜杠面板
+    // 原右侧栏（常用指令 / 模拟身份 / 会话信息）收进一个小面板，由输入框右侧的 / 开关
+    function panelOpen() {
+        if (!el.panel) { return; }
+        el.panel.classList.remove('hidden');
+        if (el.slash) {
+            el.slash.classList.add('on');
+            el.slash.setAttribute('aria-expanded', 'true');
+        }
+    }
+    function panelClose() {
+        if (!el.panel || el.panel.classList.contains('hidden')) { return; }
+        el.panel.classList.add('hidden');
+        if (el.slash) {
+            el.slash.classList.remove('on');
+            el.slash.setAttribute('aria-expanded', 'false');
+        }
+    }
+    function panelToggle() {
+        if (!el.panel) { return; }
+        if (el.panel.classList.contains('hidden')) { panelOpen(); } else { panelClose(); }
+    }
+
+    if (el.slash) {
+        el.slash.addEventListener('click', function (e) {
+            e.stopPropagation();     // 别让外部点击监听立刻把它关掉
+            panelToggle();
+        });
+    }
+    if (el.panelClose) { el.panelClose.addEventListener('click', panelClose); }
+    document.addEventListener('click', function (e) {
+        if (!el.panel || el.panel.classList.contains('hidden')) { return; }
+        if (el.panel.contains(e.target)) { return; }
+        if (el.slash && el.slash.contains(e.target)) { return; }
+        panelClose();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { panelClose(); }
+    });
+
     // ---------------------------------------------------------------- 示例图
     function makeSampleImage() {
         var c = document.createElement('canvas');
@@ -394,9 +437,12 @@
     el.quick.addEventListener('click', function (e) {
         var chip = e.target.closest ? e.target.closest('.bot-quick-chip') : null;
         if (!chip) { return; }
-        var cmd = chip.getAttribute('data-cmd') || '';
-        if (el.input) { el.input.value = cmd; }
-        send(cmd);
+        // 只填入输入框，不直接发送；改完再自己按发送
+        if (el.input) {
+            el.input.value = chip.getAttribute('data-cmd') || '';
+            el.input.focus();
+        }
+        panelClose();
     });
 
     // ---------------------------------------------------------------- 启动
@@ -451,7 +497,7 @@
         if (el.input) { el.input.focus(); }
     }
 
-    function stop() { /* 会话状态留在后端，无需清理 */ }
+    function stop() { panelClose(); /* 会话状态留在后端，无需清理 */ }
 
     // 视图切换：进入才初始化，离开停掉
     var switches = document.querySelectorAll('.view-switch');

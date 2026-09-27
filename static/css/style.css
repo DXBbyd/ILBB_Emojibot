@@ -164,10 +164,11 @@ body.bg-loading .bg-wall { opacity: 0; }
 }
 
 /* ===== 主体布局 ===== */
-.shell { flex: 1 1 0; min-height: 0; display: flex; }
-.views { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.shell { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; }
+/* min-width:0：窄屏下标签条等 nowrap 内容不再把整列撑宽（否则卡片被裁切） */
+.views { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
-.view { display: none; min-height: 0; flex: 1 1 0; flex-direction: column; overflow-y: auto; }
+.view { display: none; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; overflow-y: auto; }
 .view.active { display: flex; animation: viewIn .35s cubic-bezier(.22,.9,.28,1.2); }
 @keyframes viewIn {
   from { opacity: 0; transform: translateY(10px) scale(.985); }
@@ -522,8 +523,9 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 .bg-link-row input { font-family: var(--mono); color: var(--brand-deep); }
 .bg-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .bg-actions .btn-primary { width: auto; padding: 10px 16px; }
-.bg-upload { display: flex; align-items: center; gap: 10px; }
-.bg-upload input[type="file"] { font-size: 12px; }
+.bg-upload { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* 原生 file 控件固有宽度约 300px，不给 min-width:0 会把窄屏卡片撑破 */
+.bg-upload input[type="file"] { font-size: 12px; min-width: 0; flex: 1 1 auto; }
 .bg-saved-tip { font-size: 12px; color: var(--ok-text); opacity: 0; transition: opacity .3s; font-weight: 700; }
 .bg-saved-tip.on { opacity: 1; }
 
@@ -1145,15 +1147,15 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 /* ============================================================================
    Web 会话（Chat Console）：模拟私聊窗口，用来实测指令是否可用
    ========================================================================== */
-.wc-wrap {
-  display: grid; grid-template-columns: minmax(0, 1fr) 318px;
-  gap: 16px; align-items: start;
-}
+/* 侧栏已并入输入框右侧的 / 快捷面板，会话窗独占整行 */
+.wc-wrap { display: block; }
 
 /* ---------- 会话窗 ---------- */
 .wc-chat {
+  position: relative;                       /* 快捷面板的定位参照 */
+  --wc-compose-h: 65px;                     /* 输入区高度，面板靠它上移，避免压住输入框 */
   display: flex; flex-direction: column; overflow: hidden;
-  height: min(680px, calc(100vh - 190px)); min-height: 440px;
+  height: min(760px, calc(100vh - 180px)); min-height: 460px;
   background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--border-weak); border-radius: var(--radius-lg); box-shadow: var(--shadow);
   animation: wcRise .42s cubic-bezier(.2,.9,.28,1.06) backwards;
@@ -1297,6 +1299,23 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
   transition: transform .32s cubic-bezier(.2,.9,.3,1.2), background .2s ease;
 }
 .wc-plus:hover { background: var(--brand-soft); transform: rotate(90deg); }
+
+/* 输入框右侧的斜杠开关：快捷面板（常用指令 / 模拟身份 / 会话信息） */
+.wc-slash {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1;
+  color: var(--ink-2); background: var(--bg-2);
+  border: 1px solid var(--border); cursor: pointer;
+  transition: background .2s ease, color .2s ease, border-color .2s ease,
+              transform .24s cubic-bezier(.2,.9,.3,1.2), box-shadow .2s ease;
+}
+.wc-slash:hover { background: var(--brand-softer); color: var(--brand-deep); border-color: var(--brand-border); }
+.wc-slash.on {
+  background: var(--brand); color: #fff; border-color: transparent;
+  box-shadow: 0 4px 14px -4px var(--brand);
+}
+.wc-slash.on:hover { background: var(--brand-strong); color: #fff; }
 #wcInput {
   flex: 1 1 auto; min-width: 0; padding: 10px 15px;
   border: 1.5px solid var(--border); border-radius: var(--radius-pill);
@@ -1314,17 +1333,58 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 .wc-send:hover:not(:disabled) { background: var(--brand-strong); transform: translateY(-1px); box-shadow: var(--shadow); }
 .wc-send:disabled { opacity: .55; cursor: not-allowed; }
 
-/* ---------- 右侧栏 ---------- */
-.wc-side { display: flex; flex-direction: column; min-width: 0; }
-.wc-side .bot-block { animation: wcRise .42s cubic-bezier(.2,.9,.28,1.06) backwards; }
-.wc-side .bot-block:nth-child(2) { animation-delay: .06s; }
-.wc-side .bot-block:nth-child(3) { animation-delay: .12s; }
-.wc-side .bot-block:last-child { margin-bottom: 0; }
-.wc-side .bot-block-hint { margin-left: 0; }
+/* ---------- 快捷面板（原右侧栏，现由 / 开关浮出） ---------- */
+.wc-panel {
+  position: absolute; z-index: 30;
+  right: 12px; bottom: calc(var(--wc-compose-h) + 10px);
+  width: min(560px, calc(100% - 24px));
+  max-height: calc(100% - var(--wc-compose-h) - 80px);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 12px 13px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--glass-strong); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border-weak); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform-origin: bottom right;
+  animation: wcPanelIn .24s cubic-bezier(.2,.9,.28,1.06) backwards;
+}
+.wc-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border-weak);
+}
+.wc-panel-head b { font-size: 13.5px; color: var(--ink); letter-spacing: -.1px; }
+.wc-panel-x {
+  width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: var(--bg-2); color: var(--ink-3);
+  font-family: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.wc-panel-x:hover { background: var(--err); color: #fff; }
+/* 两栏：左边指令列表，右边身份 + 信息，整体矮一半，不用滚动 */
+.wc-panel-body {
+  display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr);
+  gap: 10px; align-items: start;
+}
+.wc-panel-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* 面板里的分块去掉外阴影、收紧留白，避免小面板显得臃肿 */
+.wc-panel .bot-block { margin-bottom: 0; padding: 11px 13px 12px; background: var(--bg-0); box-shadow: none; }
+.wc-panel .bot-block-head { margin-bottom: 8px; }
+.wc-panel .bot-block-head h3 { font-size: 13px; }
+.wc-panel .wc-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-bottom: 8px; }
+.wc-panel .wc-field { margin-bottom: 7px; }
 
-#wcQuick { margin-bottom: 0; }
-#wcQuick .bot-quick-chip { display: inline-flex; align-items: center; gap: 7px; }
-#wcQuick .bot-quick-chip span { font-family: var(--font); font-weight: 600; color: var(--ink-3); }
+/* 常用指令：整行一条，点一下只填入输入框 */
+#wcQuick { display: flex; flex-direction: column; gap: 7px; margin-bottom: 0; }
+#wcQuick .bot-quick-chip {
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+  text-align: left; border-radius: 10px; padding: 6px 10px;
+}
+#wcQuick .bot-quick-chip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#wcQuick .bot-quick-chip span {
+  font-family: var(--font); font-weight: 600; color: var(--ink-3);
+  margin-left: auto; flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .wc-field { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
 .wc-field > span { width: 46px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--ink-2); }
@@ -1345,6 +1405,7 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 .wc-info-row b { font-family: var(--mono); font-weight: 800; color: var(--ink); }
 
 @keyframes wcRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wcPanelIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes wcPop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes wcDot {
   0%, 60%, 100% { opacity: .3; transform: translateY(0); }
@@ -1354,8 +1415,7 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
 @media (max-width: 900px) {
   .bot-cmd-list, .bot-meme-grid { grid-template-columns: 1fr 1fr; }
   .bot-block-hint { margin-left: 0; }
-  .wc-wrap { grid-template-columns: 1fr; }
-  .wc-chat { height: min(560px, calc(100vh - 160px)); }
+  .wc-chat { height: min(640px, calc(100vh - 160px)); }
 }
 
 @media (max-width: 640px) {
@@ -1366,7 +1426,16 @@ textarea.ep-input { resize: vertical; font-family: var(--mono); font-size: 12.5p
   .wc-img-box { max-width: 220px; }
   .wc-compose { gap: 8px; padding: 10px; }
   .wc-send { padding: 10px 15px; }
-  .wc-plus { width: 34px; height: 34px; font-size: 18px; }
+  .wc-plus, .wc-slash { width: 34px; height: 34px; font-size: 18px; }
+  .wc-slash { font-size: 16px; }
+  /* 窄屏：面板贴底铺开（贴底比浮在输入框上更省高度），两栏并回一栏；
+     顶部留出头部高度，避免把「示例图 / 清空会话」也盖住 */
+  .wc-panel {
+    left: 8px; right: 8px; width: auto;
+    bottom: 8px;
+    max-height: calc(100% - 76px);
+  }
+  .wc-panel-body { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* 尊重系统「减弱动态效果」设置 */
@@ -1997,7 +2066,6 @@ button, [role="button"], .view-switch, .ws-tab, .meme-filter, .meme-item,
   .main-panel { gap: 14px; padding: 16px; }
   .control-panel { flex: 0 0 340px; padding: 18px; }
   .meme-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 14px; padding: 16px; }
-  .wc-wrap { grid-template-columns: minmax(0, 1fr) 288px; }
   .ws-clients { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 }
 
@@ -2041,7 +2109,7 @@ button, [role="button"], .view-switch, .ws-tab, .meme-filter, .meme-item,
   .ws-events { max-height: 62vh; }
   .ws-ev-where { max-width: 150px; }
   .ep-result { max-height: 300px; }
-  .wc-chat { height: min(70vh, calc(100dvh - 150px)); min-height: 380px; }
+  .wc-chat { height: min(78vh, calc(100dvh - 130px)); min-height: 420px; }
 
   /* 子标签条：单行横滑，滑块位移已按 scrollLeft 修正 */
   .ws-tabs {
@@ -2064,6 +2132,8 @@ button, [role="button"], .view-switch, .ws-tab, .meme-filter, .meme-item,
   .key-table { min-width: 660px; }
   .usage-table { min-width: 360px; }
   .bg-type-row, .btnmode-row { flex-wrap: wrap; }
+  .bg-upload { flex: 1 1 100%; }
+  .bg-actions .btn-primary { flex: 1 1 auto; }
 
   /* iOS 聚焦输入框会放大整页：窄屏统一用 16px 字号，规避自动缩放 */
   input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),

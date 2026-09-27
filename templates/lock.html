@@ -9,7 +9,8 @@
     <title>ILBB Emoji Bot</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        a, button, .user { touch-action: manipulation; }
         html, body { height: 100%; }
         body {
             background-color: #faf9f5;
@@ -152,6 +153,25 @@
             .clock { font-size: 72px; }
             .user-avatar { width: 96px; height: 96px; }
             .pwd-box { width: 90vw; }
+        }
+        /* 窄屏小机（≤360px）：时钟再收一档，避免 72px 字号溢出 */
+        @media (max-width: 360px) {
+            .clock { font-size: 58px; letter-spacing: 2px; }
+            .date { font-size: 19px; }
+            .user-name { font-size: 19px; }
+            .user-avatar { width: 84px; height: 84px; }
+        }
+        /* 横屏矮屏：时钟/头像整体上移幅度收敛，输入行不被推出屏幕 */
+        @media (max-height: 520px) and (orientation: landscape) {
+            .clock { font-size: 64px; margin: 6px 0 2px; }
+            .date { font-size: 18px; }
+            .user { margin-top: 4vh; }
+            .user-avatar { width: 78px; height: 78px; margin-bottom: 8px; }
+            .lock-wrap.opened .user { transform: translateY(-6vh) scale(.94); }
+            .lock-wrap.opened .date { transform: translateY(-30vh) scale(.45); }
+            .lock-wrap.opened .clock { transform: translateY(-26vh) scale(.45); }
+            .pwd-box { margin-top: 10px; }
+            .sysinfo { display: none; }
         }
     </style>
 </head>

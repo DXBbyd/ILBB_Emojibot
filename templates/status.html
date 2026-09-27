@@ -6,7 +6,8 @@
 <title>ILBB Emoji Bot</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+a, button { touch-action: manipulation; }
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background: #f0f2f5; min-height: 100vh; padding: 32px;
@@ -69,6 +70,24 @@ body {
 .spinner { width: 26px; height: 26px; border: 3px solid #e8ecf2; border-top-color: #2d7aff; border-radius: 50%; margin: 0 auto 14px; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #errBanner { display: none; background: #ffebee; color: #c62828; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; font-size: 14px; }
+
+/* ===== 移动端：栅格改单列 / 双列，卡片不再被固定 minmax 撑破 ===== */
+@media (max-width: 768px) {
+    body { padding: 16px 14px; }
+    .head h1 { font-size: 19px; }
+    .head-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+    .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stat { padding: 14px 12px; border-radius: 14px; }
+    .stat .n { font-size: 24px; }
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .card { padding: 16px; border-radius: 16px; }
+    .kv { gap: 12px; }
+    .kv .v { min-width: 0; }
+}
+@media (max-width: 400px) {
+    .overview { grid-template-columns: minmax(0, 1fr); }
+    .head-actions .btn, .head-actions .link-back { min-height: 40px; display: inline-flex; align-items: center; }
+}
 </style>
 </head>
 <body>

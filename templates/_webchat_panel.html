@@ -8,7 +8,6 @@
     </div>
 
     <div class="wc-wrap">
-        <!-- ============ 左：会话窗 ============ -->
         <section class="wc-chat">
             <header class="wc-chat-head">
                 <div class="wc-avatar wc-avatar-bot" id="wcPeerAvatar"><img class="wc-avatar-img" src="{{ url_for('static', filename='favicon.jpg') }}" alt=""></div>
@@ -36,44 +35,56 @@
                 <label class="wc-plus" for="wcFile" title="附带图片素材（可多选）">＋</label>
                 <input type="file" id="wcFile" accept="image/*" multiple class="hidden">
                 <input type="text" id="wcInput" placeholder="发送指令，例如：/help    /meme list    /pair 10001" autocomplete="off">
+                <button type="button" class="wc-slash" id="wcSlashBtn" aria-expanded="false" aria-controls="wcPanel" title="快捷面板：常用指令 / 模拟身份 / 会话信息">/</button>
                 <button type="button" id="wcSendBtn" class="wc-send">发送</button>
             </footer>
+
+            <!-- 斜杠快捷面板：由输入框右侧的 / 开关，浮在输入框上方 -->
+            <div class="wc-panel hidden" id="wcPanel" role="dialog" aria-label="快捷面板">
+                <div class="wc-panel-head">
+                    <b>快捷面板</b>
+                    <button type="button" class="wc-panel-x" id="wcPanelClose" title="收起">×</button>
+                </div>
+
+                <div class="wc-panel-body">
+                    <div class="wc-panel-col">
+                        <div class="bot-block">
+                            <div class="bot-block-head">
+                                <h3>常用指令</h3>
+                                <span class="bot-block-hint">点一下填入输入框</span>
+                            </div>
+                            <div class="bot-quick" id="wcQuick"></div>
+                        </div>
+                    </div>
+
+                    <div class="wc-panel-col">
+                        <div class="bot-block">
+                            <div class="bot-block-head"><h3>模拟身份</h3></div>
+                            <label class="wc-field">
+                                <span>QQ 号</span>
+                                <input type="text" id="wcUid" value="10001" autocomplete="off">
+                            </label>
+                            <label class="wc-field">
+                                <span>昵称</span>
+                                <input type="text" id="wcUname" value="调试用户" autocomplete="off">
+                            </label>
+                            <div class="bot-block-hint">用于 <code class="ws-code">/pair</code> 取昵称头像，以及 <code class="ws-code">@</code> 时的头像素材。</div>
+                        </div>
+
+                        <div class="bot-block">
+                            <div class="bot-block-head"><h3>会话信息</h3></div>
+                            <div class="wc-info" id="wcInfo">
+                                <div class="wc-info-row"><span>已发送</span><b id="wcStatTotal">0</b></div>
+                                <div class="wc-info-row"><span>回图</span><b id="wcStatImages">0</b></div>
+                                <div class="wc-info-row"><span>回文</span><b id="wcStatTexts">0</b></div>
+                                <div class="wc-info-row"><span>上次耗时</span><b id="wcStatMs">—</b></div>
+                                <div class="wc-info-row"><span>会话素材</span><b id="wcStatMem">0</b></div>
+                            </div>
+                            <div class="bot-block-hint" id="wcLastCmd">还没有发过指令。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
-
-        <!-- ============ 右：侧栏 ============ -->
-        <aside class="wc-side">
-            <div class="bot-block">
-                <div class="bot-block-head">
-                    <h3>常用指令</h3>
-                    <span class="bot-block-hint">点一下直接发</span>
-                </div>
-                <div class="bot-quick" id="wcQuick"></div>
-            </div>
-
-            <div class="bot-block">
-                <div class="bot-block-head"><h3>模拟身份</h3></div>
-                <label class="wc-field">
-                    <span>QQ 号</span>
-                    <input type="text" id="wcUid" value="10001" autocomplete="off">
-                </label>
-                <label class="wc-field">
-                    <span>昵称</span>
-                    <input type="text" id="wcUname" value="调试用户" autocomplete="off">
-                </label>
-                <div class="bot-block-hint">用于 <code class="ws-code">/pair</code> 取昵称头像，以及 <code class="ws-code">@</code> 时的头像素材。</div>
-            </div>
-
-            <div class="bot-block">
-                <div class="bot-block-head"><h3>会话信息</h3></div>
-                <div class="wc-info" id="wcInfo">
-                    <div class="wc-info-row"><span>已发送</span><b id="wcStatTotal">0</b></div>
-                    <div class="wc-info-row"><span>回图</span><b id="wcStatImages">0</b></div>
-                    <div class="wc-info-row"><span>回文</span><b id="wcStatTexts">0</b></div>
-                    <div class="wc-info-row"><span>上次耗时</span><b id="wcStatMs">—</b></div>
-                    <div class="wc-info-row"><span>会话素材</span><b id="wcStatMem">0</b></div>
-                </div>
-                <div class="bot-block-hint" id="wcLastCmd">还没有发过指令。</div>
-            </div>
-        </aside>
     </div>
 </div>

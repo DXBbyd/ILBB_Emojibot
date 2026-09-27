@@ -250,6 +250,6 @@ def setup(ctx):
 
 - 表情素材（约 254MB）不入库，首次启动由引导页从 meme-generator 仓库的 jsDelivr、raw.githubusercontent 等镜像拉取，候选地址写在 `core/meme_assets.py`。这批素材整合自 [nonebot-plugin-petpet](https://github.com/noneplugin/nonebot-plugin-petpet) 与 [nonebot-plugin-memes](https://github.com/noneplugin/nonebot-plugin-memes)。
 - 名言图、登录页与工作台的随机背景默认调用第三方接口 `BG_API_URL`（`https://api.yppp.net/api.php`）。想换就改 `.env`，或者改指自己缓存好的图。
-- 插件商店默认指向配套的插件源服务器 `PLUGIN_STORE_URL`（`http://miao.os.kg:5050/`），它给出插件清单与仓库地址，真正的代码仍从 GitHub 克隆；可以换成自建实例，或用 `PLUGIN_STORE_ENABLED=false` 关掉。
+- 插件商店默认指向配套的插件源服务器 `PLUGIN_STORE_URL`（`https://store.miao.os.kg/`），它给出插件清单与仓库地址，真正的代码仍从 GitHub 克隆；可以换成自建实例，或用 `PLUGIN_STORE_ENABLED=false` 关掉。
 - `font/` 下的三款字体与引擎自带字体只用于配对卡、名言图渲染，版权归各字体作者，商用前请自行确认授权。
 - Python 依赖见 `requirements.txt`（Flask、Pillow、skia-python、pil-utils、FastAPI 等），各自遵循其原始开源许可。表情素材的版权归各自原作者，本项目只做技术集成，请勿用于商业用途。

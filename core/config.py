@@ -432,7 +432,7 @@ PLUGIN_MAX_IMAGE_MB = max(1, get_int("PLUGIN_MAX_IMAGE_MB", 8))
 # 商店总开关。
 PLUGIN_STORE_ENABLED = get_bool("PLUGIN_STORE_ENABLED", True)
 # 插件源服务器地址（末尾斜杠会自动去掉）。
-PLUGIN_STORE_URL = (get_str("PLUGIN_STORE_URL", "http://miao.os.kg:5050").strip() or "").rstrip("/")
+PLUGIN_STORE_URL = (get_str("PLUGIN_STORE_URL", "https://store.miao.os.kg").strip() or "").rstrip("/")
 # 访问插件源 / 测速的超时（秒）。
 PLUGIN_STORE_TIMEOUT = max(2, get_int("PLUGIN_STORE_TIMEOUT", 10))
 # 插件列表缓存秒数（0 = 每次都重新拉）。

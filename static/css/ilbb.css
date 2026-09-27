@@ -137,3 +137,29 @@
 
 /* 注意：style.css 里同名的 wsFadeIn / wsPop / dynSpin 是现役动画，
  * 本文件用独立命名（ilbb*），两页共存时不会互相覆盖。 */
+
+/* ==========================================================================
+   触屏 / 移动端适配
+   引导页（setup.html）只加载 setup.css + 本文件，拿不到 style.css 里的触屏基座，
+   所以点击高亮的抑制必须在这里再写一遍。
+   ========================================================================== */
+.ilbb-select-btn,
+.ilbb-select-opt,
+.ilbb-select-search { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.ilbb-select-btn:focus-visible,
+.ilbb-select-opt:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+@media (max-width: 768px) {
+  /* 手机上给菜单限高，避免超出视口 */
+  .ilbb-select-menu { max-height: min(46vh, 320px); }
+  /* 触屏没有 hover，把选项行垫到 44px 便于点按 */
+  .ilbb-select-opt { padding: 12px; min-height: 44px; font-size: 13.5px; }
+  .ilbb-select-btn { min-height: 44px; }
+  /* 聚焦输入框不触发 iOS 自动放大整页 */
+  .ilbb-select-search { font-size: 16px; }
+}
+
+/* 触屏上 :hover 会「粘」在刚点过的选项上，留下缩进残留，这里中和掉 */
+@media (hover: none) {
+  .ilbb-select-opt:hover { padding-left: 11px; }
+}

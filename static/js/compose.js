@@ -32,7 +32,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var b = tabsWrap.getBoundingClientRect();
         if (!r.width) return;
         var bl = parseFloat(getComputedStyle(tabsWrap).borderLeftWidth) || 0;
-        var x = (r.left - b.left) - bl;
+        // 窄屏下标签条可横向滚动，滑块是 wrap 的子元素会跟着滚，位移必须补上 scrollLeft
+        var x = (r.left - b.left) - bl + tabsWrap.scrollLeft;
         if (instant) pill.style.transition = 'none';
         pill.style.width = r.width + 'px';
         pill.style.transform = 'translateX(' + x + 'px)';

@@ -59,6 +59,25 @@
   --blur: blur(16px) saturate(150%);
 }
 
+/* ===== 触屏基座：移除移动端/触屏点击控件时的默认蓝色高亮填充 =====
+   默认 tap-highlight 会在按钮、卡片、标签等元素上铺一层半透明蓝色方块，
+   与暖调主题冲突；统一改为透明，视觉反馈交给各自的 :active / :hover 规则。 */
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: rgba(201, 100, 66, 0);
+  -webkit-tap-highlight-color: transparent;
+}
+html, body { -webkit-tap-highlight-color: transparent; }
+
+/* 键盘可达性保留：仅在键盘聚焦时给出主题色焦点环，鼠标/触摸点击不再残留方块 */
+:focus:not(:focus-visible) { outline: none; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+
+/* 文本选中色跟随主题，避免浏览器默认蓝 */
+::selection { background: var(--brand-soft); color: var(--brand-deep); }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html { height: 100%; overflow: hidden; }
@@ -68,6 +87,7 @@ body {
   color: var(--ink);
   background: var(--bg-1);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -1947,3 +1967,163 @@ body.pg-modal-open { overflow: hidden; }
 #pgConfirmModal .pg-modal-head,
 #pgConfirmModal .pg-modal-foot { padding: 13px 18px; }
 #pgConfirmModal .pg-modal-foot .ws-btn { flex: 0 0 auto; }
+
+/* ==========================================================================
+   移动端 / 触屏适配（本节追加在文件末尾，靠后覆盖上面的桌面布局）
+   --------------------------------------------------------------------------
+   断点：≤1024 平板横屏｜≤768 平板竖屏与手机｜≤560 主流手机｜≤400 小屏手机
+   原则：双栏改单列 + 收紧留白 + 表格横向滚动 + 可点区域 ≥40px + iOS 输入不缩放
+   ========================================================================== */
+
+/* ---------- 通用触屏行为：只改交互手感，不动视觉 ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; }
+
+button, [role="button"], .view-switch, .ws-tab, .meme-filter, .meme-item,
+.ep-head, .tpl-item, .btn-clear-cache, .ws-btn, .btn-primary, .btn-ghost,
+.key-toolbar button, .bot-cmd-row, .bot-quick-chip, .ws-check, .bg-color {
+  touch-action: manipulation;
+}
+
+/* 惯性滚动 + 阻止滚动链传递（避免内层列表滚到底后带动整页橡皮筋） */
+.view, .console-layout, .main-panel, .meme-layout, .meme-list-wrap,
+.ws-events, #keysContent, .usage-block, .ws-tabs, .toolbar-center, .ilbb-select-menu {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ---------- ≤1024px：平板横屏，双栏收窄而不是直接变单列 ---------- */
+@media (max-width: 1024px) {
+  .main-panel { gap: 14px; padding: 16px; }
+  .control-panel { flex: 0 0 340px; padding: 18px; }
+  .meme-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 14px; padding: 16px; }
+  .wc-wrap { grid-template-columns: minmax(0, 1fr) 288px; }
+  .ws-clients { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+}
+
+/* ---------- ≤768px：平板竖屏 / 手机，一切双栏变单列 ---------- */
+@media (max-width: 768px) {
+  /* 顶部栏：logo 一行、导航一行（可横滑）、操作一行 */
+  .toolbar { padding: 10px 14px; gap: 8px; }
+  .toolbar-left { width: 100%; gap: 8px; }
+  .toolbar-left .logo { font-size: 16px; }
+  .toolbar-right { width: 100%; gap: 10px; }
+  .toolbar-center {
+    order: 3; width: 100%; margin-left: 0; padding-bottom: 1px;
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .toolbar-center::-webkit-scrollbar { display: none; }
+  .view-switch { flex: 0 0 auto; white-space: nowrap; padding: 8px 14px; }
+
+  /* 合成 · 卡片 / 名言图：左右分栏 → 上下堆叠，由容器统一滚动 */
+  .main-panel { flex-direction: column; gap: 14px; padding: 14px; overflow-y: auto; }
+  .control-panel { flex: 0 0 auto; width: 100%; height: auto; overflow: visible; padding: 16px; }
+  .preview-panel { flex: 0 0 auto; overflow: visible; padding: 16px; }
+  .preview-placeholder { min-height: 220px; }
+
+  /* 合成 · Meme：左右分栏 → 上下堆叠 */
+  .meme-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 14px; overflow-y: auto; }
+  .meme-left, .meme-right { overflow: visible; padding: 16px; }
+  .meme-list-wrap { max-height: 340px; }
+  .meme-imgslots { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+
+  /* 控制台类页面：留白收紧，栅格全部单列 */
+  .console-layout { padding: 14px 14px 30px; }
+  .console-layout .panel-sub { margin-bottom: 14px; }
+  .status-grid { grid-template-columns: minmax(0, 1fr); }
+  .ws-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .ws-clients { grid-template-columns: minmax(0, 1fr); }
+  .bg-card { max-width: 100%; padding: 16px; }
+  .bg-preview { height: 160px; }
+  .usage-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ws-debug-layout { gap: 12px; }
+  .ws-events { max-height: 62vh; }
+  .ws-ev-where { max-width: 150px; }
+  .ep-result { max-height: 300px; }
+  .wc-chat { height: min(70vh, calc(100dvh - 150px)); min-height: 380px; }
+
+  /* 子标签条：单行横滑，滑块位移已按 scrollLeft 修正 */
+  .ws-tabs {
+    width: auto; max-width: 100%; flex-shrink: 0;
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .ws-tabs::-webkit-scrollbar { display: none; }
+  .ws-tab { flex: 0 0 auto; white-space: nowrap; }
+  .ws-tabs-hint { flex: 0 0 auto; white-space: nowrap; margin: 0 10px 0 8px; }
+  #view-compose > .ws-tabs { margin: 12px 14px 14px; }
+
+  /* 工具栏：输入框独占一行，按钮平分剩余宽度 */
+  .key-toolbar { flex-wrap: wrap; gap: 8px; }
+  .key-toolbar input { flex: 1 1 100%; min-width: 0; }
+  .key-toolbar button { flex: 1 1 auto; }
+
+  /* 宽表格：容器横向滚动，而不是把列挤成一团 */
+  #keysContent, .usage-block { overflow-x: auto; }
+  .key-table { min-width: 660px; }
+  .usage-table { min-width: 360px; }
+  .bg-type-row, .btnmode-row { flex-wrap: wrap; }
+
+  /* iOS 聚焦输入框会放大整页：窄屏统一用 16px 字号，规避自动缩放 */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea, select { font-size: 16px !important; }
+
+  .toast {
+    max-width: 88vw; font-size: 12.5px;
+    bottom: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ---------- ≤560px：主流手机，进一步压缩尺寸 ---------- */
+@media (max-width: 560px) {
+  .toolbar { padding: 9px 12px; }
+  .toolbar-left .logo { font-size: 15px; }
+  .badge { font-size: 10.5px; padding: 2px 8px; }
+  .view-switch { padding: 7px 12px; font-size: 12.5px; }
+  .ws-tab { padding: 7px 13px; font-size: 12.5px; }
+
+  .console-layout { padding: 12px 12px 28px; }
+  .main-panel, .meme-layout { padding: 12px; gap: 12px; }
+  .control-panel, .preview-panel, .meme-left, .meme-right, .bg-card { padding: 14px; }
+  .panel-title { font-size: 16px; }
+  .preview-placeholder { min-height: 180px; }
+
+  .tpl-item { flex: 0 0 96px; padding: 9px 10px; }
+  .btnslot-grid { grid-template-columns: minmax(0, 1fr); }
+  .meme-item { height: auto; min-height: 48px; }
+  .meme-list-wrap { max-height: 300px; }
+  .usage-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .usage-cols { gap: 12px; }
+  .status-card { padding: 14px; }
+  .recent-item { flex-wrap: wrap; }
+  .key-toolbar { gap: 8px; }
+  .ws-btn { padding: 9px 14px; }
+  .ws-ev-where { max-width: 120px; }
+  .env-inp { padding: 8px 10px; }
+}
+
+/* ---------- ≤400px：小屏手机，隐藏次要信息、加大可点区域 ---------- */
+@media (max-width: 400px) {
+  .toolbar-left .logo { font-size: 14.5px; }
+  .cache-badge { display: none; }
+  .view-switch { padding: 7px 11px; }
+  .console-layout { padding: 10px 10px 26px; }
+  .control-panel, .preview-panel, .meme-left, .meme-right, .bg-card { padding: 12px; }
+  .status-card, .bg-card { border-radius: var(--radius); }
+  .usage-overview { grid-template-columns: minmax(0, 1fr); }
+  .meme-item { gap: 8px; }
+  .meme-item .meme-item-meta { font-size: 10.5px; }
+  /* 触屏下把关键控件垫到 40px 以上，减少误触 */
+  .view-switch, .ws-tab, .meme-filter, .btn-clear-cache, .ws-btn { min-height: 40px; }
+  .ws-check input { width: 18px; height: 18px; }
+  .bg-color { width: 44px; height: 44px; }
+}
+
+/* ---------- 横屏矮屏（如手机横放）：别再占满整屏高度 ---------- */
+@media (max-height: 520px) and (orientation: landscape) {
+  .wc-chat { height: calc(100dvh - 120px); min-height: 300px; }
+  .ws-events { max-height: 60vh; }
+  .preview-placeholder { min-height: 160px; }
+}

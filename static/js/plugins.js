@@ -422,7 +422,8 @@
         var b = wrap.getBoundingClientRect();
         if (!r.width) return;
         var bl = parseFloat(getComputedStyle(wrap).borderLeftWidth) || 0;
-        var x = (r.left - b.left) - bl;
+        // 窄屏下标签条可横向滚动，滑块是 wrap 的子元素会跟着滚，位移必须补上 scrollLeft
+        var x = (r.left - b.left) - bl + wrap.scrollLeft;
         if (instant) pill.style.transition = 'none';
         pill.style.width = r.width + 'px';
         pill.style.transform = 'translateX(' + x + 'px)';

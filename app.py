@@ -145,36 +145,57 @@ def load_font(font_key, size):
         return ImageFont.load_default()
 
 
+#: QQ 资料接口（bugpk qqinfo_v5）。返回结构::
+#:
+#:     {"success": true, "data": {"qq": ..., "name": "...",
+#:      "avatar": "https://q2.qlogo.cn/headimg_dl?dst_uin=...&spec=640"}}
+#:
+#: 注意 ``data.name`` 可能为空字符串，调用方必须回落到 QQ 号本身。
+QQ_INFO_API = "https://api.bugpk.com/api/qq_info"
+
+
 def get_qq_info(qq_number):
-    """通过API一次性获取QQ昵称和头像URL"""
-    url = f"https://api3.mhimg.cn/api/nickname?qq={qq_number}"
+    """通过API一次性获取QQ昵称和头像URL。
+
+    返回 ``(昵称, 头像URL)``。任何失败都回落为 ``(QQ号, None)``，
+    头像再由调用方用 qlogo 直链兜底 —— 第三方接口挂掉绝不能让配对卡画不出来。
+    """
+    qq_number = str(qq_number or "").strip()
+    fallback = (qq_number, None)
+    if not qq_number.isdigit():
+        return fallback
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(QQ_INFO_API, params={"qq": qq_number},
+                                timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         if response.status_code == 200:
-            response.encoding = 'utf-8'
             data = response.json()
-            if data.get("code") == "success":
-                info = data.get("data", {})
-                nickname = info.get("nickname", str(qq_number))
-                avatar_url = info.get("avatar_url", "")
+            if data.get("success") is True:
+                info = data.get("data") or {}
+                nickname = str(info.get("name") or "").strip() or qq_number
+                avatar_url = str(info.get("avatar") or "").strip() or None
                 return nickname, avatar_url
     except Exception as e:
         print(f"获取QQ信息出错: {e}")
-    return str(qq_number), None
+    return fallback
 
 
 def download_qq_avatar_from_url(avatar_url):
-    """从URL下载头像"""
+    """从URL下载头像。
+
+    qlogo 有两种规格参数写法（``s=`` / ``spec=``），小图（100/140）直接拉伸
+    到头像框会发糊，所以这里统一改写成 ``640`` 再下载。
+    """
     if not avatar_url:
         return None
     try:
-        if 's=140' in avatar_url:
-            avatar_url = avatar_url.replace('s=140', 's=640')
-        response = requests.get(avatar_url, timeout=10)
-        if response.status_code == 200:
+        avatar_url = avatar_url.replace("s=140", "s=640")
+        avatar_url = re.sub(r"spec=\d+", "spec=640", avatar_url)
+        response = requests.get(avatar_url, timeout=10,
+                                headers={"User-Agent": "Mozilla/5.0"})
+        if response.status_code == 200 and response.content:
             return Image.open(BytesIO(response.content)).convert("RGBA")
-    except:
-        pass
+    except Exception as e:
+        print(f"下载头像失败: {e}")
     return None
 
 
@@ -1000,8 +1021,6 @@ def cache_status():
 # ==================== Meme 表情包路由 ====================
 import platform
 
-QQ_NICK_API = "https://api3.mhimg.cn/api/nickname"
-
 
 def engine_font_status():
     """体检表情引擎实际能用到的字体。
@@ -1098,7 +1117,8 @@ def api_status():
     # 5) QQ 昵称/头像接口连通性（轻量探测）
     qq_api = {'reachable': None, 'http': None, 'error': None}
     try:
-        r = requests.get(QQ_NICK_API, timeout=4)
+        r = requests.get(QQ_INFO_API, params={"qq": "10000"}, timeout=4,
+                         headers={"User-Agent": "Mozilla/5.0"})
         qq_api['reachable'] = r.status_code < 500
         qq_api['http'] = r.status_code
     except Exception as e:

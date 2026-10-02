@@ -293,7 +293,6 @@ def cards():
 
     qq = str(d.get("qq", "")).strip()
     name = str(d.get("name", "")).strip()
-    text = str(d.get("text", "要与 {name} 配对吗？")).replace("{name}", name)
     btn_text = str(d.get("btn_text", "配对"))
     font = d.get("font", "default")
     bg = d.get("bg") or {}
@@ -305,6 +304,9 @@ def cards():
         if not name:
             name = qn or name
         avatar = download_qq_avatar_from_url(url) if url else None
+
+    # 标题必须在昵称解析之后再替换 {name}，否则自动取到的昵称会丢
+    text = str(d.get("text", "要与 {name} 配对吗？")).replace("{name}", name)
 
     # 按钮
     buttons = []

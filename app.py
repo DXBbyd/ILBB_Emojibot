@@ -150,20 +150,56 @@ def load_font(font_key, size):
 #:     {"success": true, "data": {"qq": ..., "name": "...",
 #:      "avatar": "https://q2.qlogo.cn/headimg_dl?dst_uin=...&spec=640"}}
 #:
-#: 注意 ``data.name`` 可能为空字符串，调用方必须回落到 QQ 号本身。
+#: 实测 bugpk 的 ``data.name`` 常常是空字符串（其昵称上游已失效），
+#: 所以昵称另有回落链：本机 OneBot → QQ 号（见 :func:`_nickname_from_bot`）。
+#: 头像 URL 一直可用，是当前最稳的头像来源。
 QQ_INFO_API = "https://api.bugpk.com/api/qq_info"
+
+#: 取自本机 OneBot 的昵称调用超时（秒）。取不到就回落，绝不让配对卡卡住。
+QQ_NAME_TIMEOUT = 6.0
+
+
+def _nickname_from_bot(qq_number):
+    """走机器人自己的 OneBot（NapCat）取昵称，取不到返回空串。
+
+    这是第三方资料接口的兜底：NapCat 直连 QQ 网络，比外部 API 更稳，
+    且与插件昵称系统同源。机器人没连上 / 调用失败 / 返回空值一律返回 ``""``。
+    """
+    qq_number = str(qq_number or "").strip()
+    if not qq_number.isdigit():
+        return ""
+    try:
+        import ws_server                       # 惰性导入，避免模块级循环依赖
+    except Exception:
+        return ""
+    try:
+        if not ws_server.is_running():
+            return ""
+    except Exception:
+        return ""
+    try:
+        ret = ws_server.call_api("get_stranger_info",
+                                 {"user_id": int(qq_number), "no_cache": True},
+                                 timeout=QQ_NAME_TIMEOUT)
+    except Exception:
+        return ""
+    data = ((ret or {}).get("response") or {}).get("data") or {}
+    return str(data.get("nickname") or "").strip()
 
 
 def get_qq_info(qq_number):
-    """通过API一次性获取QQ昵称和头像URL。
+    """获取 QQ 昵称和头像 URL，返回 ``(昵称, 头像URL)``。
 
-    返回 ``(昵称, 头像URL)``。任何失败都回落为 ``(QQ号, None)``，
-    头像再由调用方用 qlogo 直链兜底 —— 第三方接口挂掉绝不能让配对卡画不出来。
+    昵称优先级：第三方接口 ``name`` → 本机 OneBot → QQ 号本身；
+    头像只有第三方接口能给 URL，取不到返回 ``None``（调用方用 qlogo 直链兜底）。
+
+    任何一环失败都必须能继续 —— 第三方接口挂掉绝不能让配对卡画不出来。
     """
     qq_number = str(qq_number or "").strip()
     fallback = (qq_number, None)
     if not qq_number.isdigit():
         return fallback
+    nickname, avatar_url = "", None
     try:
         response = requests.get(QQ_INFO_API, params={"qq": qq_number},
                                 timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -171,31 +207,36 @@ def get_qq_info(qq_number):
             data = response.json()
             if data.get("success") is True:
                 info = data.get("data") or {}
-                nickname = str(info.get("name") or "").strip() or qq_number
+                nickname = str(info.get("name") or "").strip()
                 avatar_url = str(info.get("avatar") or "").strip() or None
-                return nickname, avatar_url
     except Exception as e:
         print(f"获取QQ信息出错: {e}")
-    return fallback
+    if not nickname:
+        nickname = _nickname_from_bot(qq_number)
+    if not avatar_url:
+        return nickname or qq_number, None
+    return nickname or qq_number, avatar_url
 
 
 def download_qq_avatar_from_url(avatar_url):
-    """从URL下载头像。
+    """从URL下载头像，失败重试一次。
 
     qlogo 有两种规格参数写法（``s=`` / ``spec=``），小图（100/140）直接拉伸
     到头像框会发糊，所以这里统一改写成 ``640`` 再下载。
+    偶发的连接抖动会重试一次，仍然失败返回 ``None``（调用方用 qlogo 直链兜底）。
     """
     if not avatar_url:
         return None
-    try:
-        avatar_url = avatar_url.replace("s=140", "s=640")
-        avatar_url = re.sub(r"spec=\d+", "spec=640", avatar_url)
-        response = requests.get(avatar_url, timeout=10,
-                                headers={"User-Agent": "Mozilla/5.0"})
-        if response.status_code == 200 and response.content:
-            return Image.open(BytesIO(response.content)).convert("RGBA")
-    except Exception as e:
-        print(f"下载头像失败: {e}")
+    url = re.sub(r"([?&]s=)\d+", r"\g<1>640", str(avatar_url))
+    url = re.sub(r"spec=\d+", "spec=640", url)
+    for attempt in range(2):
+        try:
+            response = requests.get(url, timeout=10,
+                                    headers={"User-Agent": "Mozilla/5.0"})
+            if response.status_code == 200 and response.content:
+                return Image.open(BytesIO(response.content)).convert("RGBA")
+        except Exception as e:
+            print(f"下载头像失败(第{attempt + 1}次): {e}")
     return None
 
 

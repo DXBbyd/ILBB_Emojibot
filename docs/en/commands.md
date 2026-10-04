@@ -33,9 +33,11 @@ A few behaviors that are easy to overlook:
 | `/meme` | `/表情` `/生图` | Emoji generation (表情 = emoji, 生图 = generate image) |
 | `/pair` | `/配对` `/卡片` | Generates a QQ-style pairing card (配对 = pairing, 卡片 = card) |
 | `/quote` | `/名言` `/名言图` | Generates a quote image (名言 = famous quote, 名言图 = quote image) |
+| `/plugin` | `/插件` | Plugin list: installed plugins with numbers, status and command overview (image) |
+| `/plugin help <number>` | `/plugin help <id>` | Usage help for one plugin (image: commands / notes / configurable items) |
 | `<插件触发词>` | — | Declared by the plugin's `plugin.json` |
 
-> If you send any unknown word other than `/help` on its own, the bot replies with a hint image saying "there is no such command" and tells you to use `/help` to see all commands.
+> An unknown word that matches no command is **silently ignored** (nothing is sent back), so the bot never clutters group chats. Send `/help` to see all commands.
 
 ---
 
@@ -204,6 +206,20 @@ The `plugins/example/` sample plugin registers:
 
 The parsing priority of plugin commands is **lower than built-in commands**: if a plugin trigger word collides with `/meme`, the built-in command wins. When writing a plugin, avoid the built-in names (`help` `menu` `meme` `表情` `生图` `pair` `配对` `卡片` `quote` `名言` `名言图`).
 
+### Plugin list and help
+
+```
+/plugin                  plugin list (image: number / status / command overview)
+/plugin list             same as above
+/plugin help 1           usage help for plugin #1 (image)
+/plugin help status      plugin id works too
+/plugin 1                same as /plugin help 1
+```
+
+Every plugin in the list has a number; the help image shows the plugin's **command usage, usage notes and
+configurable items**. Help content is declared in the plugin's `plugin.json` `help` block; when the author
+did not provide one, it gracefully falls back to listing the registered trigger words.
+
 See [plugin-dev.md](plugin-dev.md) for details.
 
 ---
@@ -237,6 +253,8 @@ The two share the same block of command parsing code (`run_command()`), so the p
 /pair @某人 template=paper btn=A|B    带模板与按钮
 /quote 这就是名言                     名言图
 /quote @某人 这就是名言                指名道姓的名言图
+/plugin                              插件列表（图片）
+/plugin help 1                       第 1 号插件的使用帮助（图片）
 ```
 
 [Back to docs home](index.md) ｜ [中文](../zh/commands.md)

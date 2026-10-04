@@ -226,6 +226,53 @@ def _norm_repo(url):
     return u.rstrip("/")
 
 
+#: 商店条目的名字常带这些前后缀，本地目录名 / 清单 id 未必带 → 比对前先剥掉。
+_ALIAS_STRIP = ("ilbb_plugin_", "ilbb-plugin-", "ilbb_", "ilbb-",
+                "plugin_", "plugin-", "ilbbplugin")
+
+
+def _alias_key(text):
+    """插件身份别名：小写 + 剥常见前后缀 + 去分隔符。
+
+    ``ilbb_plugin_example`` / ``ilbb-plugin-example`` / ``example`` 都会归到
+    ``example`` —— 这样商店条目才能认出「手工放进 plugins/ 的同一个插件」。
+    """
+    s = str(text or "").strip().lower()
+    if "/" in s:
+        s = s.rsplit("/", 1)[-1]
+    for pre in _ALIAS_STRIP:
+        if s.startswith(pre):
+            s = s[len(pre):]
+            break
+    return re.sub(r"[^a-z0-9]+", "", s)
+
+
+def _git_remote(folder):
+    """从 ``.git/config`` 读 origin 地址（不调用 git 命令；读不到返回 ``''``）。
+
+    只用于「这个目录是从哪个仓库来的」这一条线索，读不到不影响其它判断。
+    """
+    dot = os.path.join(folder, ".git")
+    cfg = os.path.join(dot, "config")
+    if os.path.isfile(dot):                     # worktree / submodule：.git 是个文件
+        try:
+            with open(dot, "r", encoding="utf-8", errors="replace") as f:
+                line = f.readline().strip()
+            if line.lower().startswith("gitdir:"):
+                cfg = os.path.join(line.split(":", 1)[1].strip(), "config")
+        except Exception:
+            return ""
+    if not os.path.isfile(cfg):
+        return ""
+    try:
+        with open(cfg, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except Exception:
+        return ""
+    m = re.search(r'\[remote "origin"\][^\[]*?url\s*=\s*(\S+)', text)
+    return m.group(1).strip() if m else ""
+
+
 def repo_of_clone_url(url):
     """把带前缀的地址还原成裸仓库地址（用于已安装比对 / 展示）。"""
     u = str(url or "").strip()
@@ -287,16 +334,159 @@ def _save_installed(items):
     os.replace(tmp, path)
 
 
-def installed_index():
-    """返回 {归一化仓库地址: {folder, id, ...}}，供商店列表打「已安装」标记。"""
-    idx = {}
-    for folder, rec in _load_installed().items():
-        if not isinstance(rec, dict):
+def disk_index():
+    """扫描 plugins/ 里**真实存在**的插件目录（有 plugin.json 才算），返回记录列表。
+
+    这是安装状态的事实来源：手工 clone / 复制进去、或 plugins_store.json 丢过，
+    只要目录还在，就应当被认成「已安装」。
+    """
+    root = _plugin_root_safe()
+    out = []
+    try:
+        names = sorted(os.listdir(root))
+    except Exception:
+        return out
+    for name in names:
+        if name.startswith((".", "_")):
             continue
-        key = _norm_repo(rec.get("repo"))
-        if key:
-            idx.setdefault(key, []).append(dict(rec, folder=folder))
-    return idx
+        folder = os.path.join(root, name)
+        if not os.path.isdir(folder) or not _looks_like_plugin(folder):
+            continue
+        man = {}
+        try:
+            with open(os.path.join(folder, MANIFEST_NAME), "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            man = loaded if isinstance(loaded, dict) else {}
+        except Exception:
+            man = {}
+        out.append({
+            "folder": name,
+            "path": folder,
+            "id": str(man.get("id") or name),
+            "name": str(man.get("name") or ""),
+            "version": str(man.get("version") or ""),
+            "author": str(man.get("author") or ""),
+            "repo": _norm_repo(_git_remote(folder)),
+            "source": "disk",
+        })
+    return out
+
+
+def _aliases_of(rec):
+    """一个本地插件目录可能被商店认出来的名字集合。"""
+    keys = set()
+    for field in ("folder", "id", "name"):
+        k = _alias_key(rec.get(field))
+        if k:
+            keys.add(k)
+    return keys
+
+
+def _item_keys(item):
+    """商店条目可能对应的「仓库地址集合 + 别名集合」。"""
+    repos, aliases = set(), set()
+    for field in ("clone_url", "repo", "ssh_url"):
+        k = _norm_repo(item.get(field))
+        if k:
+            repos.add(k)
+    for ver in item.get("versions") or []:
+        if isinstance(ver, dict):
+            k = _norm_repo(ver.get("clone_url") or ver.get("repo"))
+            if k:
+                repos.add(k)
+    for field in ("name", "slug", "repo_full_name", "chinese_name"):
+        k = _alias_key(item.get(field))
+        if k:
+            aliases.add(k)
+    return repos, aliases
+
+
+def installed_lookup():
+    """安装状态总索引：**以本地磁盘为准**，再用安装记录补来源信息。
+
+    返回 ``{"folders", "by_repo", "by_alias", "stale"}``：
+
+    * ``folders`` —— {目录名: 记录}，磁盘上有 plugin.json 的目录一定在里面（``source='disk'``）；
+      命中 ``plugins_store.json`` 记录时补 ``tracked=True`` 与安装来源（代理 / 分支 / 时间）。
+    * ``stale`` —— 记录里写了但目录已经不在了的（这些**不再**算「已安装」）。
+    """
+    root = _plugin_root_safe()
+    folders, by_repo, by_alias, stale = {}, {}, {}, []
+
+    for rec in disk_index():
+        folders[rec["folder"]] = rec
+
+    for folder, raw in _load_installed().items():
+        if not isinstance(raw, dict):
+            continue
+        key = safe_folder(folder)
+        if not os.path.isdir(os.path.join(root, key)):
+            stale.append({"folder": folder,
+                          "repo": str(raw.get("repo") or raw.get("clone_url") or "")})
+            continue
+        rec = folders.get(key)
+        if rec is None:
+            continue
+        rec["tracked"] = True
+        rec["installed_at"] = str(raw.get("installed_at") or "")
+        rec["proxy_label"] = str(raw.get("proxy_label") or "")
+        rec["branch"] = str(raw.get("branch") or "")
+        if not rec.get("repo"):
+            rec["repo"] = _norm_repo(raw.get("repo") or raw.get("clone_url"))
+
+    for rec in folders.values():
+        rec.setdefault("tracked", False)
+        repo = rec.get("repo") or ""
+        if repo:
+            by_repo.setdefault(repo, []).append(rec)
+        for alias in _aliases_of(rec):
+            by_alias.setdefault(alias, []).append(rec)
+
+    return {"folders": folders, "by_repo": by_repo, "by_alias": by_alias, "stale": stale}
+
+
+def installed_index():
+    """{归一化仓库地址: [记录, ...]}（保留给旧调用点）。"""
+    return installed_lookup()["by_repo"]
+
+
+def reconcile_state():
+    """把 ``plugins_store.json`` 里「目录已经不在了」的记录清掉（磁盘为准）。
+
+    返回清掉的条数。只在真有变化时才写文件。
+    """
+    state = _load_installed()
+    if not state:
+        return 0
+    root = _plugin_root_safe()
+    keep, dropped = {}, []
+    for folder, rec in state.items():
+        if os.path.isdir(os.path.join(root, safe_folder(folder))):
+            keep[folder] = rec
+        else:
+            dropped.append(folder)
+    if not dropped:
+        return 0
+    try:
+        _save_installed(keep)
+    except Exception as e:
+        _log("清理失效安装记录失败：%s" % e)
+        return 0
+    _log("清理 %d 条失效安装记录（目录已不在）：%s" % (len(dropped), "、".join(dropped)))
+    return len(dropped)
+
+
+def _drop_record(folder):
+    """从 ``plugins_store.json`` 里删掉一个目录的记录。"""
+    try:
+        items = _load_installed()
+        if folder in items:
+            items.pop(folder, None)
+            _save_installed(items)
+            return True
+    except Exception:
+        pass
+    return False
 
 
 # ----------------------------------------------------------------------------
@@ -331,14 +521,44 @@ def _fetch_store(q="", tag="", author=""):
     return {"ok": True, "data": data}
 
 
-def _decorate(item, idx):
-    """给源站记录补上「已安装 / 各加速地址」等本地信息。"""
+def _decorate(item, lookup):
+    """给源站记录补上「已安装」等本地信息。
+
+    判定顺序：**仓库地址精确匹配**优先（最可靠），其次才用「插件名别名」弱匹配
+    （``ilbb_plugin_example`` ↔ 本地 ``example``）。命中的目录来自本地磁盘扫描，
+    所以手工放进 plugins/ 的插件同样会被标成已安装。
+    """
     rec = dict(item) if isinstance(item, dict) else {}
-    clone = rec.get("clone_url") or ""
-    key = _norm_repo(clone) or _norm_repo(rec.get("repo"))
-    hits = idx.get(key) or []
-    rec["installed"] = bool(hits)
-    rec["installed_folders"] = [h.get("folder") for h in hits if h.get("folder")]
+    repos, aliases = _item_keys(rec)
+    hits, matched_by = [], ""
+    for key in sorted(repos):
+        got = lookup["by_repo"].get(key) or []
+        if got:
+            hits, matched_by = list(got), "repo"
+            break
+    if not hits:
+        for alias in sorted(aliases):
+            got = lookup["by_alias"].get(alias) or []
+            if got:
+                hits, matched_by = list(got), "alias"
+                break
+    seen, uniq = set(), []
+    for h in hits:
+        folder = h.get("folder")
+        if folder and folder not in seen:
+            seen.add(folder)
+            uniq.append(h)
+    rec["installed"] = bool(uniq)
+    rec["installed_folders"] = [h["folder"] for h in uniq]
+    rec["installed_ids"] = [h.get("id") for h in uniq if h.get("id")]
+    rec["installed_entries"] = [{
+        "folder": h.get("folder"), "id": h.get("id"), "version": h.get("version"),
+        "author": h.get("author"), "tracked": bool(h.get("tracked")),
+        "source": "store" if h.get("tracked") else "disk",
+    } for h in uniq]
+    rec["install_source"] = ("store" if any(h.get("tracked") for h in uniq)
+                             else ("disk" if uniq else ""))
+    rec["installed_matched_by"] = matched_by
     return rec
 
 
@@ -362,8 +582,9 @@ def list_plugins(q="", tag="", author="", force=False):
     data = resp["data"]
     items = data.get("plugins")
     items = items if isinstance(items, list) else []
-    idx = installed_index()
-    out = [_decorate(it, idx) for it in items]
+    reconcile_state()                       # 先把「目录已消失」的记录清掉，再算安装状态
+    lookup = installed_lookup()
+    out = [_decorate(it, lookup) for it in items]
     result = {
         "ok": True,
         "source": base,
@@ -373,7 +594,9 @@ def list_plugins(q="", tag="", author="", force=False):
         "updated_at": data.get("updated_at"),
         "cached": False,
         "can_install": git_available(),
-        "installed_count": len(_load_installed()),
+        "installed_count": len(lookup["folders"]),
+        "tracked_count": sum(1 for r in lookup["folders"].values() if r.get("tracked")),
+        "stale_count": len(lookup["stale"]),
         "updated": int(now),
     }
     with _lock:
@@ -413,7 +636,8 @@ def detail(key):
         err = data.get("error") if isinstance(data, dict) else None
         return {"ok": False, "error": err or "插件源没有这个插件"}
     rec = data.get("plugin") or {}
-    return {"ok": True, "plugin": _decorate(rec, installed_index()),
+    reconcile_state()
+    return {"ok": True, "plugin": _decorate(rec, installed_lookup()),
             "manifest": data.get("manifest") or {}, "store_url": base}
 
 
@@ -767,6 +991,8 @@ def _tail(text, limit=900):
 # ----------------------------------------------------------------------------
 def status():
     """商店概览：给前端一行式状态条用。"""
+    reconcile_state()
+    lookup = installed_lookup()
     return {
         "ok": True,
         "enabled": store_enabled(),
@@ -779,6 +1005,9 @@ def status():
         "proxy_count": len(proxies()),
         "candidates": candidates(),
         "installed": _load_installed(),
+        "disk": list(lookup["folders"].values()),
+        "stale": lookup["stale"],
+        "installed_count": len(lookup["folders"]),
         "state_path": _state_path(),
         "root": _plugin_root_safe(),
     }
@@ -792,9 +1021,29 @@ def _plugin_root_safe():
         return getattr(config, "PLUGIN_DIR", "plugins")
 
 
+def _pid_of_folder(path):
+    """按目录路径反查插件 id（目录还没被扫描到时返回空串）。"""
+    try:
+        import plugin_manager
+        summary = plugin_manager.list_plugins()
+    except Exception:
+        return ""
+    target = os.path.normpath(path)
+    for it in summary.get("plugins") or []:
+        if os.path.normpath(str(it.get("folder") or "")) == target:
+            return str(it.get("id") or "")
+    return ""
+
+
 def uninstall(folder, remove_files=True):
-    """从 plugins/ 里删掉一个插件目录（危险操作，需前端二次确认）。"""
-    folder = str(folder or "").strip()
+    """从 plugins/ 里删掉一个插件目录（危险操作，需前端二次确认）。
+
+    顺序很重要：**先卸运行实例再删目录**。插件的 ``teardown()`` 会关掉自己
+    打开的数据库 / Web 端口；带着这些句柄删目录，在 Windows 上会直接
+    ``WinError 32`` 删不掉（表现为「卸载按钮点了没反应」）。删完再清掉它的
+    安装记录与 ``plugins_config.json`` 里的配置，最后重扫让列表立刻刷新。
+    """
+    folder = str(folder or "").strip().strip("/\\")
     if not folder:
         return {"ok": False, "error": "缺少目录名"}
     try:
@@ -806,22 +1055,70 @@ def uninstall(folder, remove_files=True):
     target = os.path.join(root, safe)
     if os.path.normpath(os.path.dirname(target)) != os.path.normpath(root):
         return {"ok": False, "error": "目录不合法"}
+
     if not os.path.isdir(target):
-        return {"ok": False, "error": "plugins/%s 不存在" % safe}
+        # 目录本来就不在了：把残留记录清掉，让商店状态跟着回到「未安装」
+        dropped = _drop_record(safe)
+        reconcile_state()
+        clear_cache()
+        return {"ok": False, "error": "plugins/%s 不存在" % safe,
+                "missing": True, "folder": safe, "record_dropped": dropped}
+
+    pid = _pid_of_folder(target)
+    prev_enabled = False
+    was_loaded = False
+    if pid:
+        try:
+            for it in (plugin_manager.list_plugins().get("plugins") or []):
+                if str(it.get("id")) == pid:
+                    prev_enabled = bool(it.get("enabled"))
+                    was_loaded = bool(it.get("loaded"))
+                    break
+        except Exception:
+            pass
+
+    # 1) 先卸运行实例（会调用插件 teardown，释放数据库 / 端口句柄）
+    unloaded = False
+    if pid and was_loaded:
+        try:
+            plugin_manager.set_enabled(pid, False)
+            unloaded = True
+        except Exception as e:
+            _log("卸载前热禁用 %s 失败（继续删目录）：%s" % (pid, e))
+
+    # 2) 删目录
     if remove_files:
         if not _rmtree_force(target):
+            if unloaded and pid:            # 删不掉就把插件恢复原状，别留在半死状态
+                try:
+                    plugin_manager.set_enabled(pid, prev_enabled)
+                except Exception:
+                    pass
             return {"ok": False,
                     "error": "删除失败：plugins/%s 里还有文件删不掉"
-                             "（常见于目录被占用，关掉编辑器 / 杀毒软件后再试）" % safe}
-    try:
-        items = _load_installed()
-        items.pop(safe, None)
-        _save_installed(items)
-    except Exception:
-        pass
+                             "（常见于目录被占用，关掉编辑器 / 杀毒软件后再试）" % safe,
+                    "folder": safe}
+
+    # 3) 清安装记录 + 插件配置
+    dropped = _drop_record(safe)
+    forgot = False
+    if pid:
+        try:
+            forget = getattr(plugin_manager, "forget", None)
+            forgot = bool(forget(pid).get("ok")) if callable(forget) else False
+        except Exception as e:
+            _log("清理插件 %s 的配置失败：%s" % (pid, e))
+
+    # 4) 重扫目录并清商店缓存，让插件列表 / 商店「已安装」立刻一致
     try:
         plugin_manager.reload(None)
-    except Exception:
-        pass
+    except Exception as e:
+        _log("卸载后重扫失败：%s" % e)
     clear_cache()
-    return {"ok": True, "folder": safe, "msg": "已删除 plugins/%s" % safe}
+
+    _log("已卸载 plugins/%s%s" % (safe, ("（插件 %s）" % pid) if pid else ""))
+    return {
+        "ok": True, "folder": safe, "id": pid,
+        "unloaded": unloaded, "config_forgot": forgot, "record_dropped": dropped,
+        "msg": "已删除 plugins/%s%s" % (safe, ("（插件 %s）" % pid) if pid else ""),
+    }

@@ -53,6 +53,7 @@ _lock = threading.RLock()
 _plugins = {}                 # id -> Plugin
 _config = {"version": 1, "plugins": {}}
 _commands = {}                # 触发词(小写) -> (plugin_id, fn)
+_command_meta = {}            # 触发词(小写) -> {plugin, desc, usage, group}（/plugin help 用）
 _dispatcher_installed = False
 _watcher_thread = None
 _watcher_stop = threading.Event()
@@ -210,6 +211,46 @@ def _default_for(ftype, multi):
     return ""
 
 
+def _normalize_help(raw, desc=""):
+    # 归一化 plugin.json 的 help 块（插件帮助的声明处）：
+    #   "help": "一句话说明"                     -> 只给 summary
+    #   "help": ["/a", "/b"]                     -> 只给指令用法
+    #   "help": {"summary": ..., "commands": [...], "notes": [...]}
+    # 返回 {"summary": str, "commands": [{"usage","desc"}], "notes": [str]}
+    out = {"summary": str(desc or "").strip(), "commands": [], "notes": []}
+    if raw is None:
+        return out
+    if isinstance(raw, str):
+        out["summary"] = raw.strip() or out["summary"]
+        return out
+    if isinstance(raw, list):
+        cmds, notes = raw, []
+    elif isinstance(raw, dict):
+        out["summary"] = str(raw.get("summary") or out["summary"]).strip() or out["summary"]
+        cmds, notes = raw.get("commands") or [], raw.get("notes") or []
+    else:
+        return out
+
+    if isinstance(notes, str):
+        notes = [notes]
+    for n in (notes if isinstance(notes, list) else []):
+        s = str(n or "").strip()
+        if s:
+            out["notes"].append(s)
+
+    for c in (cmds if isinstance(cmds, list) else []):
+        if isinstance(c, str):
+            usage, cdesc = c.strip(), ""
+        elif isinstance(c, dict):
+            usage = str(c.get("usage") or c.get("command") or c.get("cmd") or "").strip()
+            cdesc = str(c.get("desc") or c.get("hint") or "").strip()
+        else:
+            continue
+        if usage or cdesc:
+            out["commands"].append({"usage": usage, "desc": cdesc})
+    return out
+
+
 def _read_manifest(folder):
     """读取插件清单；返回 (manifest, error)。"""
     mpath = os.path.join(folder, MANIFEST_NAME)
@@ -242,6 +283,8 @@ def _read_manifest(folder):
         "web_port": int(data.get("web_port") or 0),
         "enabled_by_default": bool(data.get("enabled", True)),
         "config": _normalize_fields(data.get("config")),
+        # /plugin help 的帮助声明（可选）。没有时回落到 desc。
+        "help": _normalize_help(data.get("help"), str(data.get("desc") or "")),
     }
     if manifest["web_port"] and not (1024 <= manifest["web_port"] <= 65535):
         manifest["web_port"] = 0
@@ -314,13 +357,18 @@ class PluginContext:
         if callable(fn):
             self._plugin.event_handlers.append(fn)
 
-    def on_command(self, triggers, fn):
+    def on_command(self, triggers, fn, desc="", usage="", group=""):
+        # 注册指令。desc / usage / group 是可选的帮助元数据，供 /plugin help 使用；
+        # 不传也不影响指令本身，/plugin help 会退化成列出触发词。
         if isinstance(triggers, str):
             triggers = [triggers]
+        meta = {"plugin": self.id, "desc": str(desc or ""),
+                "usage": str(usage or ""), "group": str(group or "")}
         for t in (triggers or []):
             key = str(t).strip().lower()
             if key and callable(fn):
                 _commands[key] = (self.id, fn)
+                _command_meta[key] = dict(meta)
         return True
 
     def log_event(self, ev):
@@ -441,6 +489,8 @@ class Plugin:
             "web_port": self.web_port,
             "web_title": m.get("web_title", self.name),
             "commands": sorted([k for k, v in _commands.items() if v[0] == self.id]),
+            "command_help": _help_commands(self),
+            "help": dict(m.get("help") or {}),
             "fields": m.get("config", []),
             "values": dict(self.values),
             "loaded_at": self.loaded_at,
@@ -510,6 +560,7 @@ def _unload(plugin):
     plugin.event_handlers = []
     for key in [k for k, v in _commands.items() if v[0] == plugin.id]:
         _commands.pop(key, None)
+        _command_meta.pop(key, None)
     mod = plugin.module
     if mod is not None:
         fn = getattr(mod, "teardown", None)
@@ -836,6 +887,82 @@ def _summary():
 
 
 # ----------------------------------------------------------------------------
+# 插件帮助（/plugin 与 /plugin help <编号>）
+# ----------------------------------------------------------------------------
+def _ordered_plugins():
+    # 插件列表与帮助编号的唯一顺序（按 id 升序，稳定可复现）。
+    with _lock:
+        items = list(_plugins.values())
+    return sorted(items, key=lambda x: x.id)
+
+
+def _help_commands(plugin):
+    # 帮助里的指令清单：先取 plugin.json 里作者写好的，再补上「已注册但没写」的触发词。
+    declared = (plugin.manifest.get("help") or {}).get("commands") or []
+    out, seen = [], set()
+    for c in declared:
+        usage = str(c.get("usage") or "")
+        out.append({"usage": usage, "desc": str(c.get("desc") or "")})
+        for m in re.findall(r"/([0-9A-Za-z_\u4e00-\u9fff]+)", usage):
+            seen.add(m.lower())
+    with _lock:
+        trigs = sorted(k for k, v in _commands.items() if v[0] == plugin.id)
+    for t in trigs:
+        if t in seen:
+            continue
+        meta = _command_meta.get(t) or {}
+        out.append({"usage": meta.get("usage") or ("/" + t),
+                    "desc": meta.get("desc") or ""})
+    return out
+
+
+def plugin_overview():
+    # /plugin 列表用：全部插件（带稳定编号）+ 装错了的插件目录。
+    sync(force=False)
+    items = _ordered_plugins()
+    out = []
+    for i, p in enumerate(items, 1):
+        d = p.public()
+        d["index"] = i
+        out.append(d)
+    with _lock:
+        bad = [{"name": k, "folder": v["folder"], "error": v["error"]}
+               for k, v in _bad.items()]
+    return {"ok": True, "count": len(out), "plugins": out,
+            "bad": sorted(bad, key=lambda x: x["name"])}
+
+
+def plugin_help(ref):
+    # /plugin help <编号|id> 用：单个插件的完整帮助信息。
+    sync(force=False)
+    ref = str(ref or "").strip()
+    if not ref:
+        return {"ok": False, "error": "缺少插件编号或 id"}
+    items = _ordered_plugins()
+    p = None
+    if ref.isdigit():
+        i = int(ref)
+        if 1 <= i <= len(items):
+            p = items[i - 1]
+    if p is None:
+        low = ref.lower()
+        for q in items:
+            if q.id == ref or q.id.lower() == low:
+                p = q
+                break
+    if p is None:
+        return {"ok": False, "error": "找不到插件：%s" % ref}
+    d = p.public()
+    d["ok"] = True
+    d["index"] = items.index(p) + 1
+    helpm = p.manifest.get("help") or {}
+    d["summary"] = helpm.get("summary") or d.get("desc") or ""
+    d["help_commands"] = _help_commands(p)
+    d["notes"] = list(helpm.get("notes") or [])
+    return d
+
+
+# ----------------------------------------------------------------------------
 # 对外 API（给 app.py 的路由用）
 # ----------------------------------------------------------------------------
 def list_plugins():
@@ -865,6 +992,27 @@ def set_enabled(pid, enabled):
             _log("[%s] 已热禁用" % p.id, ws_server.C.YELLOW)
         _last_signature[p.id] = _signature(p.folder)
         return {"ok": True, "plugin": p.public()}
+
+
+def forget(pid):
+    """删掉一个插件的持久化状态（plugins_config.json 里的配置 / 端口 / 启用位）。
+
+    卸载插件时调用：目录都删了，配置再留着只会让「删掉再装回来」的插件
+    带着上一轮的旧值启动，也让插件列表里凭空多出一条没有目录的记录。
+    """
+    pid = str(pid or "").strip()
+    if not pid:
+        return {"ok": False, "error": "缺少插件 id"}
+    with _lock:
+        _load_state()
+        if pid not in _config["plugins"]:
+            return {"ok": True, "forgot": False}
+        _config["plugins"].pop(pid, None)
+        saved = _save_state()
+    if not saved:
+        return {"ok": False, "error": "写 plugins_config.json 失败"}
+    _log("[%s] 已清理插件配置与状态" % pid, ws_server.C.YELLOW)
+    return {"ok": True, "forgot": True}
 
 
 def reload(pid=None):

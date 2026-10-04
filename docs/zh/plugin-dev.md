@@ -70,6 +70,7 @@ def setup(ctx):
 | `web_path` | string | `/` | 独立页面的入口路径 |
 | `web_port` | int | `0` | 独立页面端口；`0` 表示从 `PLUGIN_WEB_PORT_BASE`（默认 7000）起自动分配 |
 | `config` | array | 空 | 配置项声明（见第 5 节） |
+| `help` | object / array / string | 空 | 插件帮助声明，供 `/plugin help` 渲染图片（见第 5.5 节） |
 
 `id` 非法或 `entry` 找不到时，插件不会载入，Web 插件面板的「装错了的插件」区域会给出原因。
 
@@ -98,6 +99,8 @@ def setup(ctx):
 ```
 
 `on_command(triggers, fn)` 的触发词**不区分大小写**，也不带 `/`。触发时 ILBB 会把消息按空格切开，第一个词匹配触发词，**其余部分作为 `args` 列表**传入。
+
+它还有三个**可选**的帮助参数：`on_command(triggers, fn, desc="一句话说明", usage="/用法示例", group="分组名")`。它们只影响 `/plugin help` 里显示的说明，不改变指令行为；不写也不会出问题（帮助会退化成列出触发词）。
 
 指令函数签名：
 
@@ -215,6 +218,55 @@ def cmd_info(args, ctx, p):
 def on_config(vals, ctx):
     ctx.log("配置已更新：%r" % (vals,))
 ```
+
+---
+
+## 5.5 帮助声明（`/plugin help`）
+
+ILBB 内置两条插件相关的图片指令，所有插件共享：
+
+```
+/plugin                 插件列表（每个插件一个编号，图片）
+/plugin help <编号|id>   某个插件的使用帮助（图片）
+```
+
+帮助内容有两条来源，优先用第一条：
+
+1. **`plugin.json` 的 `help` 块** —— 写一次就有完整帮助，推荐；
+2. `ctx.on_command(triggers, fn, desc=..., usage=...)` 注册指令时带的元数据 —— 适合按指令就近维护。
+
+两者都没有时，`/plugin help` 会自动退化成「列出该插件已注册的触发词」，不会报错。
+
+`help` 块支持三种写法：
+
+```json
+"help": "一句话说明"
+```
+
+```json
+"help": ["/a", "/b"]
+```
+
+```json
+"help": {
+  "summary": "这个插件是做什么的",
+  "commands": [
+    { "usage": "/hello", "desc": "打个招呼。" },
+    { "usage": "/hello <名字>", "desc": "跟指定的人打招呼。" }
+  ],
+  "notes": [
+    "群里直接把图片和指令一起发即可。",
+    "配置在后台「插件」面板里改，保存后热生效。"
+  ]
+}
+```
+
+- `summary` 缺省时用清单里的 `desc`；
+- `commands[].usage` 里出现的 `/触发词` 会被识别，已声明的触发词不会再被自动补一遍；
+- `notes` 渲染成「使用说明」分组；
+- `config` 里的配置项会以「可配置项」分组出现在帮助图末尾，并自动附上独立页面端口提示。
+
+完整示例见 `plugins/example/plugin.json` 与 `plugins/BiliPlay_ILBB_Toys/plugin.json`。
 
 ---
 

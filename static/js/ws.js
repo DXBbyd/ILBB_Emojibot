@@ -1194,6 +1194,11 @@
     function initSelects(root) {
         if (!root) return;
         all('.ilbb-select', root).forEach(function (sel) {
+            // 自带开合逻辑的下拉必须显式退出（例如插件页的多选控件 .pg-multi-select）：
+            // 它复用 .ilbb-select 的样式，但选中语义是「多值 + chips」，由 plugins.js
+            // 自己接管。这里若再挂一套 handler，同一次点击会被两个 handler 各 toggle
+            // 一次 —— 表现就是「点了没反应」：菜单闪一下就关，选项列表也永远拉不出来。
+            if (sel.hasAttribute('data-ilbb-skip')) return;
             var btn = sel.querySelector('.ilbb-select-btn');
             if (!btn) return;
             if (sel.getAttribute('data-ilbb-bound') === '1') {

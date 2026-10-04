@@ -13,6 +13,8 @@
 - render_quote(text, name, ...)  /quote           名言图（横屏 16:9：左独立圆角头像 + 右半边磨砂玻璃面板 + 右下角署名）
 - render_quote_help()            /quote help      名言图帮助
 - render_notice(title, lines)    通用提示 / 错误图
+- render_plugin_list(plugins, bad) /plugin           插件列表（编号 + 状态 + 指令概览）
+- render_plugin_help(info)         /plugin help N    单个插件的使用帮助
 
 以及表情素材索引工具：all_memes() / indexed_memes() / find_meme()。
 
@@ -58,7 +60,7 @@ W = 960                       # 统一画布宽度
 SIDE = 28                     # 左右留白
 
 # 渲染版本号：改动版式/预览后 +1，会让 run_command 里的图片缓存自动失效重绘
-RENDER_VERSION = 4
+RENDER_VERSION = 6
 
 _CACHE_DIR = os.path.join(config.CACHE_DIR, "bot")   # 渲染结果缓存目录
 
@@ -740,6 +742,8 @@ def render_menu() -> bytes:
 
     _group(cv, "通用 · help", [
         (f"{p}help", "查看本图片菜单（机器人全部指令总览）。"),
+        (f"{p}plugin", "插件列表：列出 plugins/ 下已安装的插件与编号（图片）。"),
+        (f"{p}plugin help [编号]", "插件帮助：查看某个插件怎么用（指令用法 / 说明 / 可配置项）。"),
     ], accent=OK)
 
     _preview_strip(cv, "效果预览（真实素材）",
@@ -1166,7 +1170,104 @@ def render_notice(title: str, lines: list, kind: str = "info") -> bytes:
 
 
 # ============================================================================
-# 7) /quote —— 名言图（横屏 16:9）
+# 7) /plugin —— 插件列表与插件帮助（与 WebUI 同款视觉）
+# ============================================================================
+def _plugin_status(it: dict) -> str:
+    if not it.get("enabled"):
+        return "已停用"
+    if it.get("loaded"):
+        return "运行中"
+    return "未载入"
+
+
+def render_plugin_list(plugins: list, bad: list = None) -> bytes:
+    p = config.BOT_PREFIX
+    cv = Canvas(W, BG, top=0)
+    _appbar(cv, "指令中心")
+    plugins = plugins or []
+    loaded = len([x for x in plugins if x.get("loaded")])
+    _page_head(cv, "插件", config.BOT_NAME + " · 插件列表",
+               "共 %d 个插件（已载入 %d）。发送 %splugin help <编号> 查看某个插件怎么用。"
+               % (len(plugins), loaded, p))
+
+    rows = []
+    for it in plugins:
+        idx = it.get("index")
+        usages = [str(h.get("usage") or "").strip()
+                  for h in (it.get("command_help") or [])
+                  if str(h.get("usage") or "").strip()]
+        if usages:
+            cmdline = "、".join(usages[:6])
+            if len(usages) > 6:
+                cmdline += " 等 %d 条" % len(usages)
+        else:
+            cmds = it.get("commands") or []
+            cmdline = "、".join("/" + str(c) for c in cmds[:8]) or "（未注册指令）"
+            if len(cmds) > 8:
+                cmdline += " 等 %d 条" % len(cmds)
+        badge = " ｜ 独立页面" if it.get("has_web") else ""
+        rows.append(("#%s  %s" % (idx, it.get("name") or it.get("id")),
+                     "v%s ｜ %s ｜ %s%s\n%s\n指令：%s"
+                     % (it.get("version", "0.0.0"), it.get("id", ""),
+                        _plugin_status(it), badge,
+                        str(it.get("desc") or "").strip(), cmdline)))
+    if rows:
+        _group(cv, "全部插件", rows)
+    else:
+        _group(cv, "全部插件", [("（空）", "plugins/ 目录下还没有可用的插件。")])
+
+    if bad:
+        _group(cv, "装错了的插件",
+               [(str(b.get("name") or "?"), str(b.get("error") or "")) for b in bad],
+               accent=ERR)
+
+    _footer(cv, "发送 %splugin help <编号> 查看插件用法" % p)
+    return _to_png(cv)
+
+
+def render_plugin_help(info: dict) -> bytes:
+    p = config.BOT_PREFIX
+    cv = Canvas(W, BG, top=0)
+    _appbar(cv, "指令中心")
+    status = _plugin_status(info)
+    if not info.get("loaded") and info.get("error"):
+        status += "（%s）" % str(info.get("error"))[:40]
+    _page_head(cv, "插件 #%s" % info.get("index", "?"),
+               "%s · 使用帮助" % (info.get("name") or info.get("id")),
+               "%s v%s ｜ %s"
+               % (info.get("id", ""), info.get("version", "0.0.0"), status))
+
+    rows = []
+    for c in (info.get("help_commands") or []):
+        usage = str(c.get("usage") or "").strip() or "（用法未说明）"
+        rows.append((usage, str(c.get("desc") or "")))
+    if rows:
+        _group(cv, "指令用法", rows)
+
+    notes = [str(n) for n in (info.get("notes") or []) if str(n).strip()]
+    if info.get("has_web") and info.get("web_port"):
+        notes.append("独立页面端口 %s，在 ILBB 后台「插件」面板的「独立页面」里打开。"
+                     % info.get("web_port"))
+    if notes:
+        _group(cv, "使用说明", [("说明 %d" % (i + 1), n) for i, n in enumerate(notes)],
+               accent=BLUE)
+
+    fields = info.get("fields") or []
+    if fields:
+        labels = [str(f.get("label") or f.get("key") or "") for f in fields[:8]]
+        line = "、".join([x for x in labels if x])
+        if len(fields) > 8:
+            line += " 等 %d 项" % len(fields)
+        _group(cv, "可配置项",
+               [("后台配置", line + "\n在 ILBB 后台「插件」面板里修改，保存后热生效。")],
+               accent=OK)
+
+    _footer(cv, "插件帮助 ｜ 发送 %splugin 返回插件列表" % p)
+    return _to_png(cv)
+
+
+# ============================================================================
+# 8) /quote —— 名言图（横屏 16:9）
 #    左侧一块独立的长方形圆角头像；右侧铺满右半边的白色磨砂玻璃面板，
 #    面板左缘用横向渐变蒙版渐隐，和中间的背景有过渡（不会出现硬边）。
 #    背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版；

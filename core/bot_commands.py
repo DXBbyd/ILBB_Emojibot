@@ -23,6 +23,8 @@
 /quote                         名言图帮助（等同 /quote help）
 /quote help                    名言图帮助图
 /quote [@某人|QQ号] [文本…]     合成名言图（随机背景 + 灰色蒙版 + 正中全模糊托盘：左圆形头像 + 右内容 + 署名）
+/plugin                        插件列表（图片：编号 / 状态 / 指令概览）
+/plugin help [编号|id]          单个插件的使用帮助（图片：指令用法 / 说明 / 可配置项）
 
 设计要点
 --------
@@ -839,6 +841,37 @@ _HELP_ALIAS = ("help", "帮助", "教程", "?", "？")
 _MENU_ALIAS = ("help", "帮助", "菜单", "menu", "?", "？")
 
 
+def _plugin_list_sig(overview) -> str:
+    # 插件列表图缓存键：任一插件的 id/版本/启用态/载入态/指令概览变化都会换一张新图。
+    parts = []
+    for x in (overview.get("plugins") or []):
+        usages = ",".join(str(h.get("usage") or "") for h in (x.get("command_help") or []))
+        parts.append("%s:%s:%s:%s:%s:%s" % (
+            x.get("id"), x.get("version"), x.get("enabled"), x.get("loaded"),
+            len(x.get("commands") or []), usages))
+    return "|".join(parts)
+
+
+def _plugin_help_reply(plugin_manager, ref, ctag, cpng):
+    # /plugin help <编号|id> 的统一出图：找到就出帮助卡，找不到就出提示卡。
+    info = plugin_manager.plugin_help(ref)
+    if not info.get("ok"):
+        msg = str(info.get("error") or "找不到插件。")
+        tag = ctag("plugin_miss", str(ref))
+        return ([cpng(tag, lambda: bot_render.render_notice(
+            "没有这个插件",
+            [msg, "发送 %splugin 查看插件列表与编号。" % config.BOT_PREFIX],
+            "warn"))], [])
+    # 缓存键纳入帮助正文：改了 plugin.json 的 help 块（版本号没变）也能换图。
+    sig = "|".join([str(info.get("summary") or "")] +
+                   ["%s=%s" % (h.get("usage"), h.get("desc"))
+                    for h in (info.get("help_commands") or [])] +
+                   [str(n) for n in (info.get("notes") or [])])
+    tag = ctag("plugin_help", info.get("id"), info.get("version"),
+               info.get("enabled"), info.get("loaded"), sig)
+    return ([cpng(tag, lambda: bot_render.render_plugin_help(info))], [])
+
+
 def run_command(body, ctx=None) -> tuple:
     """解析一条指令（不含前缀），返回 (images, texts)。
 
@@ -899,6 +932,51 @@ def run_command(body, ctx=None) -> tuple:
             return ([cpng(ctag("quotehelp"), bot_render.render_quote_help)], [])
         return _gen_quote(args, ctx)
 
+    # ===== /plugin —— 插件列表与插件帮助（图片，与其它指令同款 UI） =====
+    if cmd in ("plugin", "插件"):
+        if not getattr(config, "PLUGIN_ENABLED", True):
+            return ([cpng(ctag("plugin_off"), lambda: bot_render.render_notice(
+                "插件系统已关闭",
+                ["当前配置 PLUGIN_ENABLED=false，插件指令一律不可用。",
+                 "在 .env 里打开 PLUGIN_ENABLED 并重启后即可使用。"],
+                "warn"))], [])
+        try:
+            import plugin_manager
+        except Exception:
+            plugin_manager = None
+        if plugin_manager is None:
+            return ([cpng(ctag("plugin_na"), lambda: bot_render.render_notice(
+                "插件系统不可用", ["未能载入 plugin_manager。"], "err"))], [])
+
+        sub = args[0].lower() if args else ""
+        rest = args[1:]
+
+        # /plugin help [编号|id] —— 某个插件怎么用
+        if sub in _HELP_ALIAS or sub in ("info", "详情"):
+            if not rest:
+                ov = plugin_manager.plugin_overview()
+                return ([cpng(ctag("plugin_list", _plugin_list_sig(ov)),
+                              lambda: bot_render.render_plugin_list(
+                                  ov["plugins"], ov["bad"]))], [])
+            return _plugin_help_reply(plugin_manager, rest[0], ctag, cpng)
+
+        # /plugin list —— 插件列表
+        if sub in ("list", "列表", "ls", "all", "全部"):
+            ov = plugin_manager.plugin_overview()
+            return ([cpng(ctag("plugin_list", _plugin_list_sig(ov)),
+                          lambda: bot_render.render_plugin_list(
+                              ov["plugins"], ov["bad"]))], [])
+
+        # /plugin <编号|id> —— 等价于 help
+        if sub:
+            return _plugin_help_reply(plugin_manager, args[0], ctag, cpng)
+
+        # /plugin —— 默认列出全部插件
+        ov = plugin_manager.plugin_overview()
+        return ([cpng(ctag("plugin_list", _plugin_list_sig(ov)),
+                      lambda: bot_render.render_plugin_list(
+                          ov["plugins"], ov["bad"]))], [])
+
     # ===== 插件指令（plugins/ 下每个文件夹都可注册自己的触发词） =====
     if getattr(config, "PLUGIN_ENABLED", True):
         try:
@@ -910,11 +988,9 @@ def run_command(body, ctx=None) -> tuple:
             traceback.print_exc()
 
     # ===== 未知指令 =====
-    return ([bot_render.render_notice(
-        "没有这条指令",
-        ["「%s%s」不是可用指令。" % (prefix, cmd),
-         "发送 %shelp 查看全部指令。" % prefix],
-        "warn")], [])
+    # 按需求取消「检测到未知指令 → 回一张提示图」的逻辑：未命中任何指令时静默忽略，
+    # 不回任何图片或文字（不打扰群聊）。
+    return ([], [])
 
 
 def preview(body, ctx=None, dry: bool = True) -> tuple:

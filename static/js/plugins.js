@@ -12,6 +12,7 @@
     var API_RELOAD = '/api/plugins/reload';
     var API_CFG = '/api/plugins/config';
     var API_WEB = '/api/plugins/web';
+    var API_UNINSTALL = '/api/plugins/uninstall';
 
     var SRC_LABEL = { friend: '好友', group: '群聊', group_member: '群成员' };
     var TYPE_LABEL = {
@@ -220,6 +221,7 @@
                 var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
                 if (act === 'toggle') { e.stopPropagation(); togglePlugin(pid); return; }
                 if (act === 'reload') { e.stopPropagation(); reloadPlugin(pid); return; }
+                if (act === 'uninstall') { e.stopPropagation(); uninstallPlugin(pid); return; }
                 selectPlugin(pid);
             });
         });
@@ -248,6 +250,7 @@
             + '<div class="pg-card-ops">'
             +   '<button type="button" class="pg-mini" data-act="toggle">' + (p.enabled ? '禁用' : '启用') + '</button>'
             +   '<button type="button" class="pg-mini" data-act="reload">重载</button>'
+            +   '<button type="button" class="pg-mini danger" data-act="uninstall" title="删除 plugins/ 下的这个插件目录">卸载</button>'
             + '</div>'
             + '</article>';
     }
@@ -351,6 +354,7 @@
         acts.push('<button type="button" class="ws-btn" id="pgBtnToggle">' + (p.enabled ? '热禁用' : '热启用') + '</button>');
         acts.push('<button type="button" class="ws-btn" id="pgBtnReload">热重载</button>');
         if (p.has_web) acts.push('<button type="button" class="ws-btn" id="pgBtnWeb">独立页面</button>');
+        acts.push('<button type="button" class="ws-btn pg-btn-danger" id="pgBtnUninstall" title="删除 plugins/ 下的整个插件目录">卸载</button>');
         $('pgActions').innerHTML = acts.join('')
             + '<div class="pg-cmds">'
             + (cmds.length
@@ -362,6 +366,7 @@
         $('pgBtnToggle').addEventListener('click', function () { togglePlugin(pid); });
         $('pgBtnReload').addEventListener('click', function () { reloadPlugin(pid); });
         if ($('pgBtnWeb')) $('pgBtnWeb').addEventListener('click', function () { openWebTab(pid); });
+        if ($('pgBtnUninstall')) $('pgBtnUninstall').addEventListener('click', function () { uninstallPlugin(pid); });
 
         renderFields();
         renderWeb();
@@ -605,7 +610,11 @@
         }
         h += '>';
         h += '<div class="pg-chips" data-chips="' + esc(f.key) + '"></div>';
-        h += '<div class="ilbb-select pg-multi-select" data-multi="' + esc(f.key) + '"'
+        // data-ilbb-skip：告诉 ILBBSelect 不要接管这个下拉 —— 它复用 .ilbb-select 的
+        // 样式，但开合与选中由下面的 initMulti / fillMultiMenu 自己实现。
+        // 少了这个标记，两套 handler 会挂在同一个按钮上互相抵消（点了没反应）。
+        h += '<div class="ilbb-select pg-multi-select" data-ilbb-skip="1"'
+            + ' data-multi="' + esc(f.key) + '"'
             + ' data-select="pgm_' + esc(pid) + '_' + esc(f.key) + '" data-target="' + id + '">'
             + '<button type="button" class="ilbb-select-btn" aria-haspopup="listbox" aria-expanded="false">'
             + '<span class="ilbb-select-text">添加' + label + '…</span><span class="ilbb-select-caret"></span></button>'
@@ -781,6 +790,10 @@
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var willOpen = !sel.classList.contains('open');
+                // 与静态下拉一致：展开前先收起别的，避免同页多个下拉同时摊开
+                if (willOpen && window.ILBBSelect && window.ILBBSelect.closeAll) {
+                    window.ILBBSelect.closeAll(sel);
+                }
                 sel.classList.toggle('open', willOpen);
                 btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
                 if (willOpen) {
@@ -930,6 +943,39 @@
                 if (pid) loadConfig(pid);
             });
         }).catch(function (e) { toast('重载失败：' + e.message, 'err'); });
+    }
+
+    // 卸载：后端会先卸运行实例（触发插件 teardown 释放数据库 / 端口句柄）再删目录，
+    // 删完清掉安装记录与配置。这里成功后再刷插件列表 + 商店的「已安装」标记。
+    function uninstallPlugin(pid) {
+        var p = pluginById(pid);
+        if (!p) return;
+        var folder = String(p.rel_folder || p.id || '').replace(/^[.\\/]+/, '').replace(/[\\/]+$/, '');
+        if (!folder) { toast('拿不到这个插件的目录名，先点「重扫目录」再试', 'err'); return; }
+        uiConfirm({
+            title: '卸载插件',
+            text: '确定要删除 plugins/' + folder + '/ 吗？\n\n'
+                + '整个插件目录、它的配置和安装记录都会被清掉，这个操作不能撤销。',
+            tip: '会删除 plugins/' + folder + '/',
+            okText: '卸载',
+            cancelText: '先不删'
+        }).then(function (yes) {
+            if (!yes) return;
+            return api(API_UNINSTALL, { method: 'POST', body: { folder: folder } })
+                .then(function (d) {
+                    toast(d.msg || ('已删除 plugins/' + folder), 'ok');
+                    S.detail = {};
+                    if (S.sel === pid) S.sel = '';
+                    return load(true).then(function () {
+                        if (!S.storeLoaded) return;
+                        S.storeDetail = {};                  // 商店详情的「已安装」也要跟着重算
+                        return loadStore(true, true).then(function () {
+                            if (S.storeSel) renderStoreDetail();
+                        });
+                    });
+                })
+                .catch(function (e) { toast('卸载失败：' + e.message, 'err'); });
+        });
     }
 
     // ------------------------------------------------------------------
@@ -1322,7 +1368,12 @@
     function storeCardHtml(p) {
         var key = storeKey(p);
         var tags = [];
-        if (p.installed) tags.push('<span class="pg-tag ok">已安装</span>');
+        if (p.installed) {
+            var where = (p.installed_folders || []).join('、');
+            tags.push('<span class="pg-tag ok" title="'
+                + esc('plugins/' + where + (p.install_source === 'store' ? '（本商店安装）' : '（本地已有目录）'))
+                + '">已安装</span>');
+        }
         if (p.latest_version) tags.push('<span class="pg-tag info">v' + esc(p.latest_version) + '</span>');
         if (p.archived) tags.push('<span class="pg-tag warn">已归档</span>');
         (p.tags || []).slice(0, 2).forEach(function (t) {
@@ -1424,8 +1475,10 @@
         if (det) det.classList.remove('hidden');
         if (title) title.textContent = p.name || p.slug || '插件详情';
         var fold = guessFolder(p.clone_url || p.repo || '');
+        // 已安装的目录来自后端「磁盘扫描 ∪ 安装记录」，所以本地手工放进去的插件也会显示在这
         if (hint) hint.textContent = p.installed
-            ? ('已装在 plugins/' + (p.installed_folders || []).join('、'))
+            ? ('已装在 plugins/' + (p.installed_folders || []).join('、')
+               + (p.install_source === 'store' ? '（本商店安装）' : '（本地已有目录）'))
             : ('将装到 plugins/' + (fold || '?'));
 
         var rows = [

@@ -79,6 +79,7 @@ The default prefix is `/` (change it via `BOT_PREFIX`). Full reference: **[Comma
 | `/meme help [ID]` | Per-meme illustrated tutorial (template, presets, examples) |
 | `/pair [QQ/@] [title]` | Generate a pairing card; accepts `template=` `bg=` `btn=` |
 | `/quote [@/QQ] text…` | Compose a quote image |
+| `/plugin` | Lists installed plugins with numbers (image); `/plugin help <number>` shows one plugin's usage |
 | `<plugin trigger>` | Declared by `plugins/<plugin>/plugin.json` |
 
 **Three ways to supply an image**: (1) send the command together with the image; (2) reply to an image message and then send the command; (3) `@` a member or write a QQ number so the bot fetches that avatar.

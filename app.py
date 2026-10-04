@@ -2210,6 +2210,22 @@ def plugins_web():
     return _plugin_err(plugin_manager.web_info(pid, host))
 
 
+@app.route('/api/plugins/uninstall', methods=['POST'])
+def plugins_uninstall():
+    """删除 plugins/<目录>（插件列表页的「卸载」，前端已二次确认）。
+
+    与商店的 /api/plugins/store/uninstall 是同一套实现：先卸运行实例（触发插件
+    teardown 释放数据库 / 端口句柄），再删目录，再清安装记录与插件配置，最后重扫。
+    """
+    if plugin_store is None:
+        return jsonify({'ok': False, 'error': 'plugin_store 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    folder = str(data.get('folder') or '').strip()
+    if not folder:
+        return jsonify({'ok': False, 'error': '缺少目录名'}), 400
+    return _store_err(plugin_store.uninstall(folder))
+
+
 # ---------- 插件商店（列表在插件源服务器，安装 = git clone 进 plugins/） ----------
 def _store_err(resp):
     return jsonify(resp), (200 if resp.get("ok") else 400)

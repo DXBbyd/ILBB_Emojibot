@@ -4,6 +4,18 @@
   "version": "1.0.0",
   "author": "ILBB",
   "desc": "演示 ILBB 插件系统的全部能力：指令、事件、各类配置字段（含好友 / 群聊 / 群成员下拉）、配置热生效与独立 Web 页面。把整个 example 文件夹复制一份改名，就是一个新插件的起点。",
+  "help": {
+    "summary": "ILBB 示例插件：演示指令注册、事件监听、各类配置字段与独立 Web 页面，也是复制新插件的起点。",
+    "commands": [
+      { "usage": "/example", "desc": "打个招呼，并汇报当前模式与已统计的群消息条数。" },
+      { "usage": "/echodemo <内容>", "desc": "把参数原样回显，演示指令参数怎么拿。" },
+      { "usage": "/exampleinfo · /demohelp", "desc": "把 Web 上配置的值读出来，验证 friend / group / group_member 落到插件里的样子。" }
+    ],
+    "notes": [
+      "复制整个 example 文件夹改名即可作为新插件起点（记得同步改 plugin.json 的 id）。",
+      "独立页面实时显示统计到的群消息，端口由 ILBB 自动分配。"
+    ]
+  },
   "entry": "main.py",
   "web": true,
   "web_title": "示例插件控制台",

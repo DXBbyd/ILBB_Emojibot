@@ -1645,6 +1645,8 @@ code { font-family: var(--mono); }
 }
 .pg-mini:hover { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-softer); }
 .pg-mini:active { transform: scale(.94); }
+.pg-mini.danger { color: var(--err-text); border-color: var(--err-soft); }
+.pg-mini.danger:hover { border-color: var(--err); background: var(--err-soft); color: var(--err-text); }
 
 /* 状态点 / 标签 */
 .pg-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-4); transition: background .2s ease; }

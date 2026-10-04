@@ -243,9 +243,14 @@ def _stop_web():
 def setup(ctx):
     global _ctx
     _ctx = ctx
-    ctx.on_command(["example"], cmd_example)
-    ctx.on_command(["echodemo"], cmd_echo)
-    ctx.on_command(["exampleinfo", "demohelp"], cmd_info)
+    # on_command 的 desc / usage 是可选的帮助元数据：不写也能用，
+    # 写了会让 /plugin help <编号> 里的说明更清楚（与 plugin.json 的 help 块二选一或并用）。
+    ctx.on_command(["example"], cmd_example,
+                   usage="/example", desc="打个招呼，并汇报当前模式与统计到的群消息条数。")
+    ctx.on_command(["echodemo"], cmd_echo,
+                   usage="/echodemo <内容>", desc="把参数原样回显。")
+    ctx.on_command(["exampleinfo", "demohelp"], cmd_info,
+                   usage="/exampleinfo", desc="读出 Web 上配置的值，验证各类字段的落库形态。")
     ctx.on_event(on_event)
     ok = _start_web(ctx.web_port)
     ctx.log("已载入 v%s｜指令 /example · /echodemo · /exampleinfo｜独立页面 %s" % (

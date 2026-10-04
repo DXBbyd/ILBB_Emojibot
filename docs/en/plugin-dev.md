@@ -70,6 +70,7 @@ Put it into `plugins/`, wait one polling cycle (3 seconds by default), and sendi
 | `web_path` | string | `/` | Entry path of the standalone page |
 | `web_port` | int | `0` | Standalone page port; `0` means auto-allocate starting from `PLUGIN_WEB_PORT_BASE` (default 7000) |
 | `config` | array | empty | Configuration item declarations (see section 5) |
+| `help` | object / array / string | empty | Plugin help declaration rendered by `/plugin help` (see section 5.5) |
 
 When `id` is invalid or `entry` cannot be found, the plugin is not loaded, and the "misinstalled plugins" area of the Web plugin panel gives the reason.
 
@@ -98,6 +99,8 @@ def setup(ctx):
 ```
 
 The trigger words of `on_command(triggers, fn)` are **case-insensitive** and do not carry `/`. When triggered, ILBB splits the message by spaces; the first word matches the trigger word, and **the remaining part is passed in as the `args` list**.
+
+It also accepts three **optional** help parameters: `on_command(triggers, fn, desc="one-line description", usage="/usage example", group="group name")`. They only affect what `/plugin help` shows and do not change command behaviour; omitting them is fine (help falls back to listing the registered triggers).
 
 Command function signature:
 
@@ -215,6 +218,51 @@ You can optionally implement `on_config(vals, ctx)`; it is called when "Save con
 def on_config(vals, ctx):
     ctx.log("配置已更新：%r" % (vals,))
 ```
+
+---
+
+## 5.5 Help declaration (`/plugin help`)
+
+ILBB ships two built-in image commands for plugins, shared by all plugins:
+
+```
+/plugin                 plugin list (each plugin gets a number, image)
+/plugin help <number|id>  usage help for one plugin (image)
+```
+
+Help content comes from two sources, in priority order:
+
+1. **the `help` block in `plugin.json`** -- write it once and get full help, recommended;
+2. metadata passed at registration time: `ctx.on_command(triggers, fn, desc=..., usage=...)`.
+
+If neither is present, `/plugin help` gracefully falls back to listing the registered trigger words.
+
+The `help` block accepts three forms:
+
+```json
+"help": "one-line description"
+```
+
+```json
+"help": {
+  "summary": "What this plugin does",
+  "commands": [
+    { "usage": "/hello", "desc": "Say hello." },
+    { "usage": "/hello <name>", "desc": "Greet a specific person." }
+  ],
+  "notes": [
+    "Send the image together with the command in a group.",
+    "Edit settings in the admin plugin panel; they apply without a reload."
+  ]
+}
+```
+
+- `summary` falls back to the manifest `desc`;
+- `/trigger` occurrences inside `commands[].usage` are recognised, so declared triggers are not appended twice;
+- `notes` is rendered as a "usage notes" group;
+- `config` fields appear as a "configurable" group at the end of the help image, together with the standalone page port hint.
+
+See `plugins/example/plugin.json` and `plugins/BiliPlay_ILBB_Toys/plugin.json` for complete examples.
 
 ---
 

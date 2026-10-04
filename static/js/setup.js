@@ -148,8 +148,8 @@
                 '<span class="pill ' + (d.ok ? 'ok' : 'err') + '">' + (d.ok ? '正常' : (d.badge || '缺失')) + '</span>' +
                 '<div class="r-main">' +
                 '<div class="r-name">' + esc(d.label) + ' <span class="k">' + esc(d.module) + '</span></div>' +
-                (d.ok ? '' : '<div class="r-sub">' + esc(d.detail || '') +
-                    (d.tip ? '　→ 试试：<b>' + esc(d.tip) + '</b>' : '') + '</div>') +
+                (d.detail || !d.ok ? '<div class="r-sub">' + esc(d.detail || '') +
+                    (!d.ok && d.tip ? '　→ 试试：<b>' + esc(d.tip) + '</b>' : '') + '</div>' : '') +
                 '</div></div>';
         });
         h += '</div>';

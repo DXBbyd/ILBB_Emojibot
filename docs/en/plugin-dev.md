@@ -71,8 +71,49 @@ Put it into `plugins/`, wait one polling cycle (3 seconds by default), and sendi
 | `web_port` | int | `0` | Standalone page port; `0` means auto-allocate starting from `PLUGIN_WEB_PORT_BASE` (default 7000) |
 | `config` | array | empty | Configuration item declarations (see section 5) |
 | `help` | object / array / string | empty | Plugin help declaration rendered by `/plugin help` (see section 5.5) |
+| `requirements` | array / string | empty | Third-party dependency declarations (PEP 508), auto-installed into the current virtualenv before loading (see section 2.1) |
 
 When `id` is invalid or `entry` cannot be found, the plugin is not loaded, and the "misinstalled plugins" area of the Web plugin panel gives the reason.
+
+### 2.1 Declaring third-party dependencies (`requirements`)
+
+Plugins may use third-party libraries, but **never assume the user will run `pip install`** —
+ILBB plugins take effect simply by dropping the folder into `plugins/`. Declare your
+dependencies in either of these places and ILBB will fill the gaps **before importing
+the plugin**:
+
+```json
+{
+  "id": "myplugin",
+  "requirements": ["requests>=2.28", "Pillow>=10,<11"]
+}
+```
+
+Or ship a standard `requirements.txt` in the plugin folder (`#` comments and blank
+lines are supported):
+
+```
+requests>=2.28
+# pin the major version so upstream API changes cannot break us
+Pillow>=10,<11
+```
+
+Declaring both is fine — they are merged and de-duplicated by distribution name.
+Behaviour:
+
+| Situation | What happens |
+| --- | --- |
+| Everything satisfied | Nothing happens; not a single install command is run |
+| Missing / version unsatisfied | `uv pip install` into the **current virtualenv** (falls back to `python -m pip`) |
+| Host is not inside a virtualenv | **Nothing is installed**; it only logs and prints a copy-pasteable manual command (never pollutes the system Python) |
+| `PLUGIN_AUTO_INSTALL` is off | Same as above — report only |
+| Entry starts with `-` or `.` | Rejected and logged (prevents `--index-url` / `-r` from redirecting the package source) |
+
+Installation is **synchronous** and therefore blocks startup, so avoid heavy
+dependencies and overly tight version ranges. If the import still fails afterwards,
+the Web plugin panel's error message includes which module is missing and how to
+install it manually. Clicking "reload" in the Web UI counts as an explicit retry
+(otherwise each dependency set is only attempted once per process).
 
 ---
 

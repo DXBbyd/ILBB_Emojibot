@@ -428,6 +428,17 @@ PLUGIN_WEB_TIMEOUT = max(1, get_int("PLUGIN_WEB_TIMEOUT", 4))
 # 单个插件单条指令回图上限（MB）。
 PLUGIN_MAX_IMAGE_MB = max(1, get_int("PLUGIN_MAX_IMAGE_MB", 8))
 
+# ---- 插件依赖（载入插件前自动补齐第三方库，见 core/plugin_deps.py）----
+# 插件在 plugin.json 的 requirements（或插件目录下的 requirements.txt）里声明依赖，
+# 载入前自动装进**当前虚拟环境**。关掉后只写日志提示，不代劳。
+# 注意：宿主跑在系统 Python 下时无论如何都不会自动安装。
+PLUGIN_AUTO_INSTALL = get_bool("PLUGIN_AUTO_INSTALL", True)
+# 装依赖用的 PyPI 源。留空 = 跟随 uv / pip 自身配置；国内可填镜像加速，
+# 例如 https://pypi.tuna.tsinghua.edu.cn/simple
+PLUGIN_PIP_INDEX = get_str("PLUGIN_PIP_INDEX", "").strip()
+# 单次安装的超时（秒）。装大包 / 网络慢时可以调大。
+PLUGIN_INSTALL_TIMEOUT = max(15, get_int("PLUGIN_INSTALL_TIMEOUT", 300))
+
 # ---- 插件商店（从插件源服务器拉列表，选加速地址后 git clone 进 plugins/） ----
 # 商店总开关。
 PLUGIN_STORE_ENABLED = get_bool("PLUGIN_STORE_ENABLED", True)
@@ -554,6 +565,9 @@ def describe():
             ["PLUGIN_POLL_SEC", PLUGIN_POLL_SEC, "热重载轮询间隔(秒)"],
             ["PLUGIN_WEB_SCHEME", PLUGIN_WEB_SCHEME, "插件自带 Web 的协议"],
             ["PLUGIN_WEB_PORT_BASE", PLUGIN_WEB_PORT_BASE, "插件 Web 端口分配起始"],
+            ["PLUGIN_AUTO_INSTALL", "true" if PLUGIN_AUTO_INSTALL else "false",
+             "插件缺依赖时自动安装"],
+            ["PLUGIN_PIP_INDEX", PLUGIN_PIP_INDEX or "（跟随包管理器）", "装插件依赖用的源"],
             ["PLUGIN_STORE_ENABLED", "true" if PLUGIN_STORE_ENABLED else "false", "插件商店总开关"],
             ["PLUGIN_STORE_URL", PLUGIN_STORE_URL or "（未配置）", "插件源服务器地址"],
             ["PLUGIN_GIT_PROXIES", "%d 个加速地址" % len(_split_list(PLUGIN_GIT_PROXIES)),
@@ -731,6 +745,15 @@ ENV_SCHEMA = [
          "min": 1, "max": 60, "hot": True, "desc": "探测插件 Web 是否就绪的超时（秒）"},
         {"key": "PLUGIN_MAX_IMAGE_MB", "label": "插件回图上限", "type": "int",
          "min": 1, "max": 50, "hot": True, "desc": "单个插件单条指令回图上限（MB）"},
+        {"key": "PLUGIN_AUTO_INSTALL", "label": "依赖自动安装", "type": "bool", "hot": False,
+         "desc": "插件声明了缺的第三方库时自动装进当前虚拟环境",
+         "note": "插件在 plugin.json 的 requirements 或目录下的 requirements.txt 里声明；"
+                 "宿主不在虚拟环境里时一律不装，只写日志"},
+        {"key": "PLUGIN_PIP_INDEX", "label": "依赖安装源", "type": "text", "hot": False,
+         "maxlen": 200, "desc": "装插件依赖用的 PyPI 源，留空 = 跟随 uv / pip 自身配置",
+         "note": "国内可填镜像，例如 https://pypi.tuna.tsinghua.edu.cn/simple"},
+        {"key": "PLUGIN_INSTALL_TIMEOUT", "label": "依赖安装超时", "type": "int",
+         "min": 15, "max": 3600, "hot": False, "desc": "单次安装依赖的超时（秒）"},
         {"key": "PLUGIN_STORE_ENABLED", "label": "插件商店", "type": "bool", "hot": True,
          "desc": "在插件页显示「插件商店」子选项（从插件源拉列表并一键安装）"},
         {"key": "PLUGIN_STORE_URL", "label": "插件源地址", "type": "text", "hot": True,

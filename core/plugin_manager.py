@@ -38,6 +38,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 import config
+import plugin_deps
 import ws_server
 
 MANIFEST_NAME = "plugin.json"
@@ -285,6 +286,9 @@ def _read_manifest(folder):
         "config": _normalize_fields(data.get("config")),
         # /plugin help 的帮助声明（可选）。没有时回落到 desc。
         "help": _normalize_help(data.get("help"), str(data.get("desc") or "")),
+        # 插件声明的第三方依赖：plugin.json 的 requirements + 插件目录下的
+        # requirements.txt。载入插件之前由 plugin_deps 检查并补齐。
+        "requirements": plugin_deps.collect_requirements(data, folder)["reqs"],
     }
     if manifest["web_port"] and not (1024 <= manifest["web_port"] <= 65535):
         manifest["web_port"] = 0
@@ -468,6 +472,8 @@ class Plugin:
         self.module = None
         self.event_handlers = []
         self.values = {}
+        # 最近一次依赖检查 / 自动安装的结果（plugin_deps.ensure 的返回值）。
+        self.deps = {}
         self.web_port = 0
         self.loaded_at = 0.0
         self.reload_count = 0
@@ -493,6 +499,8 @@ class Plugin:
             "help": dict(m.get("help") or {}),
             "fields": m.get("config", []),
             "values": dict(self.values),
+            "requirements": list(m.get("requirements") or []),
+            "deps": dict(self.deps or {}),
             "loaded_at": self.loaded_at,
             "reload_count": self.reload_count,
         }
@@ -583,12 +591,20 @@ def _load(plugin):
     manifest = plugin.manifest
     mod_name = "ilbb_plugin_%s" % plugin.id
     _purge_modules(mod_name)
+    # 缺依赖先补上。必须赶在 import 之前 —— 插件入口顶层的 import 一旦失败，
+    # 后面就没有补救的机会了。是否会真装由 plugin_deps 决定：
+    # 关掉开关、或宿主不在虚拟环境里，都只提示不代劳。
+    plugin.deps = plugin_deps.ensure(manifest, plugin.folder)
     try:
         mod = _import_module(manifest["entry_path"], mod_name)
     except Exception as e:
         plugin.error = "导入失败：%s" % e
         plugin.loaded = False
         _log("[%s] 导入失败：%s" % (plugin.id, e), ws_server.C.RED)
+        hint = plugin_deps.failure_hint(e, manifest, plugin.folder)
+        if hint:
+            plugin.error += "｜" + hint
+            _log("[%s] %s" % (plugin.id, hint), ws_server.C.YELLOW)
         traceback.print_exc()
         return False
     plugin.module = mod
@@ -855,6 +871,14 @@ def start():
             return _summary()
         _started = True
     _load_state()
+    # 启动时先看一眼虚拟环境：插件依赖自动安装完全依赖它。不在虚拟环境里
+    # 就得让用户尽早知道（只警告，不拦启动 —— 没插件的用户照样能用）。
+    _venv = plugin_deps.venv_info()
+    if _venv["ok"]:
+        _log(plugin_deps.venv_summary(), ws_server.C.MAGENTA)
+    else:
+        _log("⚠️ %s。插件缺依赖时不会自动安装，请手动在虚拟环境里执行 uv pip install。"
+             % plugin_deps.venv_summary(), ws_server.C.YELLOW)
     if not getattr(config, "PLUGIN_ENABLED", True):
         _log("插件系统已关闭（PLUGIN_ENABLED=false）", ws_server.C.YELLOW)
         return _summary()
@@ -1021,10 +1045,13 @@ def reload(pid=None):
             p = _plugins.get(str(pid).strip())
             if p is None:
                 return {"ok": False, "error": "插件不存在：%s" % pid}
+            # 手动重载 = 显式重试：清掉「已尝试过」的记录，缺的依赖再装一次。
+            plugin_deps.forget(p.id)
             _unload(p)
             ok = _load(p)
             _last_signature[p.id] = _signature(p.folder)
             return {"ok": True, "loaded": ok, "plugin": p.public()}
+        plugin_deps.forget()
         added, changed, removed = sync(force=True)
         return {"ok": True, "added": added, "changed": changed, "removed": removed,
                 "summary": _summary()}

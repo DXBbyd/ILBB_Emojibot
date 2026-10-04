@@ -2312,6 +2312,7 @@ def plugins_store_uninstall():
 #   3) 素材不完整 → 引导页里一键补全下载（meme_assets 后台任务 + 进度轮询）。
 # 引导状态单独存文件，不写进 .env，避免污染配置。
 import meme_assets
+import plugin_deps
 
 SETUP_STATE_PATH = os.path.join(config.ROOT, 'setup_state.json')
 SETUP_STATE_VERSION = 1
@@ -2451,9 +2452,24 @@ def _setup_scan(refresh=False, deep=False):
     return info
 
 
+def _setup_venv_dep():
+    """虚拟环境自检项：插件依赖自动安装必须有一个可用的虚拟环境才敢动手。"""
+    info = plugin_deps.venv_info()
+    item = {"module": "venv", "label": "虚拟环境", "ok": True,
+            "detail": info["prefix"], "tip": "", "badge": ""}
+    if info["ok"]:
+        return item
+    item.update(
+        ok=False, badge="缺失", detail=info["detail"] or "没有检测到虚拟环境",
+        tip="用 uv 建一个：uv venv .venv，然后把服务换成 .venv 里的 Python 启动；"
+            "否则插件缺依赖时不会自动安装（也不会误装到系统 Python 里）")
+    return item
+
+
 def _setup_env_check():
     """依赖 / 引擎 / 目录自检，引导页第一步展示。"""
-    deps = [_setup_python_dep()]          # 解释器排第一：版本不对，后面的包根本装不上
+    deps = [_setup_python_dep(), _setup_venv_dep()]   # 解释器与虚拟环境排最前：
+    # 版本或环境不对，后面的包根本装不上。
     for mod, label, tip in SETUP_DEP_MODULES:
         try:
             __import__(mod)

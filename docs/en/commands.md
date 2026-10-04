@@ -32,7 +32,8 @@ A few behaviors that are easy to overlook:
 | `/help` | `/菜单` `/menu` `/?` `/？` | Returns the image-based command overview menu |
 | `/meme` | `/表情` `/生图` | Emoji generation (表情 = emoji, 生图 = generate image) |
 | `/pair` | `/配对` `/卡片` | Generates a QQ-style pairing card (配对 = pairing, 卡片 = card) |
-| `/quote` | `/名言` `/名言图` | Generates a quote image (名言 = famous quote, 名言图 = quote image) |
+| `/名言` | — | Quotes a message to compose a quote image (signature & avatar = the quoted sender) |
+| `/生成名言 <text>` | — | Composes a quote image for yourself (signature & avatar = you) |
 | `/plugin` | `/插件` | Plugin list: installed plugins with numbers, status and command overview (image) |
 | `/plugin help <number>` | `/plugin help <id>` | Usage help for one plugin (image: commands / notes / configurable items) |
 | `<插件触发词>` | — | Declared by the plugin's `plugin.json` |
@@ -161,30 +162,34 @@ Generates a QQ-style pairing card (avatar + title + buttons), the same as the pa
 
 ---
 
-## 6. `/quote` —— Quote Image
+## 6. `/名言` · `/生成名言` —— Quote Image
 
-Give it an avatar + a sentence (or an emoji/sticker image) and it composes a quote image, output as JPG.
+The quote image has two entry points, each with **exactly one meaning** and no guessing:
+
+- **`/名言`** —— quote a message first, then send `/名言`: the bot turns **that message** into a quote image. Body = the text of that message, where **`@` is rendered as `@nickname`** (falls back to `@QQ` when the name is unavailable; `@all` shows as `@全体成员`); the message's **image is kept too** — text on top, image below, in the same panel; signature & avatar = the person who sent it.
+- **`/生成名言 <text>`** —— leave one space after the command and write the sentence you want; the bot composes one for **you**: signature & avatar = yourself.
 
 ```
-/quote 这就是名言                     署名默认是发送者昵称（群聊取群名片）
-/quote @某人 这就是名言                用被 @ 者的头像与昵称
-/quote 10001 这就是名言               直接写 QQ 号
-/quote help                          帮助图
+/名言                          Quote a message and turn it into a quote image (signature = the quoted sender)
+/生成名言 这就是名言             Compose one for yourself (signature = you)
+/名言 help                     Help image
 ```
+
+> The old `/quote`, `/名言图` and `/名言 @someone text` forms are retired: they now reply with a usage / migration hint image — never silently ignored, and never pretending they still work.
 
 Structure of the result:
 
-- **Layout** —— landscape 16:9 (`QUOTE_WIDTH` × `QUOTE_HEIGHT`, default 1280×720): an independent rounded rectangle avatar on the left, and a white frosted-glass panel filling the right half, holding the text or emoji/sticker
-- **Background** —— a random anime image from the same API as the home page background (`BG_API`), with a grey mask layered over it (`QUOTE_MASK_ALPHA`, default `0.35` = 35% grey, the background stays recognisable); the glass panel, avatar and text are all drawn above the mask
-- **Frosted-glass panel** —— fills the right half (full height): the background inside it is blurred as a whole (`QUOTE_TRAY_BLUR`, default `30`), then a warm white glass layer (`QUOTE_TRAY_GLASS`, default `0.58`) and a top highlight are added on top; its left edge fades out through a horizontal gradient (`QUOTE_TRAY_FADE`) so the left border is fully transparent and blends into the middle background without a hard edge; text automatically tries font sizes from large to small and truncates with an ellipsis if it does not fit, while emoji/stickers scale adaptively
-- **Avatar** —— an independent rounded rectangle avatar on the left (`QUOTE_AVATAR`, default width 236, height = width × 1.32); a built-in placeholder is used when none is given
+- **Layout** —— landscape 16:9 (`QUOTE_WIDTH` × `QUOTE_HEIGHT`, default 1280×720): an independent rounded rectangle avatar on the left, and a white frosted-glass panel filling the right half, holding the text and image (text on top, image below — both can show at once); **when the text is long it auto-shrinks (and truncates if needed) to free up room for the image, so the image is never squeezed out**
+- **Background** —— a random anime image from the same API as the home page background (`BG_API`, **random by default**), with a grey mask layered over it (`QUOTE_MASK_ALPHA`, default `0.35` = 35% grey, the background stays recognisable); the glass panel, avatar and text are all drawn above the mask
+- **Frosted-glass panel** —— fills the right half (full height): the background inside it is blurred as a whole (`QUOTE_TRAY_BLUR`, default `30`), then a warm white glass layer (`QUOTE_TRAY_GLASS`, default `0.58`) and a top highlight are added on top; its left edge fades out through a horizontal gradient (`QUOTE_TRAY_FADE`) so the left border is fully transparent and blends into the middle background without a hard edge; text automatically tries font sizes from large to small and truncates with an ellipsis if it does not fit, while images scale adaptively (capped at about 45% of the height when shown together with text)
+- **Avatar** —— an independent rounded rectangle avatar on the left (`QUOTE_AVATAR`, default width 236, height = width × 1.32); a built-in placeholder (the first character of the name) is used when the avatar cannot be fetched
 - **Signature** —— "—— 用户名" in the bottom right corner; its font follows the global `FONT_FAMILY` and is no longer configurable on its own
 
-Output: a JPG when the panel content is static, a GIF when it is an animated emoji/sticker (**the animation is preserved**). The "Quote image" form in the web UI lets you switch the global font directly (the same ILBB custom dropdown as the home page), and the signature follows it.
+Output: a JPG when the panel content is static, a GIF when it is animated (**the animation is preserved**). The "Quote image" form in the web UI lets you switch the global font directly (the same ILBB custom dropdown as the home page), and the signature follows it.
 
-All layout-related parameters are adjustable; see [configuration.md](configuration.md#4-quote-image-quote).
+All layout-related parameters are adjustable; see [configuration.md](configuration.md#4-quote-image).
 
-> To turn this feature off: `QUOTE_ENABLED=false`; in that case it only replies with a hint image.
+> To turn this feature off: `QUOTE_ENABLED=false`; in that case both `/名言` and `/生成名言` only reply with a hint image.
 
 ---
 
@@ -204,7 +209,7 @@ The `plugins/example/` sample plugin registers:
 | `/echodemo 内容` | Echoes the content back verbatim |
 | `/exampleinfo` | Shows the plugin's current configuration and runtime information |
 
-The parsing priority of plugin commands is **lower than built-in commands**: if a plugin trigger word collides with `/meme`, the built-in command wins. When writing a plugin, avoid the built-in names (`help` `menu` `meme` `表情` `生图` `pair` `配对` `卡片` `quote` `名言` `名言图`).
+The parsing priority of plugin commands is **lower than built-in commands**: if a plugin trigger word collides with `/meme`, the built-in command wins. When writing a plugin, avoid the built-in names (`help` `menu` `meme` `表情` `生图` `pair` `配对` `卡片` `名言` `生成名言` `quote` `名言图`).
 
 ### Plugin list and help
 
@@ -251,8 +256,8 @@ The two share the same block of command parsing code (`run_command()`), so the p
 /meme help 42                        第 42 号表情的教程
 /pair 10001 我们的配对结果             配对卡片
 /pair @某人 template=paper btn=A|B    带模板与按钮
-/quote 这就是名言                     名言图
-/quote @某人 这就是名言                指名道姓的名言图
+/名言                                引用一条消息，做成名言图
+/生成名言 这就是名言                  给自己合成一张名言图
 /plugin                              插件列表（图片）
 /plugin help 1                       第 1 号插件的使用帮助（图片）
 ```

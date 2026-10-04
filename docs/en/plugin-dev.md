@@ -388,7 +388,7 @@ Port allocation rule: if `web_port` in the manifest has a valid value (1024–65
 | --- | --- |
 | Plugin does not appear | The directory has no `plugin.json`, or `plugin.json` is not valid JSON |
 | Reports `找不到入口文件` | The name written in `entry` does not match the actual file name |
-| Command does not respond | Commands are case-insensitive but have no `/`; make sure the name does not collide with the built-in commands (`help` / `meme` / `pair` / `quote`) |
+| Command does not respond | Commands are case-insensitive but have no `/`; make sure the name does not collide with the built-in commands (`help` / `meme` / `pair` / `名言` / `生成名言`) |
 | Command throws an error | The exception is caught and an error card is returned; the stack trace is in the console |
 | Configuration reads as empty | The `group_member` field depends on the group selected before it; if no group is selected there will be no options |
 | Code changes do not take effect | The extension is not in the watch list (only `.py .json .html .js .css .txt .md .svg` are recognized) |

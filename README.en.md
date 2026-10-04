@@ -31,7 +31,7 @@ No third-party cloud service required. Everything runs on your own machine.
 | --- | --- |
 | Meme generation `/meme` | 282 memes, 3,400+ asset files. Send a command plus text (optionally with an image, an `@mention` or a QQ number) and get a sticker back. Supports per-meme preset arguments |
 | Pairing card `/pair` | QQ-style pairing cards with three templates (classic / dark / paper); custom title, background and button labels |
-| Quote image `/quote` | Landscape 16:9: a random anime background with a grey mask (35% opacity by default), one fully blurred tray in the centre holding a circular avatar on the left and text or a sticker on the right, and a signature at the bottom right; JPG for static content, GIF when animated, fonts switchable |
+| Quote image `/名言` `/生成名言` | Landscape 16:9: a random anime background with a grey mask (35% opacity by default), one fully blurred tray in the centre holding a circular avatar on the left and text plus image on the right (text on top, image below — both at once; animated images supported), and a signature at the bottom right. `/名言` quotes a message and composes it directly (signature = the quoted sender; text, image and `@` are all kept); `/生成名言 <text>` composes one for yourself. JPG for static content, GIF when animated, fonts switchable |
 | Image menu `/help` | Every command rendered as a clean, phone-friendly image |
 | Web workbench | Pairing-card generator, meme preview and debugging, command dry-run preview, web chat session (try commands without QQ) |
 | Integration panel | Start/stop the OneBot V11 reverse-WS server, edit its config, watch a live event stream with raw JSON, and use a debug panel for 30+ OneBot APIs |
@@ -78,7 +78,8 @@ The default prefix is `/` (change it via `BOT_PREFIX`). Full reference: **[Comma
 | `/meme list [page/keyword]` | Browse assets with pagination; a keyword searches, e.g. `/meme list 摸头` |
 | `/meme help [ID]` | Per-meme illustrated tutorial (template, presets, examples) |
 | `/pair [QQ/@] [title]` | Generate a pairing card; accepts `template=` `bg=` `btn=` |
-| `/quote [@/QQ] text…` | Compose a quote image |
+| `/名言` | Quote a message and turn it into a quote image (signature = the quoted sender) |
+| `/生成名言 <text>` | Compose a quote image for yourself (signature = you) |
 | `/plugin` | Lists installed plugins with numbers (image); `/plugin help <number>` shows one plugin's usage |
 | `<plugin trigger>` | Declared by `plugins/<plugin>/plugin.json` |
 

@@ -367,10 +367,10 @@ BOT_FOOTER = get_str("BOT_FOOTER", "我在哔哩学习 Emoji Bot · ILBB").strip
 
 
 # ----------------------------------------------------------------------------
-# 名言图（/quote）：横屏 16:9 + 随机背景 + 灰色蒙版 + 全模糊托盘
+# 名言图（/名言 · /生成名言）：横屏 16:9 + 随机背景 + 灰色蒙版 + 全模糊托盘
 #                   （托盘内左圆形头像 + 右内容）+ 右下角署名
 # ----------------------------------------------------------------------------
-# 名言图总开关：false 时 /quote 指令回提示图，不生成名言图。
+# 名言图总开关：false 时 /名言 与 /生成名言 都回提示图，不生成名言图。
 QUOTE_ENABLED = get_bool("QUOTE_ENABLED", True)
 # 画布宽度 / 高度：默认 1280×720（16:9 横屏），画面正中一块全模糊托盘。
 # 托盘内是静态内容 → 出 JPG；托盘内是动图 → 出 GIF。
@@ -531,7 +531,7 @@ def describe():
             ["OPENAI_V1_DIR", OPENAI_V1_DIR, "OpenAI 兼容接口产图目录"],
         ]),
         ("名言图", [
-            ["QUOTE_ENABLED", "true" if QUOTE_ENABLED else "false", "/quote 指令开关"],
+            ["QUOTE_ENABLED", "true" if QUOTE_ENABLED else "false", "/名言 · /生成名言 开关"],
             ["QUOTE_WIDTH", QUOTE_WIDTH, "名言图画布宽度"],
             ["QUOTE_HEIGHT", QUOTE_HEIGHT, "名言图画布高度（默认 16:9）"],
             ["QUOTE_MASK_ALPHA", QUOTE_MASK_ALPHA, "灰色蒙版不透明度（0~1，0.35=压 35% 灰）"],
@@ -676,7 +676,7 @@ ENV_SCHEMA = [
     ]),
     ("名言图", [
         {"key": "QUOTE_ENABLED", "label": "功能开关", "type": "bool", "hot": True,
-         "desc": "关闭后 /quote 只回提示图"},
+         "desc": "关闭后 /名言 · /生成名言 只回提示图"},
         {"key": "QUOTE_WIDTH", "label": "画布宽度", "type": "int", "min": 480, "max": 4000,
          "hot": True, "desc": "横屏画布宽度（默认 1280；建议与高度保持 16:9）"},
         {"key": "QUOTE_HEIGHT", "label": "画布高度", "type": "int", "min": 270, "max": 4000,

@@ -4,7 +4,7 @@
 职责
 ----
 1. 注册 OneBot V11 消息事件处理器（ws_server.add_event_handler）。
-2. 解析 /help、/meme、/pair、/quote 四类指令（前缀与开关见 config.BOT_*）。
+2. 解析 /help、/meme、/pair、/名言 四类指令（前缀与开关见 config.BOT_*）。
 3. 调用 bot_render 渲染与 WebUI 同款的图片，必要时调用 meme_service / WebUI
    主程序里的配对卡渲染器生成最终图片。
 4. 通过 ws_server.call_api 回发图片或文本。
@@ -20,9 +20,9 @@
 /pair                          配对生图帮助（等同 /pair help）
 /pair help                     配对生图帮助图
 /pair [QQ|@某人] [标题] [键=值…] 生成配对卡片并回图
-/quote                         名言图帮助（等同 /quote help）
-/quote help                    名言图帮助图
-/quote [@某人|QQ号] [文本…]     合成名言图（随机背景 + 灰色蒙版 + 正中全模糊托盘：左圆形头像 + 右内容 + 署名）
+/名言                          引用一条消息，把那条消息做成名言图（署名 = 被引用的人）
+/名言 help                     名言图帮助图
+/生成名言 文本…                 给自己合成一张名言图（署名 = 自己）
 /plugin                        插件列表（图片：编号 / 状态 / 指令概览）
 /plugin help [编号|id]          单个插件的使用帮助（图片：指令用法 / 说明 / 可配置项）
 
@@ -31,6 +31,8 @@
 * 指令处理跑在独立线程里 —— WS 收包事件循环不能被生图/下载阻塞。
 * run_command() 只负责「算出要回什么」，实际发送交给调用方，
   因此 WebUI「指令中心」可以干跑预览，不真的发消息。
+* 名言的两个入口**各自只有一种含义**：``/名言`` 只认引用（署名属于被引用的人），
+  ``/生成名言`` 只认指令后面那句话（署名属于自己）。没有隐式猜测、没有多义写法。
 """
 from __future__ import annotations
 
@@ -201,10 +203,20 @@ def _segment_image(seg) -> bytes | None:
     return None
 
 
-def _reply_images(reply_id: str) -> list:
-    """取被引用消息里的所有图片"""
+def _reply_message(reply_id: str) -> dict:
+    """取一条被引用消息的全貌：``{ok, text, qq, name, images, ats}``。
+
+    一次 ``get_msg`` 同时拿回**文本 / 作者 / 图片 / @ 目标** —— ``/名言`` 都要，
+    分四次取会白白多发三次请求。取不到（没给 id / 接口失败 / 消息太旧）时
+    ``ok=False``，调用方据此回一张明确的提示卡，而不是拿空内容去出一张空图。
+
+    正文里的 ``@`` 先以 ``\\x00at<i>\\x00`` 占位，目标 QQ 收在 ``ats`` 里，
+    由调用方（知道群号与是否干跑）解析成「@昵称 / @QQ号 / @全体成员」。
+
+    ``name`` 的取值顺序是「群名片 > 昵称」；都为空时留空，由调用方继续降级。
+    """
     if not reply_id:
-        return []
+        return {"ok": False}
     mid = reply_id
     if str(mid).lstrip("-").isdigit():
         try:
@@ -214,17 +226,50 @@ def _reply_images(reply_id: str) -> list:
     try:
         ret = ws_server.call_api("get_msg", {"message_id": mid}, timeout=8.0)
     except Exception:
-        return []
+        return {"ok": False}
     data = ((ret or {}).get("response") or {}).get("data") or {}
+    if not isinstance(data, dict) or not data:
+        return {"ok": False}
+
     segs = data.get("message")
-    if not isinstance(segs, list):
-        return []
-    out = []
-    for s in segs:
-        raw = _segment_image(s)
-        if raw:
-            out.append(raw)
-    return out
+    parts, images, ats = [], [], []
+    if isinstance(segs, list):
+        for s in segs:
+            if not isinstance(s, dict):
+                continue
+            typ = s.get("type")
+            d = s.get("data") if isinstance(s.get("data"), dict) else {}
+            if typ == "text":
+                parts.append(str(d.get("text") or ""))
+            elif typ == "at":
+                # 被引用的消息里 @ 了别人：也要拼进正文，形状先用占位符，
+                # 由调用方根据上下文把 @ 的目标 QQ 解析成「@昵称/QQ号」再替换。
+                qq = str(d.get("qq") or "").strip()
+                ats.append(qq)
+                parts.append("\x00at%d\x00" % (len(ats) - 1))
+            raw = _segment_image(s)
+            if raw:
+                images.append(raw)
+
+    text = "".join(parts).strip()
+    if not text and not images and not ats:
+        # 纯 CQ 码消息（例如图片已过期、只剩 [CQ:image,…] 文本）的兜底：
+        # 只有原文**不含 CQ 码**时才敢当正文，否则会把一串 CQ 码画到图上。
+        raw_msg = str(data.get("raw_message") or "").strip()
+        if raw_msg and "[CQ:" not in raw_msg:
+            text = raw_msg
+
+    sender = data.get("sender") if isinstance(data.get("sender"), dict) else {}
+    qq = str(sender.get("user_id") or data.get("user_id") or "").strip()
+    name = (str(sender.get("card") or "").strip()
+            or str(sender.get("nickname") or "").strip())
+    return {"ok": True, "text": text, "qq": qq, "name": name,
+            "images": images, "ats": ats}
+
+
+def _reply_images(reply_id: str) -> list:
+    """取被引用消息里的所有图片"""
+    return list(_reply_message(reply_id).get("images") or [])
 
 
 def _qq_avatar(qq) -> bytes | None:
@@ -713,8 +758,25 @@ def _gen_pair(args, ctx) -> tuple:
 
 
 # ----------------------------------------------------------------------------
-# 指令实现：/quote [@某人|QQ号] 文本…
+# 指令实现：/名言（引用一条消息）· /生成名言 <文本>
+#
+# 两个入口各自只有一种含义，不做隐式猜测：
+#   /名言              → 引用谁的消息，就把**那条消息连同它的作者**做成名言图；
+#   /生成名言 <文本>    → 给自己做一张，正文就是指令后面那句话。
+# 旧写法（/quote、/名言图、/名言 @某人 文本）已下线，一律回一张明确的迁移/用法卡。
 # ----------------------------------------------------------------------------
+#: 被引用的消息既没文字也没图片时的兜底正文（正常流程走不到，纯防御）
+DEFAULT_QUOTE_BODY = "这就是名言。"
+#: 「名言」缺少引用时的提示卡标题
+QUOTE_REPLY_USAGE_TITLE = "名言要引用一条消息"
+#: 「名言」多写了内容时的提示卡标题
+QUOTE_REPLY_EXTRA_TITLE = "名言后面不用写字"
+#: 「生成名言」缺正文时的提示卡标题
+QUOTE_SELF_USAGE_TITLE = "生成名言要写一句话"
+#: 旧触发词下线时的提示卡标题
+QUOTE_MOVED_TITLE = "名言指令已更新"
+
+
 def _quote_background() -> bytes | None:
     """随机背景图：调 config.BG_API（每次请求返回一张随机图）"""
     api = str(getattr(config, "BG_API", "") or "").strip()
@@ -725,6 +787,160 @@ def _quote_background() -> bytes | None:
         return _http(api + sep + "t=" + str(int(time.time() * 1000)))
     except Exception:
         return None
+
+
+def _quote_notice(title: str, lines: list, kind: str = "warn") -> tuple:
+    """名言相关的提示卡（各入口共用，避免三处各写一遍）。"""
+    return ([bot_render.render_notice(title, lines, kind)], [])
+
+
+def _quote_disabled() -> tuple:
+    """名言总开关关闭时的统一提示（各入口先判它，再碰任何数据）。"""
+    return _quote_notice(
+        "名言合成已关闭",
+        ["管理员在配置里关闭了 QUOTE_ENABLED（.env 可改回 true）。"])
+
+
+def _quote_finish(body_text, name, avatar, images, dry) -> tuple:
+    """两个入口共用的收尾：随机背景 → 渲染 → 体积收敛。
+
+    背景**默认就是随机图**（``config.BG_API``）；取不到时渲染层自己会用
+    深灰渐变兜底，不会因此失败。
+    """
+    if not body_text and not images:
+        body_text = DEFAULT_QUOTE_BODY
+    bg = None if dry else _quote_background()
+    try:
+        data = bot_render.render_quote(body_text, name, avatar, images, bg)
+    except Exception as e:
+        traceback.print_exc()
+        return ([bot_render.render_notice("名言图生成失败", [str(e)[:140]], "err")], [])
+    data, note = _shrink(data)
+    return ([data], [note] if note else [])
+
+
+def _at_display_name(qq: str, gid: str, dry: bool) -> str:
+    """把被引用消息里 @ 的目标 QQ 解析成显示名：优先群名片，取不到就退回 QQ 号。"""
+    qq = str(qq or "").strip()
+    if not qq:
+        return ""
+    if qq == "all":
+        return "全体成员"
+    name = _person_info(qq, gid, dry) if not dry else ""
+    return name or qq
+
+
+def _gen_quote_from_reply(ctx) -> tuple:
+    """``/名言``：把**被引用的那条消息**（连同它的作者）做成名言图。
+
+    署名与头像属于**被引用的人** —— 名言图这个玩法的本体就是「引用别人的话」，
+    所以这里取被引用消息的发送者，而不是发指令的人。
+
+    正文 = 被引用消息的**文字 + @**（@ 目标解析成「@昵称」）；同时把那条消息的
+    **图也带上**，文字与图可以一起出现在玻璃面板里（渲染层文字在上、图在下）。
+    两者都没有 → 提示卡。
+
+    预先知道会被引用消息填满整个画面，所以这里**不**去捡当前指令消息自带的图 ——
+    「正文」严格属于被引用的那条消息，来源单一。
+    """
+    if not bool(getattr(config, "QUOTE_ENABLED", True)):
+        return _quote_disabled()
+
+    dry = bool(ctx.get("_dry_run"))
+    p = config.BOT_PREFIX
+    gid = str(ctx.get("gid") or "")
+    reply_id = str(ctx.get("reply_id") or "")
+    if not reply_id:
+        return _quote_notice(QUOTE_REPLY_USAGE_TITLE, [
+            "先引用一条别人的消息（QQ 里长按那条消息 → 引用），再发 %s名言。" % p,
+            "想给自己做一张：发 %s生成名言 你想写的话。" % p,
+        ])
+
+    info = _reply_message(reply_id)
+    if not info.get("ok"):
+        return _quote_notice("读不到被引用的消息", [
+            "这条被引用的消息可能太旧、已被撤回，或者机器人不在那个会话里。",
+            "换个近一点的消息引用，或者用 %s生成名言 直接把话写出来。" % p,
+        ])
+
+    body_text = str(info.get("text") or "").strip()
+    images = list(info.get("images") or [])[:1]
+    ats = list(info.get("ats") or [])
+
+    # @ 占位符 → 显示名。同一目标只解析一次，避免同一条消息里 @ 同一人多发请求。
+    resolved = {}
+    for i, aqq in enumerate(ats):
+        if aqq not in resolved:
+            resolved[aqq] = _at_display_name(aqq, gid, dry)
+        body_text = body_text.replace("\x00at%d\x00" % i, "@%s" % resolved[aqq])
+    body_text = body_text.strip()
+
+    if not body_text and not images:
+        return _quote_notice("这条消息里没有能合成的文字", [
+            "被引用的消息既没有文字也没有图片。",
+            "试试用 %s生成名言 你想写的话 给自己合成一张。" % p,
+        ])
+
+    qq = str(info.get("qq") or "").strip() or str(ctx.get("uid") or "")
+    name = str(info.get("name") or "").strip()
+    if not name:
+        name = _person_info(qq, gid, dry)
+    name = _clean_name(name) or str(getattr(config, "QUOTE_NAME", "无名氏"))
+
+    if dry:
+        avatar = _placeholder_image()
+    else:
+        # 取不到头像不换占位图：渲染层会画「名字首字」的占位头像，
+        # 那比顶一张机器人头像更贴近「这是谁说的」。
+        avatar = _qq_avatar(qq)
+
+    return _quote_finish(body_text, name, avatar, images, dry)
+
+
+def _gen_quote_self(args, ctx) -> tuple:
+    """``/生成名言 <文本>``：给自己合成一张名言图。
+
+    正文 = 指令后面那句话（指令与正文之间要有空格）；署名与头像 = 发指令的人。
+    正文为空 → 提示卡 —— 出空图对谁都没有意义，不如直接说清楚怎么写。
+    """
+    if not bool(getattr(config, "QUOTE_ENABLED", True)):
+        return _quote_disabled()
+
+    dry = bool(ctx.get("_dry_run"))
+    p = config.BOT_PREFIX
+    body_text = " ".join(str(a) for a in (args or []) if str(a).strip()).strip()
+    if not body_text:
+        return _quote_notice(QUOTE_SELF_USAGE_TITLE, [
+            "用法：%s生成名言 你想写的话" % p,
+            "指令和正文之间要有一个空格，正文就是图上那句话。",
+            "想把别人的话做成名言：引用那条消息再发 %s名言。" % p,
+        ])
+
+    uid = str(ctx.get("uid") or "")
+    name = str(ctx.get("uname") or "").strip()
+    if not name:
+        name = _person_info(uid, str(ctx.get("gid") or ""), dry)
+    name = _clean_name(name) or str(getattr(config, "QUOTE_NAME", "无名氏"))
+
+    avatar = ctx.get("avatar") if isinstance(ctx.get("avatar"), (bytes, bytearray)) else None
+    if avatar is None:
+        avatar = _placeholder_image() if dry else _qq_avatar(uid)
+
+    # 给自己合成 = 严丝合缝的「我说的话」，不掺当前消息里附带的图
+    return _quote_finish(body_text, name, avatar, [], dry)
+
+
+def _gen_quote_legacy() -> bytes:
+    """旧触发词（/quote、/名言图）的迁移提示**图**（返回 PNG 字节）。
+
+    交给 ``cached_png`` 当 builder 用，所以返回值是字节而不是 ``(images, texts)``。
+    """
+    p = config.BOT_PREFIX
+    return bot_render.render_notice(QUOTE_MOVED_TITLE, [
+        "%squote 与 %s名言图 已下线。" % (p, p),
+        "引用一条消息发 %s名言 —— 把他的话做成名言图。" % p,
+        "发 %s生成名言 你想写的话 —— 给自己做一张。" % p,
+    ])
 
 
 def _person_info(qq, gid="", dry=False) -> str:
@@ -763,75 +979,6 @@ def _clean_name(name) -> str:
     if len(s) > mx:
         s = s[:mx] + "…"
     return s
-
-
-def _gen_quote(args, ctx) -> tuple:
-    prefix = config.BOT_PREFIX
-    if not bool(getattr(config, "QUOTE_ENABLED", True)):
-        return ([bot_render.render_notice(
-            "名言合成已关闭",
-            ["管理员在配置里关闭了 QUOTE_ENABLED（.env 可改回 true）。"], "warn")], [])
-
-    dry = bool(ctx.get("_dry_run"))
-    uid = str(ctx.get("uid") or "")
-    gid = str(ctx.get("gid") or "")
-    self_id = str(ctx.get("self_id") or "")
-
-    # ---- 切参数：@某人 / 纯 QQ 号 → 头像与署名的来源；其余全部算正文 ----
-    target = ""
-    words = []
-    for tok in args or []:
-        s = str(tok).strip()
-        if not target and s.startswith("@"):
-            s2 = s[1:].strip()
-            if s2.startswith("[") and "]" in s2:        # 兼容 @[CQ:at,qq=10001] 残留
-                s2 = s2.split("]", 1)[1].strip().lstrip("@")
-            if s2:
-                target = s2
-                continue
-        if not target and 5 <= len(s) <= 12 and s.isdigit():
-            target = s
-            continue
-        words.append(str(tok))
-
-    if not target:
-        for qq in (ctx.get("ats") or []):
-            if str(qq) and str(qq) != self_id:
-                target = str(qq)
-                break
-    if not target:
-        target = uid
-    body_text = " ".join(w for w in words if w).strip()
-
-    # ---- 头像与署名 ----
-    name = ""
-    avatar = ctx.get("avatar") if isinstance(ctx.get("avatar"), (bytes, bytearray)) else None
-    if str(target) == uid:
-        name = str(ctx.get("uname") or "").strip()
-    if not name:
-        name = _person_info(target, gid, dry)
-    if avatar is None:
-        if dry:
-            avatar = _placeholder_image()
-        else:
-            avatar = _qq_avatar(target)
-    name = _clean_name(name) or str(getattr(config, "QUOTE_NAME", "无名氏"))
-
-    # ---- 托盘内容：优先用消息里（或引用的）图当表情包，没有就给文字 ----
-    images = [b for b in _ctx_images(ctx) if b]
-    images = images[:1]
-    if not body_text and not images:
-        body_text = "这就是名言。"
-
-    bg = None if dry else _quote_background()
-    try:
-        data = bot_render.render_quote(body_text, name, avatar, images, bg)
-    except Exception as e:
-        traceback.print_exc()
-        return ([bot_render.render_notice("名言图生成失败", [str(e)[:140]], "err")], [])
-
-    data, note = _shrink(data)
-    return ([data], [note] if note else [])
 
 
 # ----------------------------------------------------------------------------
@@ -926,11 +1073,28 @@ def run_command(body, ctx=None) -> tuple:
             return ([cpng(ctag("pairhelp"), bot_render.render_pair_help)], [])
         return _gen_pair(args, ctx)
 
-    # ===== /quote —— 名言图 =====
-    if cmd in ("quote", "名言", "名言图"):
-        if not args or args[0].lower() in _HELP_ALIAS:
+    # ===== /名言 · /生成名言 —— 名言图 =====
+    # 精简成两个入口，各自只有一种含义（旧 /quote、/名言图、/名言 @某人 文本 已下线）。
+    if cmd in ("名言", "生成名言"):
+        # 「help」永远优先：显式要帮助就给帮助图，不受引用影响
+        if len(args) == 1 and args[0].lower() in _HELP_ALIAS:
             return ([cpng(ctag("quotehelp"), bot_render.render_quote_help)], [])
-        return _gen_quote(args, ctx)
+        if cmd == "生成名言":
+            return _gen_quote_self(args, ctx)
+        # 「名言」**必须不带任何文字**：引用那条消息后直接发 /名言。
+        # 注意这里不能用「没参数就回帮助图」——引用消息时 args 本来就是空的，
+        # 那样会把「引用 + /名言」这条主路径直接吃掉。
+        if not args:
+            return _gen_quote_from_reply(ctx)
+        # 多写了字：明说不用写，不静默丢掉用户打进来的内容
+        return _quote_notice(QUOTE_REPLY_EXTRA_TITLE, [
+            "%s名言 后面不用写任何字：引用那条消息、直接发 %s名言 就行。" % (prefix, prefix),
+            "想给自己合成：%s生成名言 你想写的话。" % prefix,
+        ])
+
+    # 旧触发词已下线：回一张迁移提示，不静默忽略、也不假装还能用
+    if cmd in ("quote", "名言图"):
+        return ([cpng(ctag("quote_moved"), _gen_quote_legacy)], [])
 
     # ===== /plugin —— 插件列表与插件帮助（图片，与其它指令同款 UI） =====
     if cmd in ("plugin", "插件"):

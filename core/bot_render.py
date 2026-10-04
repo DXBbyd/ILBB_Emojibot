@@ -10,8 +10,8 @@
 - render_meme_detail(token)      /meme help [ID]  单个表情的图文教程（含底图 / 预设 / 示例）
 - render_meme_list(page, query)  /meme list       表情素材列表（带列表 ID 分页）
 - render_pair_help()             /pair help       配对生图帮助
-- render_quote(text, name, ...)  /quote           名言图（横屏 16:9：左独立圆角头像 + 右半边磨砂玻璃面板 + 右下角署名）
-- render_quote_help()            /quote help      名言图帮助
+- render_quote(text, name, ...)  /名言 · /生成名言  名言图（横屏 16:9：左独立圆角头像 + 右半边磨砂玻璃面板 + 右下角署名）
+- render_quote_help()            /名言 help       名言图帮助
 - render_notice(title, lines)    通用提示 / 错误图
 - render_plugin_list(plugins, bad) /plugin           插件列表（编号 + 状态 + 指令概览）
 - render_plugin_help(info)         /plugin help N    单个插件的使用帮助
@@ -60,7 +60,7 @@ W = 960                       # 统一画布宽度
 SIDE = 28                     # 左右留白
 
 # 渲染版本号：改动版式/预览后 +1，会让 run_command 里的图片缓存自动失效重绘
-RENDER_VERSION = 6
+RENDER_VERSION = 9
 
 _CACHE_DIR = os.path.join(config.CACHE_DIR, "bot")   # 渲染结果缓存目录
 
@@ -704,7 +704,7 @@ def render_menu() -> bytes:
     _appbar(cv, "指令中心")
     total = len(all_memes())
     _page_head(cv, "总览", config.BOT_NAME + " · 图片菜单",
-               "所有指令都在这里：表情合成 meme、配对生图 pair、名言图 quote、通用 help。")
+               "所有指令都在这里：表情合成 meme、配对生图 pair、名言合成 名言、通用 help。")
 
     p = config.BOT_PREFIX
     _group(cv, "表情生成 · meme", [
@@ -731,13 +731,13 @@ def render_menu() -> bytes:
          "生成配对卡片：@某人或直接给 QQ 号，可选模板、标题与按钮文字，机器人回卡片图。"),
     ], accent=BLUE)
 
-    _group(cv, "名言合成 · quote", [
-        (f"{p}quote", "打开名言图帮助（等同 " + p + "quote help）。"),
-        (f"{p}quote help", "名言图帮助图：布局、格式与用法说明。"),
-        (f"{p}quote [@/QQ] 文本…",
-         "合成名言图：随机二次元背景 + 灰色蒙版，画面正中一块全模糊托盘，"
-         "托盘内左圆形头像、右文字或表情包，右下角署名「—— 用户名」；"
-         "静态内容出 JPG，动图表情包出 GIF。"),
+    _group(cv, "名言合成 · 名言", [
+        (f"{p}名言", "引用一条消息发出去，就把那条消息做成名言图（署名＝被引用的人，文字/图片/@ 都保留）。"),
+        (f"{p}名言 help", "名言图帮助图：布局、格式与用法说明。"),
+        (f"{p}生成名言 文本…",
+         "给自己合成名言图：随机二次元背景 + 灰色蒙版，画面正中一块全模糊托盘，"
+         "托盘内左圆形头像（你自己）、右文字，右下角署名「—— 用户名」；"
+         "静态内容出 JPG，动图出 GIF。"),
     ], accent=WARN)
 
     _group(cv, "通用 · help", [
@@ -1267,7 +1267,7 @@ def render_plugin_help(info: dict) -> bytes:
 
 
 # ============================================================================
-# 8) /quote —— 名言图（横屏 16:9）
+# 8) /名言 · /生成名言 —— 名言图（横屏 16:9）
 #    左侧一块独立的长方形圆角头像；右侧铺满右半边的白色磨砂玻璃面板，
 #    面板左缘用横向渐变蒙版渐隐，和中间的背景有过渡（不会出现硬边）。
 #    背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版；
@@ -1502,7 +1502,8 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
 
     - 左侧一块独立的长方形圆角头像（高度 = 宽度 × QUOTE_AV_RATIO），垂直居中；
     - 右侧是铺满右半边的白色磨砂玻璃面板，面板左缘做横向渐变渐隐，
-      和中间的背景自然衔接；面板里放文字（自动字号）或表情包（自适应缩放）；
+      和中间的背景自然衔接；面板里放文字（自动字号）与图片（自适应缩放），
+      二者可以一起摆——文字在上、图在下；若是动图则整块保留动画、不再拼文字；
     - 内容是动图时输出 GIF，否则输出 JPG；
     - 背景取自与主页同源的随机二次元图接口，其上叠一层灰色蒙版
       （不透明度 config.QUOTE_MASK_ALPHA，默认 0.35），蒙版只压背景，
@@ -1542,34 +1543,81 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
 
     meas = ImageDraw.Draw(Image.new("RGB", (8, 8)))
 
-    # ---- 内容：优先表情包（动图则逐帧保留），否则文字自动字号 ----
+    # ---- 内容：动图独占托盘；静态图与文字可以一起摆（文字在上、图在下） ----
     raw_frames = []
     if images:
         for data in images:
             raw_frames = _gif_frames(data)
             if raw_frames:
                 break
-    body_frames = []
-    for fr_img, dur in raw_frames:
-        try:
-            fitted = _fit(fr_img, inner_w, inner_h)
-        except Exception:
-            continue
-        if fitted.size[0] > 0 and fitted.size[1] > 0:
-            body_frames.append((fitted, dur))
-    body_h = max([f.size[1] for f, _ in body_frames] or [0])
-    content_w = max([f.size[0] for f, _ in body_frames] or [0])
+    # 这里只筛「尺寸是否有效」；真正的缩放等版式定下来再做 ——
+    # 先按整块 inner_h 预缩、之后再缩一次，会二次插值掉画质。
+    valid_frames = [(fr, dur) for fr, dur in raw_frames
+                    if fr.size[0] > 0 and fr.size[1] > 0]
+    is_anim = len(valid_frames) > 1
 
+    GAP = 16          # 图片与文字之间的间距
+    body_frames = []
+    stat_img = None
     f_text = lines = None
-    line_h = 0
-    if not body_frames:
-        payload = str(text or "").strip() or "……"
-        f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, inner_h)
-        body_h = line_h * len(lines)
-        try:
-            content_w = max([int(meas.textlength(ln, font=f_text)) for ln in lines] or [0])
-        except Exception:
-            content_w = inner_w
+    line_h = text_h = t_w = img_h = img_w = 0
+    if is_anim:
+        # 动图逐帧保留动画，撑满托盘；再拼文字会跟动画抢位置，直接省掉
+        for fr_img, dur in valid_frames:
+            try:
+                fitted = _fit(fr_img, inner_w, inner_h)
+            except Exception:
+                continue
+            if fitted.size[0] > 0 and fitted.size[1] > 0:
+                body_frames.append((fitted, dur))
+        body_h = max([f.size[1] for f, _ in body_frames] or [0])
+        content_w = max([f.size[0] for f, _ in body_frames] or [0])
+    else:
+        body_frames = valid_frames[:1]        # 静态：只留一张，供下面的 JPG 判定
+        src_img = valid_frames[0][0] if valid_frames else None
+        payload = str(text or "").strip()
+
+        # ---- 自动配比：**先给图片留好位置，再让文字去适应剩下的空间**。
+        #      如果反过来（先按整块内容区排文字），文字一长就会把图片挤没 ——
+        #      所以这里图片先按「同框时最多 45% 内容区高度」占位，文字在剩余的
+        #      text_zone 里自动缩字号 / 截断。这样图片一定放得进来。
+        if src_img is not None and payload:
+            stat_img = _fit(src_img, inner_w, max(60, int(inner_h * 0.45)))
+            img_h, img_w = stat_img.size[1], stat_img.size[0]
+            text_zone = max(60, inner_h - GAP - img_h)
+        elif src_img is not None:
+            stat_img = _fit(src_img, inner_w, inner_h)      # 只有图：撑满托盘
+            img_h, img_w = stat_img.size[1], stat_img.size[0]
+            text_zone = 0
+        else:
+            text_zone = inner_h                             # 只有文字：整块给它
+
+        if payload:
+            f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, text_zone)
+            text_h = line_h * len(lines)
+            try:
+                t_w = max([int(meas.textlength(ln, font=f_text)) for ln in lines] or [0])
+            except Exception:
+                t_w = inner_w
+
+        # ---- 文字没占满自己那块时，把余量还给图片（图片至多长到 55%）----
+        if src_img is not None and payload and text_h < text_zone:
+            grow_to = min(int(inner_h * 0.55), img_h + (text_zone - text_h))
+            if grow_to > img_h:
+                stat_img = _fit(src_img, inner_w, grow_to)
+                img_h, img_w = stat_img.size[1], stat_img.size[0]
+
+        gap = GAP if (text_h > 0 and img_h > 0) else 0
+        body_h = text_h + gap + img_h
+        content_w = max(t_w, img_w)
+
+        # ---- 兜底：极端取整误差仍溢出时，只压图（文字不动）----
+        if body_h > inner_h and img_h > 0:
+            stat_img = _fit(stat_img, inner_w, max(40, img_h - (body_h - inner_h)))
+            img_h, img_w = stat_img.size[1], stat_img.size[0]
+            gap = GAP if (text_h > 0 and img_h > 0) else 0
+            body_h = text_h + gap + img_h
+            content_w = max(t_w, img_w)
     content_w = int(min(inner_w, max(120, content_w)))
 
     # ---- 背景（含灰色蒙版）→ 右半边磨砂玻璃 → 左侧头像 → 内容：前景全在蒙版之上 ----
@@ -1591,17 +1639,23 @@ def render_quote(text: str = "", name: str = "", avatar: bytes | None = None,
         d.text((nx + dx, ny + dy), label, font=nf, fill=(0, 0, 0), anchor="rs")
     d.text((nx, ny), label, font=nf, fill=(255, 255, 255), anchor="rs")
 
-    # ---- 文字 / 单帧表情包 → JPG ----
-    if not body_frames:
-        yy = body_oy
-        for ln in lines:
+    # ---- 文字（在上）＋ 静态图（在下）→ JPG；动图 → 逐帧 GIF ----
+    if not is_anim:
+        if not lines and stat_img is None:
+            # 既没文字也没图（调用方应已兜底），这里画默认文案防止空图
+            payload = str(text or "").strip() or "……"
+            f_text, lines, line_h = _quote_text_layout(meas, payload, inner_w, inner_h)
+            yy0 = max(py, (height - line_h * len(lines)) // 2)
+        else:
+            yy0 = body_oy
+        yy = yy0
+        for ln in (lines or []):
             d.text((body_ox, yy), ln, font=f_text, fill=(38, 34, 28), anchor="la")
             yy += line_h
-    elif len(body_frames) == 1:
-        single = body_frames[0][0]
-        ox = body_ox + max(0, (content_w - single.size[0]) // 2)
-        oy = body_oy + max(0, (body_h - single.size[1]) // 2)
-        canvas.paste(single, (int(ox), int(oy)), single)
+        if stat_img is not None:
+            img_x = body_ox + max(0, (content_w - stat_img.size[0]) // 2)
+            img_y = body_oy + text_h + (GAP if lines else 0)
+            canvas.paste(stat_img, (int(img_x), int(img_y)), stat_img)
 
     if len(body_frames) <= 1:
         try:
@@ -1649,17 +1703,16 @@ def render_quote_help() -> bytes:
     p = config.BOT_PREFIX
     cv = Canvas(W, BG)
     _appbar(cv, "名言合成")
-    _page_head(cv, "quote", "名言图 · 使用帮助",
-               "给一张头像 + 一句话（或一个表情包），机器人把它合成名言图回给你。")
+    _page_head(cv, "名言", "名言图 · 使用帮助",
+               "引用一条消息，或自己写一句话，机器人把它合成名言图回给你。")
 
     _group(cv, "指令格式", [
-        (f"{p}quote 文本…",
-         "合成名言图：正文就是引号里的那句话；署名默认取发送者昵称（群聊取群名片）。"),
-        (f"{p}quote @某人 文本…",
-         "指名道姓：用被 @ 的那个人的头像与昵称做图，可以附一张图当表情包。"),
-        (f"{p}quote [QQ号] 文本…",
-         f"直接写 QQ 号也可以，例如 {p}quote 10001 这就是名言。"),
-        (f"{p}quote help", "查看本帮助图。"),
+        (f"{p}名言",
+         "引用一条消息，直接把那条消息做成名言图：正文＝那条消息的文字＋@（会显示成 @昵称），"
+         "那条消息带的图也会一起放进去；署名与头像＝发那条消息的人。"),
+        (f"{p}生成名言 文本…",
+         "给自己合成：指令后面空一格，再写你想合成的那句话，署名与头像就是你自己。"),
+        (f"{p}名言 help", "查看本帮助图。"),
     ])
 
     _group(cv, "成品长什么样", [
@@ -1667,17 +1720,19 @@ def render_quote_help() -> bytes:
         ("背景", "随机二次元图（与主页背景同一个接口）+ 灰色蒙版（默认不透明度 35%）。"),
         ("托盘", "托盘范围内的背景整块高斯模糊，再压一层暖白玻璃，边缘带亮边。"),
         ("头像", "托盘左侧的圆形头像（有图用图，动图取首帧）。"),
-        ("内容", "托盘右侧放文字或表情包：文字自动调整字号，表情包自适应缩放。"),
+        ("内容", "托盘右侧放文字和图片：文字在上、图在下，可同框；图片自适应缩放。"),
         ("署名", "右下角「—— 用户名」，字体可单独设置。"),
-        ("格式", "内容是文字或静态图 → JPG；内容是动图表情包 → GIF。"),
+        ("格式", "内容是静态（文字或图）→ JPG；内容是动图 → GIF。"),
     ], accent=BLUE)
 
     _group(cv, "小提示", [
-        ("附图当内容", "把表情包和指令一起发（或引用一张图），托盘里就会显示这张图。"),
-        ("文字兜底", "既没附文字也没附图时，会给一句占位文案，避免出空图。"),
+        ("引用谁，就署谁", "名言严格看「被引用的那条消息」：谁发的，头像和署名就是谁。"),
+        ("文字和图片都能保留", "引用的消息里既有文字又有图，两者会一起做进名言图（@ 也会原样显示）。"),
+        ("文字太长也不怕", "文字太多时自动缩字号、必要时截断，把位置让给图片，图不会被挤出去。"),
+        ("文字兜底", "引用的消息既没文字也没图时，会给一句占位文案，避免出空图。"),
     ], accent=OK)
 
-    _footer(cv, f"输入 {p}quote help 可随时回看这张图")
+    _footer(cv, f"输入 {p}名言 help 可随时回看这张图")
     return _to_png(cv)
 
 

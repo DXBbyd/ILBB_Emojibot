@@ -83,11 +83,11 @@ If you change configuration in the panel but it does not take effect, check this
 
 ---
 
-## 4. Quote image (`/quote`)
+## 4. Quote image
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `QUOTE_ENABLED` | `true` | Switch for the `/quote` command |
+| `QUOTE_ENABLED` | `true` | Master switch for the `/名言` and `/生成名言` commands |
 | `QUOTE_WIDTH` | `1280` | Landscape canvas width (pixels); keep it at 16:9 with the height |
 | `QUOTE_HEIGHT` | `720` | Landscape canvas height (pixels) |
 | `QUOTE_MASK_ALPHA` | `0.35` | Opacity of the grey mask over the background; `0.35` = 35% grey (the background stays recognisable). The glass panel, avatar and text are all drawn above the mask |

@@ -62,7 +62,7 @@ QQ client
    ▼
 NapCat ──reverse WebSocket──▶ core/ws_server.py (port 6700)
                               │
-                              ├─▶ core/bot_commands.py  command routing (/meme /pair /quote)
+                              ├─▶ core/bot_commands.py  command routing (/meme /pair /名言)
                               │        └─▶ core/meme_service.py  meme composition
                               │        └─▶ core/bot_render.py   help image rendering
                               │        └─▶ plugin_manager     plugin commands

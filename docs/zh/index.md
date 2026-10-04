@@ -62,7 +62,7 @@ QQ 客户端
    ▼
 NapCat ──反向 WebSocket──▶ core/ws_server.py（6700 端口）
                               │
-                              ├─▶ core/bot_commands.py  指令路由（/meme /pair /quote）
+                              ├─▶ core/bot_commands.py  指令路由（/meme /pair /名言）
                               │        └─▶ core/meme_service.py  表情合成
                               │        └─▶ core/bot_render.py   帮助图渲染
                               │        └─▶ plugin_manager     插件指令

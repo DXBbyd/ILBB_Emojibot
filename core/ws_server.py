@@ -25,7 +25,9 @@
 依赖：websockets（pip install websockets，引导页第一步会自动体检）
 """
 
+import base64
 import json
+import mimetypes
 import os
 import threading
 import time
@@ -33,6 +35,11 @@ import traceback
 from urllib.parse import urlsplit, parse_qs
 
 import config
+
+try:
+    import logsys
+except Exception:                                        # pragma: no cover
+    logsys = None
 
 # ----------------------------------------------------------------------------
 # 依赖检查（缺失时给出可读提示，而不是直接崩）
@@ -167,8 +174,27 @@ def _ts():
     return time.strftime("%H:%M:%S")
 
 
+def _log_level(color):
+    """把旧的终端颜色参数映射成日志级别，保持既有的调用处不用改。"""
+    if color == C.RED:
+        return "error"
+    if color == C.YELLOW:
+        return "warn"
+    if color == C.GREEN:
+        return "success"
+    if color == C.GREY:
+        return "debug"
+    return "info"
+
+
 def _log(tag, msg, color=C.CYAN):
-    """统一终端日志格式：[HH:MM:SS] 【标签】 内容"""
+    """统一日志：由 logsys 负责彩色终端输出 + WebUI「日志」汇总。"""
+    if logsys is not None:
+        try:
+            logsys.log(_log_level(color), msg, source=tag)
+            return
+        except Exception:
+            pass
     try:
         print("%s %s %s" % (_c("[%s]" % _ts(), C.GREY), _c("【%s】" % tag, color), msg), flush=True)
     except Exception:
@@ -1309,7 +1335,268 @@ def _pull_login_info(box, delay=0.8, tries=3):
     _log("账号", "%s 未能读取登录账号信息（对方可能不支持 get_login_info）" % box.id, C.YELLOW)
 
 
-def call_api(action, params=None, timeout=6.0):
+# ----------------------------------------------------------------------------
+# Web 会话捕获
+# ----------------------------------------------------------------------------
+# WebUI 的「Web 会话」是在网页里模拟私聊：指令执行期间插件通过 call_api 发的
+# 消息（例如 /下书 完成后补发的进度文字、upload_private_file 传的文件）如果真
+# 发给 QQ，会跑到一个并不存在的号上。这里给这些 uid 开一个内存收件箱：命中就
+# 不连 NapCat，直接把消息拆成条目存起来，由前端轮询取走渲染。
+_WEB_UID_TTL = 15 * 60          # uid 注册有效期（页面上一直在发就一直在续期）
+_WEB_KEEP = 30 * 60             # 收件箱条目保留时长
+_WEB_MAX_ITEMS = 400
+_WEB_MAX_BYTES = 64 * 1024 * 1024
+_WEB_ITEM_MB = 28               # 单个文件/图片最多带这么多，超了就只留提示
+_WEB_NODE_CHARS = 8000          # 合并转发里单个节点在网页上最多显示这么多字
+_WEB_FORWARD_NODES = 60         # 一条合并转发最多展开这么多个节点
+
+_web_lock = threading.RLock()
+_web_uids = {}                  # uid -> 最后活跃时间
+_web_outbox = {}                # uid -> {"mid","seq","items","bytes"}
+
+
+def register_web_uid(uid):
+    """Web 会话开跑前调用：把这个 uid 标记成「网页里的假账号」。"""
+    uid = str(uid or "").strip()
+    if not uid:
+        return
+    with _web_lock:
+        _web_uids[uid] = time.time()
+        _web_prune_locked()
+
+
+def web_seq(uid):
+    """当前收件箱里最大的 seq（前端从它开始轮询）。"""
+    with _web_lock:
+        box = _web_outbox.get(str(uid or "").strip())
+        return box["seq"] if box else 0
+
+
+def take_web_items(uid, since=0):
+    """取 seq > since 的条目，返回 ``(items, 最新seq)``。"""
+    uid = str(uid or "").strip()
+    with _web_lock:
+        _web_prune_locked()
+        box = _web_outbox.get(uid)
+        if not box:
+            return [], 0
+        items = [dict(it) for it in box["items"] if it["seq"] > int(since or 0)]
+        return items, box["seq"]
+
+
+def _web_prune_locked():
+    now = time.time()
+    for uid, stamp in list(_web_uids.items()):
+        if now - stamp > _WEB_UID_TTL:
+            _web_uids.pop(uid, None)
+            _web_outbox.pop(uid, None)
+    for box in _web_outbox.values():
+        items = box["items"]
+        dead = 0
+        while dead < len(items) and (
+                now - items[dead].get("ts", now) > _WEB_KEEP
+                or len(items) - dead > _WEB_MAX_ITEMS):
+            box["bytes"] -= len(items[dead].get("data") or "")
+            dead += 1
+        if dead:
+            del items[:dead]
+
+
+def _web_target(action, params):
+    p = params if isinstance(params, dict) else {}
+    if action in ("send_private_msg", "upload_private_file",
+                  "send_private_forward_msg"):
+        uid = str(p.get("user_id") or "")
+    elif action == "send_group_forward_msg":
+        return ""                     # Web 会话是模拟私聊，群转发不拦
+    elif action in ("send_msg", "send_forward_msg"):
+        if str(p.get("message_type") or "").strip() == "group":
+            return ""
+        uid = str(p.get("user_id") or "")
+    else:
+        return ""
+    with _web_lock:
+        stamp = _web_uids.get(uid)
+        return uid if stamp and time.time() - stamp <= _WEB_UID_TTL else ""
+
+
+def _sniff_mime(name, raw):
+    ext = os.path.splitext(str(name or ""))[1].lower()
+    guess = mimetypes.guess_type("x" + ext)[0] if ext else None
+    head = bytes(raw[:16])
+    if head.startswith(b"\x89PNG"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head[:4] in (b"GIF8",):
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head.startswith(b"ID3") or head[:2] in (b"\xff\xfb", b"\xff\xf3"):
+        return "audio/mpeg"
+    if head.startswith(b"#!AMR"):
+        return "audio/amr"
+    if head.startswith(b"OggS"):
+        return "audio/ogg"
+    if head[:4] == b"fLaC":
+        return "audio/flac"
+    if head[4:8] == b"ftyp":
+        return "video/mp4"
+    return guess or "application/octet-stream"
+
+
+def _media_item(kind, file, alt_url="", name=""):
+    """把 OneBot 的 file 字段（base64:// URL / 本地路径）转成前端能显示的一条。"""
+    src = str(file or "").strip()
+    label = str(name or os.path.basename(src) or "").strip()
+    raw = None
+    if src.startswith("base64://"):
+        body = src[len("base64://"):]
+        if body.startswith("data:"):
+            body = body.split(",", 1)[-1]
+        try:
+            raw = base64.b64decode(body)
+        except Exception:
+            raw = None
+    elif os.path.isfile(src):
+        try:
+            with open(src, "rb") as fh:
+                raw = fh.read()
+        except Exception:
+            raw = None
+    if raw is None:
+        url = src if src.startswith(("http://", "https://")) else str(alt_url or "")
+        if not url:
+            return {"type": "text",
+                    "text": "[%s 无法在网页里显示]" % (label or kind)}
+        return {"type": kind, "url": url, "name": label, "mime": "", "bytes": 0}
+    if len(raw) > _WEB_ITEM_MB * 1024 * 1024:
+        return {"type": "text", "text": "[%s 超过 %d MB，已省略]"
+                % (label or kind, _WEB_ITEM_MB)}
+    mime = _sniff_mime(label or src, raw)
+    return {"type": kind, "mime": mime, "bytes": len(raw),
+            "name": label, "data": base64.b64encode(raw).decode("ascii")}
+
+
+def _seg_item(seg):
+    t = str(seg.get("type") or "")
+    d = seg.get("data") if isinstance(seg.get("data"), dict) else {}
+    if t == "text":
+        txt = str(d.get("text") or "")
+        return {"type": "text", "text": txt} if txt else None
+    if t in ("image", "record", "video"):
+        return _media_item(t, d.get("file") or d.get("url"), d.get("url"))
+    if t == "file":
+        return _media_item("file", d.get("file") or d.get("url"), d.get("url"),
+                           d.get("name") or "")
+    if t == "at":
+        return {"type": "at", "qq": str(d.get("qq") or ""),
+                "name": str(d.get("name") or "")}
+    if t == "face":
+        return {"type": "face", "id": str(d.get("id") or "")}
+    if t == "reply":
+        return {"type": "reply", "id": str(d.get("id") or "")}
+    if t == "json":
+        return {"type": "json", "data": str(d.get("data") or "")}
+    if t == "mface":
+        return {"type": "text",
+                "text": "[表情 %s]" % (d.get("summary") or d.get("emoji_id") or "")}
+    if t in ("forward", "node"):
+        return {"type": "text", "text": "[合并转发消息]"}
+    if t == "poke":
+        return {"type": "text", "text": "[戳一戳]"}
+    if t == "markdown":
+        return {"type": "text", "text": str(d.get("content") or "")}
+    return {"type": "text", "text": "[%s 消息]" % (t or "未知")}
+
+
+def _forward_item(messages):
+    """合并转发（node 数组）→ 一条前端能展开看的 forward 条目。"""
+    nodes = []
+    if isinstance(messages, str):
+        try:
+            messages = json.loads(messages)
+        except Exception:
+            messages = []
+    for node in (messages if isinstance(messages, list) else []):
+        if not isinstance(node, dict):
+            continue
+        data = node.get("data") if isinstance(node.get("data"), dict) else node
+        name = str(data.get("nickname") or data.get("name") or data.get("uin") or "消息")
+        segs = data.get("content") or data.get("message") or []
+        if isinstance(segs, str):
+            segs = [{"type": "text", "data": {"text": segs}}]
+        texts = []
+        for seg in (segs if isinstance(segs, list) else []):
+            if not isinstance(seg, dict):
+                continue
+            it = _seg_item(seg)
+            if not it:
+                continue
+            if it.get("type") == "text":
+                texts.append(it.get("text") or "")
+            elif it.get("type") == "image":
+                texts.append("[图片]")
+            else:
+                texts.append("[%s]" % it.get("type"))
+        text = "\n".join(texts)
+        if len(text) > _WEB_NODE_CHARS:
+            text = text[:_WEB_NODE_CHARS] + "\n……（网页里只显示前 %d 字）" % _WEB_NODE_CHARS
+        nodes.append({"name": name, "text": text})
+        if len(nodes) >= _WEB_FORWARD_NODES:
+            break
+    return {"type": "forward", "title": "合并转发",
+            "count": len(nodes), "nodes": nodes}
+
+
+def _web_capture(action, params):
+    """命中 Web 会话会话的发送动作 → 记进收件箱并返回 True（不真的发给 QQ）。"""
+    uid = _web_target(action, params)
+    if not uid:
+        return False
+    p = params if isinstance(params, dict) else {}
+    if action in ("send_private_forward_msg", "send_group_forward_msg",
+                  "send_forward_msg"):
+        items = [_forward_item(p.get("messages") or p.get("message"))]
+    elif action in ("send_private_msg", "send_msg"):
+        segs = p.get("message")
+        if isinstance(segs, str):
+            segs = [{"type": "text", "data": {"text": segs}}]
+        if not isinstance(segs, list):
+            segs = []
+        items = [it for it in (_seg_item(s) for s in segs if isinstance(s, dict)) if it]
+    else:
+        file = str(p.get("file") or "")
+        items = [_media_item("file", file, "", p.get("name") or "")]
+
+    with _web_lock:
+        box = _web_outbox.setdefault(uid, {"mid": 0, "seq": 0, "items": [], "bytes": 0})
+        box["mid"] += 1
+        mid = box["mid"]
+        for it in items:
+            payload = len(it.get("data") or "") + len(it.get("text") or "")
+            if box["bytes"] + payload > _WEB_MAX_BYTES:
+                it = {"type": "text", "text": "[" + str(it.get("name") or it.get("type"))
+                      + " 太大，网页收件箱已满]"}
+                payload = 0
+            box["seq"] += 1
+            it["seq"] = box["seq"]
+            it["mid"] = mid
+            it["ts"] = time.time()
+            box["items"].append(it)
+            box["bytes"] += payload
+        _web_prune_locked()
+    _log("接口", "→ %s · Web 会话拦截（未发到 QQ）" % _action_label(action), C.CYAN)
+    return True
+
+
+def call_api(action, params=None, timeout=6.0, bypass_web=False):
+    # Web 会话：模拟私聊里的发送/上传先记进网页收件箱，不连 NapCat。
+    # 插件走 ctx.* 时带 bypass_web=True：插件发往真实 QQ 的东西不能被网页会话吞掉。
+    if not bypass_web and _web_capture(action, params):
+        return {"ok": True,
+                "response": {"status": "ok", "retcode": 0,
+                             "data": {"message_id": 0, "file_id": "web-capture"}}}
     with _state["lock"]:
         clients = list(_state["clients"].values())
     if not clients:

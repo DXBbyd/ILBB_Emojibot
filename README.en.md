@@ -2,9 +2,9 @@
 
 [中文](README.md) ｜ **English**
 
-> **Current version: v0.2.0-beta** ｜ Release branch: `beta` ｜ Beta stage: features and interfaces may still change.
+> **Current version: v0.3.0-beta** ｜ Release branch: `beta` ｜ Still in Beta: features and interfaces will keep changing; issues are welcome.
 
-A **self-hosted** QQ sticker generator bot plus a web workbench. Hook it up to NapCat (OneBot V11) and your group chats can generate memes with a single message — while the web UI gives you a pairing-card generator, quote-image composer, asset browser, API debugger and a plugin system.
+A **self-hosted** QQ sticker generator bot plus a web workbench. Hook it up to NapCat (OneBot V11) and your group chats can generate memes with a single message. Besides the pairing-card generator, quote-image composer, asset browser, API debugger and plugin system, the web UI also ships a **real QQ conversation window (WebQQ)**, so you can send and receive friend/group messages and manage group announcements and members without opening your phone.
 
 No third-party cloud service required. Everything runs on your own machine.
 
@@ -35,7 +35,10 @@ No third-party cloud service required. Everything runs on your own machine.
 | Image menu `/help` | Every command rendered as a clean, phone-friendly image |
 | Web workbench | Pairing-card generator, meme preview and debugging, command dry-run preview, web chat session (try commands without QQ) |
 | Integration panel | Start/stop the OneBot V11 reverse-WS server, edit its config, watch a live event stream with raw JSON, and use a debug panel for 30+ OneBot APIs |
-| Plugin system | One folder = one plugin, manifest-driven config, hot reload, optional bundled web page |
+| Plugin system | One folder = one plugin, manifest-driven config, hot reload, optional bundled web page, auto-installs missing dependencies into the current venv |
+| WebQQ | A real QQ view inside the workbench: friend / group lists, sending and receiving, all 372 official faces (resolved by QQNT face id), `@` mentions, quote replies, images / video / voice / files, message recall, merged and per-message forwarding; group announcements (pinned / new-member / image) and member management (mute, kick) gated by owner / admin / member roles |
+| Notification centre | Joins, leaves, admin changes and friend requests in one inbox, showing the group, the event and the operator, with accept / reject actions |
+| Quick compose | Quote image / pairing card / meme panels share one QQ-style modal, with an avatar picker for the target group — no hand-written JSON arguments |
 | Setup wizard `/setup` | Environment check, online asset bootstrap, basic config and setting your admin password in four steps — no manual file editing |
 | OpenAI-compatible layer `/v1` | Exposes `/v1/images/generations`, `/v1/images/edits`, `/v1/cards`, etc., callable by any OpenAI client |
 
@@ -48,6 +51,8 @@ After startup, open `http://127.0.0.1:5000`:
 | Page | Path | Purpose |
 | --- | --- | --- |
 | Workbench | `/` | Main pairing-card generator |
+| WebQQ (view inside the workbench) | `/` → top tab "WebQQ" | Real friend / group conversations, official faces, group announcements, member management |
+| Runtime logs | `/` → top tab "Logs" | Live server log stream with level filters |
 | Status | `/status` | Runtime status, cache and API call statistics |
 | Setup wizard | `/setup` | Wizard (env check / asset download / config / set admin password) |
 | Admin | `/admin` | Back-office panels (integration, plugins, command center) |
@@ -160,6 +165,8 @@ def setup(ctx):
 
 Config fields support 8 types (`text` / `textarea` / `int` / `bool` / `enum` / `friend` / `group` / `group_member`), rendered as a form in the admin panel and applied live.
 
+The repo ships two working examples: `plugins/example` (minimal plugin with its own web page) and `plugins/ilbb_plugin_SoNovel` (multi-source novel search / download — it interprets SoNovel's `rules/main.json` source rules in Python, so no Java and no `app.jar` is required, and it also has its own web page).
+
 Full API reference, manifest field table, web-page integration and two copyable examples are in the **[Plugin Development Guide](docs/en/plugin-dev.md)**.
 
 ---
@@ -180,6 +187,9 @@ Full API reference, manifest field table, web-page integration and two copyable 
 │   ├── meme_service.py    # Meme composition service
 │   ├── meme_assets.py     # Asset manifest and online bootstrap
 │   ├── plugin_manager.py  # Plugin loading / hot reload / config
+│   ├── webqq.py           # WebQQ: friend / group chats, official faces, group management
+│   ├── qq_faces.json      # QQNT face id → name / qzone image-code map (372 faces)
+│   ├── logsys.py          # Unified log capture (terminal / in-page log centre)
 │   ├── openai_api.py      # OpenAI-compatible layer (/v1)
 │   ├── admin.py           # Login and admin password
 │   ├── api_key_store.py   # API key storage and validation
@@ -235,6 +245,15 @@ Check in order: WS server running → NapCat reverse-WS connected (the event str
 **I forgot the admin password.**
 Every startup prints the password currently in effect: until you set your own, the temporary one is printed in plain text. To reset completely, remove `admin_hash` from `api_keys.json` and restart — a new one is generated and printed. Or just open `/setup` and set a new one.
 
+**WebQQ images / videos won't load.**
+QQ media URLs carry short-lived signatures (about 2 hours). ILBB proxies them through the backend and caches them under `cache/webqq/media`, asking NapCat for a fresh URL once the old one expires. The first open needs network access; afterwards the same media is served from cache.
+
+**WebQQ recall / mute / kick sometimes isn't offered.**
+Same rules as the QQ client: private chats only allow recalling your own messages; in a group only owner / admin may recall other people's; an admin cannot act on another admin or the owner, while the owner is unrestricted. When the bot is promoted or demoted, opening the member or group panel re-fetches its role — no restart needed.
+
+**Why do WebQQ's faces differ from the ones on my phone?**
+QQNT face ids and qzone image codes are two different numbering systems. ILBB maps them through `core/qq_faces.json` and fetches the official image by id instead of guessing the old URL. All 372 faces are downloaded and cached under `cache/webqq/faces` the first time they are shown.
+
 ---
 
 ## License & Attribution
@@ -251,6 +270,7 @@ Released under the **[MIT License](LICENSE)**. Beyond its own code, the reposito
 Other external resources in play:
 
 - The meme assets (~254 MB) are not committed. The setup wizard pulls them on first run from mirrors of the meme-generator repository (jsDelivr, raw.githubusercontent and similar), with the candidate URLs listed in `core/meme_assets.py`. Those assets originate from [nonebot-plugin-petpet](https://github.com/noneplugin/nonebot-plugin-petpet) and [nonebot-plugin-memes](https://github.com/noneplugin/nonebot-plugin-memes).
+- WebQQ official faces come from Tencent's qzone emoji CDN (`qzonestyle.gtimg.cn`) and fall back to the QQNT emoji resources curated by [koishijs/QFace](https://github.com/koishijs/QFace) (MIT). The name / id map in `core/qq_faces.json` is generated from that project's public index; the images are copyright Tencent.
 - Quote images and the login page / workbench background call a third-party random image API by default, `BG_API_URL` (`https://api.yppp.net/api.php`). Point it elsewhere in `.env`, or serve your own cached images instead.
 - The plugin store points at a companion plugin source server by default, `PLUGIN_STORE_URL` (`https://store.miao.os.kg/`). It supplies the plugin list and repository URLs; the actual code is still cloned from GitHub. Point it at your own instance, or turn the store off with `PLUGIN_STORE_ENABLED=false`.
 - The three fonts under `font/`, plus the fonts shipped with the engine, are used only to render pairing cards and quote images. Copyright belongs to their respective authors, so check the licence before any commercial use.

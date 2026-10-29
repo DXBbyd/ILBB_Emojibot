@@ -1,0 +1,341 @@
+/* ============================================================================
+   快捷合成：名言图 / 配对卡 / Meme（全参数），生成后可直接发送到 QQ 会话
+   ========================================================================== */
+/* 弹窗容器：快捷合成不再是独立页面，从 WebQQ 里点「合成」直接弹出 */
+.wq-fc-modal {
+    position: absolute; inset: 0; z-index: 90;
+    display: flex; align-items: center; justify-content: center;
+}
+.wq-fc-modal.hidden { display: none; }
+.wq-fc-mask {
+    position: absolute; inset: 0; background: rgba(16, 20, 28, .42);
+    animation: wq-fc-fade .22s ease both;
+}
+.wq-fc-dialog {
+    position: relative;
+    width: min(1040px, calc(100% - 32px));
+    height: min(760px, calc(100% - 32px));
+    display: flex; flex-direction: column;
+    background: #fff;
+    border: 1px solid rgba(20, 30, 50, .08);
+    border-radius: 16px;
+    box-shadow: 0 30px 70px -24px rgba(16, 22, 34, .55);
+    overflow: hidden;
+    animation: wq-fc-in .26s cubic-bezier(.22, .95, .3, 1.12) both;
+}
+@keyframes wq-fc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wq-fc-in {
+    from { opacity: 0; transform: translateY(18px) scale(.94); }
+    60% { opacity: 1; transform: translateY(-2px) scale(1.005); }
+    to { opacity: 1; transform: none; }
+}
+/* 关闭时也给一点收起的动画，而不是瞬间消失 */
+.wq-fc-modal.closing .wq-fc-mask { animation: wq-fc-fade-out .16s ease both; }
+.wq-fc-modal.closing .wq-fc-dialog { animation: wq-fc-out .16s ease both; }
+@keyframes wq-fc-fade-out { to { opacity: 0; } }
+@keyframes wq-fc-out { to { opacity: 0; transform: translateY(10px) scale(.97); } }
+.wq-fc-close {
+    width: 28px; height: 28px; border: 0; border-radius: 8px; flex-shrink: 0;
+    background: transparent; color: var(--wq-ink-3, #98a1b0); font-size: 16px;
+    line-height: 1; cursor: pointer; font-family: inherit;
+}
+.wq-fc-close:hover { background: #f2f5fa; color: var(--wq-ink, #1d2129); }
+
+@media (max-width: 900px) {
+    .wq-fc-dialog { width: calc(100% - 14px); height: calc(100% - 14px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .wq-fc-mask, .wq-fc-dialog { animation-duration: .01ms !important; }
+}
+
+.fc-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 18px;
+    gap: 12px;
+}
+
+.fc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.fc-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+.fc-title em { font-style: normal; font-size: 11.5px; color: var(--ink-3); margin-left: 8px; font-weight: 600; }
+
+.fc-target { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.fc-target-label { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+/* 发送目标：头像 + 名称的选择面板（群 / 好友都能选，不依赖 ILBB 下拉） */
+.fc-target-pick {
+    position: relative;
+    flex: 0 1 330px; width: 330px; min-width: 230px; max-width: 380px;
+}
+.fc-target-btn {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 10px;
+    background: #fff; font-family: inherit; font-size: 12.5px; color: var(--ink);
+    text-align: left; cursor: pointer;
+    transition: border-color .16s ease, box-shadow .18s ease;
+}
+.fc-target-btn:hover { border-color: var(--border-strong); }
+.fc-target-btn[aria-expanded="true"] {
+    border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-softer);
+}
+.fc-target-av {
+    width: 22px; height: 22px; border-radius: 6px; object-fit: cover;
+    flex-shrink: 0; background: var(--brand-softer);
+}
+.fc-target-text {
+    flex: 1 1 0; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.fc-target-caret {
+    width: 7px; height: 7px; margin-top: -3px; flex-shrink: 0;
+    border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+    transform: rotate(45deg); transition: transform .2s ease;
+}
+.fc-target-btn[aria-expanded="true"] .fc-target-caret {
+    transform: rotate(-135deg); margin-top: 3px; border-color: var(--brand);
+}
+.fc-target-pop {
+    position: absolute; right: 0; top: calc(100% + 6px); width: 330px;
+    max-height: 366px; z-index: 60; display: flex; flex-direction: column;
+    background: #fff; border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-lg); overflow: hidden;
+    animation: wq-fc-in .16s cubic-bezier(.25, .9, .35, 1.1) both;
+}
+.fc-target-pick.drop-up .fc-target-pop {
+    top: auto; bottom: calc(100% + 6px);
+}
+.fc-target-searchwrap { padding: 8px; border-bottom: 1px solid var(--border-weak); }
+.fc-target-search {
+    width: 100%; padding: 7px 9px; outline: none;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-0); color: var(--ink);
+    font-family: inherit; font-size: 12px;
+    transition: border-color .16s ease, box-shadow .18s ease;
+}
+.fc-target-search:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-softer); }
+.fc-target-list { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 6px; }
+.fc-target-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px; border-radius: 8px; cursor: pointer;
+    transition: background .15s ease;
+}
+.fc-target-row:hover { background: var(--brand-softer); }
+.fc-target-row.active { background: var(--brand-soft); }
+.fc-target-row img {
+    width: 30px; height: 30px; border-radius: 8px; object-fit: cover;
+    flex-shrink: 0; background: var(--brand-softer);
+}
+.fc-target-noav {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: grid; place-items: center; background: #eef1f6;
+    color: var(--ink-3); font-size: 12px;
+}
+.fc-target-row-main { flex: 1 1 0; min-width: 0; }
+.fc-target-row-main b {
+    display: block; font-size: 12.5px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fc-target-row-main span { font-size: 10.5px; color: var(--ink-3); }
+.fc-target-tick { color: var(--brand); font-weight: 800; flex-shrink: 0; }
+.fc-target-empty {
+    padding: 14px; text-align: center; font-size: 11.5px; color: var(--ink-3);
+}
+.fc-target-manual {
+    display: flex; gap: 6px; padding: 8px;
+    border-top: 1px solid var(--border-weak); background: #fbfcfe;
+}
+.fc-target-manual input {
+    flex: 1 1 0; min-width: 0; padding: 6px 9px; outline: none;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: #fff; color: var(--ink); font-family: inherit; font-size: 12px;
+}
+.fc-target-manual input:focus { border-color: var(--brand); }
+.fc-mini {
+    padding: 6px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-2);
+    color: var(--ink-2); font-size: 11.5px; font-family: inherit; cursor: pointer;
+}
+.fc-mini:hover { background: var(--bg-3); color: var(--ink); }
+.fc-online { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.fc-online.ok { color: var(--ok-text); }
+.fc-online.bad { color: var(--err-text); }
+
+.fc-body { flex: 1 1 0; min-height: 0; display: flex; gap: 14px; }
+
+.fc-side {
+    width: 372px; flex-shrink: 0; min-height: 0;
+    display: flex; flex-direction: column;
+    background: var(--glass-strong);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.fc-tabs { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--border-weak); }
+.fc-tab {
+    flex: 1 1 0; padding: 8px 10px; border-radius: var(--radius-sm);
+    border: 1px solid transparent; background: transparent;
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    color: var(--ink-2); cursor: pointer;
+}
+.fc-tab:hover { background: var(--bg-2); color: var(--ink); }
+.fc-tab.active { background: var(--brand-soft); border-color: var(--brand-border); color: var(--brand-ink); }
+
+.fc-pane { display: none; flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 12px; }
+.fc-pane.active { display: flex; flex-direction: column; gap: 10px; }
+
+.fc-lab { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink-2); }
+.fc-lab input[type="text"], .fc-lab input[type="search"], .fc-lab select, .fc-lab textarea {
+    width: 100%; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink);
+    background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    outline: none;
+}
+.fc-lab input:focus, .fc-lab select:focus, .fc-lab textarea:focus {
+    border-color: var(--brand-border);
+    box-shadow: 0 0 0 3px var(--brand-softer);
+}
+.fc-lab textarea { resize: vertical; min-height: 74px; line-height: 1.5; }
+.fc-lab input[type="file"] { font-size: 11.5px; color: var(--ink-2); }
+/* 表单里的 ILBB 下拉占满整行，和上面的输入框对齐 */
+.fc-lab .ilbb-select { width: 100%; }
+.fc-lab .ilbb-select-btn { width: 100%; font-size: 12.5px; }
+.fc-row { display: flex; gap: 10px; }
+.fc-check {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11.5px; color: var(--ink-2); cursor: pointer;
+}
+.fc-check input { width: 15px; height: 15px; accent-color: var(--brand); }
+.fc-row > .fc-lab { flex: 1 1 0; min-width: 0; }
+.fc-hint { margin: 0; font-size: 11px; color: var(--ink-3); line-height: 1.6; }
+
+.fc-thumbs, .fc-meme-thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
+.fc-thumb {
+    position: relative; width: 54px; height: 54px; border-radius: var(--radius-sm);
+    overflow: hidden; border: 1px solid var(--border); background: var(--bg-3);
+}
+.fc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.fc-thumb button {
+    position: absolute; top: 0; right: 0; width: 16px; height: 16px; border: 0;
+    background: rgba(0, 0, 0, .55); color: #fff; font-size: 10px; line-height: 16px;
+    cursor: pointer; padding: 0; border-bottom-left-radius: 6px;
+}
+
+/* ---- meme 列表 ---- */
+.fc-meme-tools { display: flex; gap: 8px; align-items: flex-end; }
+.fc-meme-tools input[type="search"] {
+    flex: 1 1 0; min-width: 0; padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-0); color: var(--ink); outline: none;
+}
+.fc-lab-inline { width: 132px; flex-shrink: 0; font-size: 11.5px; }
+.fc-lab-inline input { padding: 7px 8px; }
+
+.fc-meme-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 8px; margin-top: 2px;
+    max-height: 260px; overflow-y: auto;
+    padding: 2px;
+}
+.fc-meme {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 6px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px solid var(--border-weak); background: var(--bg-0);
+    font-family: inherit;
+}
+.fc-meme:hover { border-color: var(--brand-border); background: var(--brand-softer); }
+.fc-meme.active { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.fc-meme img {
+    width: 100%; height: 58px; object-fit: contain;
+    border-radius: 6px; background: var(--bg-2);
+}
+.fc-meme span {
+    font-size: 10.5px; color: var(--ink-2); text-align: center;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fc-empty-note { grid-column: 1 / -1; padding: 18px; text-align: center; font-size: 12px; color: var(--ink-3); }
+
+.fc-meme-form { display: flex; flex-direction: column; gap: 10px; }
+.fc-meme-form.hidden { display: none; }
+.fc-meme-head {
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; border-bottom: 1px dashed var(--border-weak);
+}
+.fc-meme-head b { font-size: 13px; color: var(--ink); }
+.fc-meme-head code { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.fc-meme-head .fc-mini { margin-left: auto; }
+
+.fc-opts { display: flex; flex-direction: column; gap: 8px; }
+.fc-opt { display: flex; align-items: center; gap: 9px; }
+.fc-opt-name {
+    width: 96px; flex-shrink: 0; font-family: var(--mono);
+    font-size: 11.5px; color: var(--brand-ink);
+}
+.fc-opt .fc-opt-help { font-size: 10.5px; color: var(--ink-3); }
+.fc-opt input[type="text"], .fc-opt input[type="number"], .fc-opt select, .fc-opt textarea {
+    flex: 1 1 0; min-width: 0; padding: 6px 9px; font-family: inherit; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 7px; background: var(--bg-0); color: var(--ink);
+}
+.fc-opt input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); }
+/* 参数里的 choose 也是 ILBB 下拉：和旁边的输入框一样占满剩余宽度 */
+.fc-opt .ilbb-select { flex: 1 1 0; min-width: 0; }
+.fc-opt .ilbb-select-btn { width: 100%; font-size: 12px; padding: 6px 9px; }
+
+.fc-styles { display: flex; flex-direction: column; gap: 8px; }
+.fc-style-name { font-size: 11px; color: var(--ink-2); margin-bottom: 4px; }
+.fc-style-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.fc-style {
+    flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 4px; border-radius: 7px; border: 1px solid var(--border-weak);
+    background: var(--bg-0); cursor: pointer; font-family: inherit;
+}
+.fc-style img { width: 52px; height: 46px; object-fit: contain; border-radius: 5px; }
+.fc-style span { font-size: 10px; color: var(--ink-3); }
+.fc-style:hover { border-color: var(--brand-border); }
+.fc-style.active { border-color: var(--brand); background: var(--brand-softer); }
+.fc-style.active span { color: var(--brand-ink); }
+
+/* ---- 预览区 ---- */
+.fc-stage-wrap {
+    flex: 1 1 0; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column; gap: 10px;
+    background: var(--glass-strong);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); padding: 12px;
+}
+.fc-stage {
+    flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius); background:
+        repeating-conic-gradient(#f1eee5 0% 25%, #faf8f2 0% 50%) 50% / 22px 22px;
+    overflow: hidden;
+}
+.fc-stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.fc-empty { font-size: 12.5px; color: var(--ink-3); }
+.fc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fc-btn {
+    padding: 9px 16px; border-radius: var(--radius-pill);
+    border: 1px solid var(--border); background: var(--bg-0);
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    color: var(--ink); cursor: pointer;
+}
+.fc-btn:hover { background: var(--bg-2); }
+.fc-btn.primary {
+    background: var(--brand); border-color: var(--brand); color: #fff;
+    box-shadow: 0 4px 14px rgba(201, 100, 66, .3);
+}
+.fc-btn.primary:hover { background: var(--brand-strong); }
+.fc-btn.ghost { background: transparent; color: var(--ink-2); }
+.fc-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.fc-status { font-size: 11.5px; color: var(--ink-3); }
+
+@media (max-width: 900px) {
+    .fc-body { flex-direction: column; }
+    .fc-side { width: auto; max-height: 46vh; }
+    .fc-stage-wrap { min-height: 260px; }
+}

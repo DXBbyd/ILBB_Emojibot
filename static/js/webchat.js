@@ -96,6 +96,9 @@
     var started = false;
     var botName = '我在哔哩学习';
     var prefix = '/';
+    var captureSeq = 0;       // 插件收件箱游标：只取比它新的消息
+    var lastUid = '10001';
+    var capTimer = null;
 
     // 机器人头像：沿用页面里已经渲染好的那张（与站点 favicon 同源）
     var AVATAR_SRC = (function () {
@@ -191,6 +194,138 @@
             '</div></div>';
     }
 
+    // ---- 任意消息格式：文件 / 语音 / 视频 / @ / 表情 / JSON ----
+    // 插件在指令里（或后台线程里）用 call_api 发的东西，后端拦下来拆成条目，
+    // 这里按 type 渲染，不认识的类型就退化成一行灰色标签，不会白屏。
+    var ICO = {
+        file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+        audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>',
+        video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg>'
+    };
+
+    function dataUrl(mime, data) {
+        return 'data:' + (mime || 'application/octet-stream') + ';base64,' + data;
+    }
+
+    function fileCard(kind, it) {
+        var src = it.data ? dataUrl(it.mime, it.data) : (it.url || '');
+        var fallback = kind === 'record' ? '语音消息' : (kind === 'video' ? '视频' : '文件');
+        var name = it.name || fallback;
+        var sub = (kind === 'record' ? '语音' : (kind === 'video' ? '视频' : (it.mime || '文件')))
+            + (it.bytes ? ' · ' + kb(it.bytes) : '');
+        var body = '<div class="wc-file-ico">' + (ICO[kind] || ICO.file) + '</div>' +
+            '<div class="wc-file-main">' +
+                '<div class="wc-file-name">' + esc(name) + '</div>' +
+                '<div class="wc-file-sub">' + esc(sub) + '</div>' +
+            '</div>';
+        if (!src) { return '<div class="wc-file">' + body + '</div>'; }
+        return '<a class="wc-file" href="' + src + '" download="' + esc(name) +
+            '" target="_blank" rel="noopener">' + body +
+            '<span class="wc-file-act">下载</span></a>';
+    }
+
+    function recordHtml(it) {
+        var playable = /^audio\/(mpeg|ogg|wav|flac|mp4|x-m4a)$/i.test(it.mime || '');
+        if (playable && it.data) {
+            var src = dataUrl(it.mime, it.data);
+            return '<div class="wc-media-box">' +
+                '<audio class="wc-audio" controls src="' + src + '"></audio>' +
+                '<div class="wc-img-bar"><span>语音 · ' + kb(it.bytes || 0) + '</span>' +
+                '<a class="wc-img-dl" href="' + src + '" download="voice">下载</a></div></div>';
+        }
+        return fileCard('record', it);
+    }
+
+    function videoHtml(it) {
+        if (it.data) {
+            return '<video class="wc-media" controls src="' +
+                dataUrl(it.mime, it.data) + '"></video>';
+        }
+        return fileCard('video', it);
+    }
+
+    function jsonHtml(it) {
+        var text = String(it.data || '');
+        try { text = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* 原样展示 */ }
+        return '<details class="wc-json"><summary>卡片消息（JSON）</summary>' +
+            '<pre>' + esc(text) + '</pre></details>';
+    }
+
+    function forwardHtml(it) {
+        var nodes = it.nodes || [];
+        var rows = nodes.map(function (n) {
+            return '<div class="wc-fwd-node">' +
+                '<div class="wc-fwd-name">' + esc(n.name || '消息') + '</div>' +
+                '<div class="wc-fwd-text">' + textHtml(n.text || '') + '</div>' +
+                '</div>';
+        }).join('');
+        var count = it.count || nodes.length;
+        return '<details class="wc-fwd"><summary>合并转发 · ' + count + ' 条</summary>' +
+            '<div class="wc-fwd-body">' + rows + '</div></details>';
+    }
+
+    function itemHtml(it) {
+        switch (it.type) {
+        case 'text': return textHtml(it.text || '');
+        case 'image':
+            if (it.data) { return imageHtml(it.mime || 'image/png', it.data, it.bytes || 0); }
+            if (it.url) {
+                return '<div class="wc-img-box"><img class="wc-img" src="' +
+                    esc(it.url) + '" alt="图片"></div>';
+            }
+            return '<span class="wc-face">[图片]</span>';
+        case 'file': return fileCard('file', it);
+        case 'record': return recordHtml(it);
+        case 'video': return videoHtml(it);
+        case 'at': return '<span class="wc-at">@' + esc(it.name || it.qq || '') + '</span>';
+        case 'face': return '<span class="wc-face">[表情 ' + esc(it.id || '') + ']</span>';
+        case 'reply': return '<span class="wc-quote">[引用消息]</span>';
+        case 'json': return jsonHtml(it);
+        case 'forward': return forwardHtml(it);
+        default: return '<span class="wc-face">[' + esc(it.type || '未知') + ']</span>';
+        }
+    }
+
+    // 一次 call_api 里的多个 segment 合到同一个气泡里（@ + 文本 + 图 才自然）
+    function renderCaptured(items) {
+        items = items || [];
+        var groups = [];
+        items.forEach(function (it) {
+            var last = groups[groups.length - 1];
+            if (!last || last.mid !== it.mid) {
+                last = { mid: it.mid, list: [] };
+                groups.push(last);
+            }
+            last.list.push(it);
+        });
+        groups.forEach(function (g) {
+            var html = g.list.map(itemHtml).join('');
+            if (html) { bubble('bot', html, now() + ' · 插件消息'); }
+        });
+    }
+
+    function pollCapture() {
+        if (!started) { return; }
+        api('/api/bot/chat/capture?uid=' + encodeURIComponent(lastUid) +
+            '&since=' + captureSeq).then(function (j) {
+            if (j.seq != null) { captureSeq = j.seq; }
+            if (j.items && j.items.length) { renderCaptured(j.items); }
+        }).catch(function () { /* 网络抖动忽略，下次继续 */ });
+    }
+
+    function startCapture() {
+        if (capTimer || !started) { return; }
+        capTimer = setInterval(pollCapture, 2000);
+        // 先把游标对到当前尾部，避免把上一次会话遗留的消息倒出来
+        api('/api/bot/chat/capture?uid=' + encodeURIComponent(lastUid) + '&since=999999999')
+            .then(function (j) { if (j.seq != null) { captureSeq = j.seq; } })
+            .catch(function () { /* 忽略 */ });
+    }
+
+    function stopCapture() {
+        if (capTimer) { clearInterval(capTimer); capTimer = null; }
+    }
+
     function typing() {
         var row = document.createElement('div');
         row.className = 'wc-msg bot wc-typing-row';
@@ -216,6 +351,162 @@
         }).join('');
     }
 
+    // ---------------------------------------------------------------- 图片预览
+    // 点会话里的图 → 全屏看；滚轮 / 双指缩放，拖动平移，双击复位，Esc 关闭。
+    var lb = null, lbImg = null, lbPct = null, lbStage = null;
+    var view = { s: 1, x: 0, y: 0 };
+    var pointers = {}, dragStart = null, pinchStart = null;
+
+    function lbApply() {
+        if (!lbImg) { return; }
+        lbImg.style.transform = 'translate(' + view.x + 'px,' + view.y +
+            'px) scale(' + view.s + ')';
+        if (lbPct) { lbPct.textContent = Math.round(view.s * 100) + '%'; }
+    }
+
+    function lbReset() {
+        view = { s: 1, x: 0, y: 0 };
+        lbApply();
+    }
+
+    function lbZoom(factor, cx, cy) {
+        var s0 = view.s;
+        var s1 = Math.max(0.2, Math.min(8, s0 * factor));
+        if (Math.abs(s1 - s0) < 0.0005) { return; }
+        var rect = lbStage.getBoundingClientRect();
+        var px = (cx == null ? rect.width / 2 : cx - rect.left - rect.width / 2);
+        var py = (cy == null ? rect.height / 2 : cy - rect.top - rect.height / 2);
+        view.x = px - (px - view.x) * (s1 / s0);
+        view.y = py - (py - view.y) * (s1 / s0);
+        view.s = s1;
+        lbApply();
+    }
+
+    function lbOpen(src, alt) {
+        lbEnsure();
+        lbReset();
+        lbImg.src = src;
+        lbImg.alt = alt || '图片预览';
+        lb.classList.remove('hidden');
+        document.body.classList.add('wc-lb-open');
+    }
+
+    function lbClose() {
+        if (!lb) { return; }
+        lb.classList.add('hidden');
+        document.body.classList.remove('wc-lb-open');
+        lbImg.removeAttribute('src');
+        if (dragStart || pinchStart) { dragStart = pinchStart = null; pointers = {}; }
+    }
+
+    function lbPointerList() {
+        return Object.keys(pointers).map(function (k) { return pointers[k]; });
+    }
+
+    function onLbDown(e) {
+        if (e.target.closest && e.target.closest('.wc-lb-btn')) { return; }
+        if (!e.isPrimary && Object.keys(pointers).length >= 2) { return; }
+        pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var pts = lbPointerList();
+        if (pts.length === 1) {
+            dragStart = { x: e.clientX - view.x, y: e.clientY - view.y };
+            lbImg.style.cursor = 'grabbing';
+        } else if (pts.length === 2) {
+            var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+            pinchStart = { dist: Math.sqrt(dx * dx + dy * dy) || 1, s: view.s };
+            dragStart = null;
+        }
+        try { lbStage.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+    }
+
+    function onLbMove(e) {
+        if (!pointers[e.pointerId]) { return; }
+        pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var pts = lbPointerList();
+        if (pts.length >= 2 && pinchStart) {
+            var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+            var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            view.s = Math.max(0.2, Math.min(8, pinchStart.s * dist / pinchStart.dist));
+            lbApply();
+            return;
+        }
+        if (dragStart) {
+            view.x = e.clientX - dragStart.x;
+            view.y = e.clientY - dragStart.y;
+            lbApply();
+        }
+    }
+
+    function onLbUp(e) {
+        delete pointers[e.pointerId];
+        var pts = lbPointerList();
+        if (pts.length < 2) { pinchStart = null; }
+        if (pts.length === 1) {
+            dragStart = { x: pts[0].x - view.x, y: pts[0].y - view.y };
+        } else if (!pts.length) {
+            dragStart = null;
+            lbImg.style.cursor = 'grab';
+        }
+    }
+
+    function lbEnsure() {
+        if (lb) { return; }
+        lb = document.createElement('div');
+        lb.className = 'wc-lb hidden';
+        lb.innerHTML =
+            '<div class="wc-lb-bar">' +
+                '<span class="wc-lb-pct">100%</span>' +
+                '<button type="button" class="wc-lb-btn" data-act="out" title="缩小">−</button>' +
+                '<button type="button" class="wc-lb-btn" data-act="in" title="放大">＋</button>' +
+                '<button type="button" class="wc-lb-btn" data-act="fit" title="还原大小">1:1</button>' +
+                '<button type="button" class="wc-lb-btn" data-act="close" title="关闭 (Esc)">关闭</button>' +
+            '</div>' +
+            '<div class="wc-lb-stage"><img class="wc-lb-img" alt="图片预览"></div>' +
+            '<div class="wc-lb-hint">滚轮 / 双指缩放 · 拖动平移 · 双击复位 · Esc 关闭</div>';
+        document.body.appendChild(lb);
+        lbImg = lb.querySelector('.wc-lb-img');
+        lbPct = lb.querySelector('.wc-lb-pct');
+        lbStage = lb.querySelector('.wc-lb-stage');
+
+        lb.addEventListener('click', function (e) {
+            var btn = e.target.closest ? e.target.closest('.wc-lb-btn') : null;
+            if (btn) {
+                var act = btn.getAttribute('data-act');
+                if (act === 'close') { lbClose(); }
+                else if (act === 'in') { lbZoom(1.35); }
+                else if (act === 'out') { lbZoom(1 / 1.35); }
+                else { lbReset(); }
+                return;
+            }
+            if (e.target === lb || e.target === lbStage) { lbClose(); }
+        });
+        lb.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            lbZoom(Math.exp(-e.deltaY / 420), e.clientX, e.clientY);
+        }, { passive: false });
+        lb.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            if (view.s > 1.05) { lbReset(); } else { lbZoom(2.5, e.clientX, e.clientY); }
+        });
+        lb.addEventListener('pointerdown', onLbDown);
+        lb.addEventListener('pointermove', onLbMove);
+        lb.addEventListener('pointerup', onLbUp);
+        lb.addEventListener('pointercancel', onLbUp);
+    }
+
+    // 会话里任意一张图（机器人回图 / 我自己发的图）都能点开
+    el.stream.addEventListener('click', function (e) {
+        var img = e.target.closest ? e.target.closest('img.wc-img') : null;
+        if (!img) { return; }
+        e.preventDefault();
+        lbOpen(img.getAttribute('src'), img.getAttribute('alt'));
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && lb && !lb.classList.contains('hidden')) {
+            lbClose();
+        }
+    });
+
     function setStats(st) {
         if (!st) { return; }
         if (el.statTotal) { el.statTotal.textContent = st.total || 0; }
@@ -239,6 +530,8 @@
 
         var uid = (el.uid && el.uid.value.trim()) || '10001';
         var uname = (el.uname && el.uname.value.trim()) || '调试用户';
+        lastUid = uid;
+        startCapture();
         var imgs = attach.slice();
         var shown = text;
 
@@ -269,8 +562,10 @@
             })
         }).then(function (j) {
             tp.remove();
+            if (j.capture_seq != null) { captureSeq = j.capture_seq; }
             var reps = j.replies || [];
-            if (!reps.length) {
+            var caps = j.captured || [];
+            if (!reps.length && !caps.length) {
                 sysLine(j.skipped ? ('机器人忽略了这条消息（' + j.skipped + '）') : '机器人没有回复。');
             } else {
                 reps.forEach(function (r, i) {
@@ -281,6 +576,8 @@
                         bubble('bot', textHtml(r.text), meta);
                     }
                 });
+                // 指令里直接通过 call_api 发的消息（插件常用），按格式逐条渲染
+                renderCaptured(caps);
             }
             setMem(j.session && j.session.images);
             setStats(j.stats);
@@ -305,11 +602,20 @@
         { usage: '/pair 10001', name: '配对卡生成' }
     ];
 
+    function withPrefix(usage) {
+        var u = String(usage || '');
+        var p = prefix || '/';
+        if (!u) { return u; }
+        // catalog 里的 usage 可能写死 /，统一换成后台配置的前缀
+        return p + u.replace(/^[\/#\-]+/, '');
+    }
+
     function renderQuick(list) {
         el.quick.innerHTML = (list || []).map(function (c) {
-            return '<button type="button" class="bot-quick-chip" data-cmd="' + esc(c.usage) + '"' +
+            var u = withPrefix(c.usage);
+            return '<button type="button" class="bot-quick-chip" data-cmd="' + esc(u) + '"' +
                 ' title="' + esc(c.desc || c.name || '') + '">' +
-                '<b>' + esc(c.usage) + '</b><span>' + esc(c.name || '') + '</span></button>';
+                '<b>' + esc(u) + '</b><span>' + esc(c.name || '') + '</span></button>';
         }).join('');
     }
 
@@ -461,9 +767,17 @@
                     (st.enabled ? '指令已启用' : '指令已禁用') +
                     ' · ' + (st.memes || 0) + ' 款素材 · 前缀 ' + prefix;
             }
-            renderQuick((j.catalog || []).map(function (c) {
+            var quick = (j.catalog || []).map(function (c) {
                 return { usage: c.usage, name: c.name, desc: c.desc };
-            }));
+            });
+            // 书源插件：搜索 + 翻页，方便在 Web 会话里直接验证
+            if (!quick.some(function (c) { return String(c.usage).indexOf('搜书') >= 0; })) {
+                quick.push({ usage: '/搜书 剑来', name: '书源搜索' });
+            }
+            if (!quick.some(function (c) { return String(c.usage).indexOf('翻页') >= 0; })) {
+                quick.push({ usage: '/翻页', name: '搜书下一页' });
+            }
+            renderQuick(quick);
             return api('/api/bot/chat/stats').then(function (j2) {
                 setStats(j2.stats);
             }).catch(function () { /* 忽略 */ });
@@ -488,16 +802,23 @@
     }
 
     function start() {
+        if (el.uid && el.uid.value.trim()) { lastUid = el.uid.value.trim(); }
         if (started) {
             loadStatus();
+            startCapture();
             return;
         }
         started = true;
         loadStatus().then(greet);
+        startCapture();
         if (el.input) { el.input.focus(); }
     }
 
-    function stop() { panelClose(); /* 会话状态留在后端，无需清理 */ }
+    function stop() {
+        panelClose();
+        stopCapture();
+        /* 会话状态留在后端，无需清理 */
+    }
 
     // 视图切换：进入才初始化，离开停掉
     var switches = document.querySelectorAll('.view-switch');

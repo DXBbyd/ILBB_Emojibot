@@ -1,0 +1,156 @@
+<div class="wq-fc-modal hidden" id="fcModal" role="dialog" aria-modal="true" aria-label="快捷合成">
+    <div class="wq-fc-mask" id="fcMask"></div>
+    <div class="wq-fc-dialog">
+    <div class="fc-wrap">
+    <div class="fc-head">
+        <div class="fc-title">快捷合成 <em>名言图 · 配对卡 · Meme</em></div>
+        <div class="fc-target">
+            <span class="fc-target-label">发送到</span>
+            <!-- 发送目标：头像 + 名称的独立选择面板（不再依赖 ILBB 下拉，群 / 好友都能选） -->
+            <div class="fc-target-pick" id="fcTargetPick">
+                <button type="button" class="fc-target-btn" id="fcTargetBtn"
+                        aria-haspopup="listbox" aria-expanded="false">
+                    <img class="fc-target-av hidden" id="fcTargetAv" alt="">
+                    <span class="fc-target-text" id="fcTargetText">仅生成，不发送</span>
+                    <span class="fc-target-caret"></span>
+                </button>
+                <input type="hidden" id="fcTarget" value="">
+                <div class="fc-target-pop hidden" id="fcTargetPop">
+                    <div class="fc-target-searchwrap">
+                        <input type="text" class="fc-target-search" id="fcTargetSearch"
+                               placeholder="搜索群聊 / 好友…" autocomplete="off">
+                    </div>
+                    <div class="fc-target-list" id="fcTargetList"></div>
+                    <div class="fc-target-manual">
+                        <input id="fcTargetManual" inputmode="numeric"
+                               placeholder="群列表没有？直接输入群号" autocomplete="off">
+                        <button type="button" class="fc-mini" id="fcTargetManualGo">使用</button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="fc-mini" id="fcTargetRefresh" title="重新拉取好友 / 群">刷新</button>
+            <span class="fc-online" id="fcOnline">连接中…</span>
+            <button type="button" class="wq-fc-close" id="fcClose" title="关闭">×</button>
+        </div>
+    </div>
+
+    <div class="fc-body">
+        <aside class="fc-side">
+            <div class="fc-tabs" id="fcTabs">
+                <button type="button" class="fc-tab active" data-fc-tab="quote">名言图</button>
+                <button type="button" class="fc-tab" data-fc-tab="pair">配对卡</button>
+                <button type="button" class="fc-tab" data-fc-tab="meme">Meme</button>
+            </div>
+
+            <div class="fc-pane active" id="fcPaneQuote">
+                <label class="fc-lab">文字
+                    <textarea id="fcQuoteText" rows="4" maxlength="500" placeholder="要合成名言图的内容"></textarea>
+                </label>
+                <div class="fc-row">
+                    <label class="fc-lab">署名
+                        <input id="fcQuoteName" type="text" maxlength="16" placeholder="无名氏">
+                    </label>
+                    <label class="fc-lab">QQ 号
+                        <input id="fcQuoteQQ" type="text" placeholder="自动取头像 / 昵称">
+                    </label>
+                </div>
+                <label class="fc-lab">配图（可多选，只取第一张）
+                    <input id="fcQuoteImages" type="file" accept="image/*" multiple>
+                </label>
+                <div class="fc-thumbs" id="fcQuoteThumbs"></div>
+                <p class="fc-hint">不填配图时使用纯色 / 模糊背景；填 QQ 号会自动取头像与昵称。</p>
+            </div>
+
+            <div class="fc-pane" id="fcPanePair">
+                <div class="fc-row">
+                    <label class="fc-lab">QQ 号
+                        <input id="fcPairQQ" type="text" placeholder="例如 3157037483">
+                    </label>
+                    <label class="fc-lab">昵称
+                        <input id="fcPairName" type="text" placeholder="留空自动获取">
+                    </label>
+                </div>
+                <label class="fc-lab">文案
+                    <input id="fcPairText" type="text" value="要与 {name} 配对吗？">
+                </label>
+                <div class="fc-row">
+                    <label class="fc-lab">按钮文字
+                        <input id="fcPairBtn" type="text" value="配对">
+                    </label>
+                    <div class="fc-lab">模板
+                        <div class="ilbb-select" id="fcPairTplSel"
+                             data-select="pair_template" data-target="fcPairTpl">
+                            <input type="hidden" id="fcPairTpl" value="">
+                            <button type="button" class="ilbb-select-btn" aria-haspopup="listbox"
+                                    aria-expanded="false">
+                                <span class="ilbb-select-text">读取中…</span>
+                                <span class="ilbb-select-caret"></span>
+                            </button>
+                            <ul class="ilbb-select-menu" role="listbox"></ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="fc-lab">字体
+                    <div class="ilbb-select" id="fcPairFontSel"
+                         data-select="pair_font" data-target="fcPairFont">
+                        <input type="hidden" id="fcPairFont" value="">
+                        <button type="button" class="ilbb-select-btn" aria-haspopup="listbox"
+                                aria-expanded="false">
+                            <span class="ilbb-select-text">读取中…</span>
+                            <span class="ilbb-select-caret"></span>
+                        </button>
+                        <ul class="ilbb-select-menu" role="listbox"></ul>
+                    </div>
+                </div>
+                <p class="fc-hint">文案里的 {name} 会被替换成昵称；头像按 QQ 号自动抓取。</p>
+            </div>
+
+            <div class="fc-pane" id="fcPaneMeme">
+                <div class="fc-meme-tools">
+                    <input id="fcMemeSearch" type="search" placeholder="搜索 meme / 关键词">
+                    <label class="fc-lab fc-lab-inline">填充头像 QQ
+                        <input id="fcMemeQQ" type="text" placeholder="缺图时用其头像">
+                    </label>
+                </div>
+                <div class="fc-meme-grid" id="fcMemeGrid">
+                    <div class="fc-empty-note">正在加载表情库…</div>
+                </div>
+                <div class="fc-meme-form hidden" id="fcMemeForm">
+                    <div class="fc-meme-head">
+                        <b id="fcMemeName">-</b>
+                        <code id="fcMemeKey"></code>
+                        <button type="button" class="fc-mini" id="fcMemeReset">重置参数</button>
+                    </div>
+                    <label class="fc-lab">图片（<span id="fcMemeNeed">0</span> 张）
+                        <input id="fcMemeFiles" type="file" accept="image/*" multiple>
+                    </label>
+                    <label class="fc-check">
+                        <input type="checkbox" id="fcMemeFill" checked>
+                        缺图时用上面的 QQ 头像填充
+                    </label>
+                    <div class="fc-thumbs" id="fcMemeThumbs"></div>
+                    <label class="fc-lab">文字（每行一条，按顺序使用）
+                        <textarea id="fcMemeTexts" rows="3" placeholder="第一行 → 第一个文字参数"></textarea>
+                    </label>
+                    <div class="fc-opts" id="fcMemeOpts"></div>
+                    <div class="fc-styles" id="fcMemeStyles"></div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="fc-stage-wrap">
+            <div class="fc-stage">
+                <img id="fcPreview" alt="预览" hidden>
+                <div class="fc-empty" id="fcEmpty">选择左侧参数后点「生成」</div>
+            </div>
+            <div class="fc-actions">
+                <button type="button" class="fc-btn primary" id="fcGenerate">生成</button>
+                <button type="button" class="fc-btn" id="fcSend" disabled>发送到会话</button>
+                <button type="button" class="fc-btn ghost" id="fcDownload" disabled>下载</button>
+                <span class="fc-status" id="fcStatus"></span>
+            </div>
+        </section>
+    </div>
+    </div>
+    </div>
+</div>

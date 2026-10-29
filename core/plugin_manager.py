@@ -380,15 +380,19 @@ class PluginContext:
 
     # ---- 收发 ----
     def call_api(self, action, params=None, timeout=6.0):
-        return ws_server.call_api(action, params or {}, timeout=timeout)
+        # 插件发送不经过「Web 会话收件箱」拦截，避免发往 QQ 的消息被吞
+        return ws_server.call_api(action, params or {}, timeout=timeout,
+                                  bypass_web=True)
 
     def send_group(self, group_id, message):
         return ws_server.call_api("send_group_msg",
-                                  {"group_id": group_id, "message": message})
+                                  {"group_id": group_id, "message": message},
+                                  bypass_web=True)
 
     def send_private(self, user_id, message):
         return ws_server.call_api("send_private_msg",
-                                  {"user_id": user_id, "message": message})
+                                  {"user_id": user_id, "message": message},
+                                  bypass_web=True)
 
     def send_text(self, ctx, text):
         if not text:
@@ -714,9 +718,12 @@ def sync(force=False):
                 removed += 1
                 _log("[%s] 插件目录已移除，已卸载" % pid, ws_server.C.YELLOW)
 
-        used_ports = set()
-        for pid, (folder, manifest, _err) in list(found.items()):
-            used_ports.add(int(manifest.get("web_port") or 0))
+        # Web 端口占用表：manifest 里写死的先占位，其余在下面按顺序分配。
+        # 之前只收集了 manifest 的端口，而绝大多数插件端口是"分配后存进 state"的，
+        # 于是后加载的插件可能拿到和先加载插件同一个端口（两个插件撞在 7001）。
+        reserved = {int(m.get("web_port") or 0)
+                    for _, (_f, m, _e) in found.items()} - {0}
+        port_changed = False
 
         for pid, (folder, manifest, err) in list(found.items()):
             p = _plugins.get(pid)
@@ -735,15 +742,18 @@ def sync(force=False):
                 st["enabled"] = bool(manifest.get("enabled_by_default", True))
             p.enabled = bool(st["enabled"]) and bool(getattr(config, "PLUGIN_ENABLED", True))
 
-            # Web 端口：manifest 指定优先，否则按需分配并记住
+            # Web 端口：manifest 指定优先 → 沿用上次分配的 → 撞车/没有就重新分配
             port = int(manifest.get("web_port") or 0)
             if manifest.get("web"):
                 if not port:
                     port = int(st.get("web_port") or 0)
+                    if port in reserved:
+                        port = 0
                     if not port:
-                        port = _alloc_port(used_ports - {0})
+                        port = _alloc_port(reserved)
                         st["web_port"] = port
-                used_ports.add(port)
+                        port_changed = True
+                reserved.add(port)
             p.web_port = port
 
             p.values = _normalize_values(manifest, st.get("config"))
@@ -761,7 +771,7 @@ def sync(force=False):
                 _unload(p)
             _last_signature[pid] = sig
 
-        if added or changed or removed:
+        if added or changed or removed or port_changed:
             _save_state()
     return added, changed, removed
 

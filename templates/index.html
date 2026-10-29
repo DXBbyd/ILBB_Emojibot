@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- QQ 图床（qzonestyle.gtimg.cn / gchat.qpic.cn）有防盗链：带 Referer 会返回「此图片来自QQ空间」占位图 -->
+    <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>ILBB Emoji Bot</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.jpg') }}" type="image/jpeg">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260927f') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20261029a') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/ilbb.css', v='20260927a') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/webqq.css', v='20261029m') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/fastcompose.css', v='20261029h') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/logs.css', v='20261029a') }}">
 </head>
 <body>
     <div class="bg-wall" id="bgWall"></div>
@@ -25,7 +30,9 @@
                     <button type="button" class="view-switch active" data-view="compose">合成</button>
                     <button type="button" class="view-switch" data-view="bot">指令中心</button>
                     <button type="button" class="view-switch" data-view="webchat">Web 会话</button>
+                    <button type="button" class="view-switch" data-view="webqq">WebQQ</button>
                     <button type="button" class="view-switch" data-view="status">状态</button>
+                    <button type="button" class="view-switch" data-view="logs">日志</button>
                     <button type="button" class="view-switch" data-view="usage">接口统计</button>
                     <button type="button" class="view-switch" data-view="api">接口测试</button>
                     <button type="button" class="view-switch" data-view="ws">WS 服务器</button>
@@ -87,6 +94,12 @@
         {% include '_webchat_panel.html' %}
         </div>
 
+        <!-- 视图：WebQQ（真实 QQ 好友 / 群会话） -->
+        <div class="view" id="view-webqq">
+
+        {% include '_webqq_panel.html' %}
+        </div>
+
         <!-- 视图：插件（plugins/ 一个文件夹 = 一个插件；含独立插件页面内嵌） -->
         <div class="view" id="view-plugins">
 
@@ -99,6 +112,12 @@
                 <h2 class="panel-title">状态检查</h2>
                 <div id="statusBlock"><p class="console-empty">加载中...</p></div>
             </div>
+        </div>
+
+        <!-- 视图：日志（全局运行日志，替代原 WS 页的实时事件日志） -->
+        <div class="view" id="view-logs">
+
+        {% include '_logs_panel.html' %}
         </div>
 
         <!-- 视图：接口统计 -->
@@ -142,7 +161,7 @@
                     <span class="ws-tabs-pill" id="wsTabsPill" aria-hidden="true"></span>
                     <button type="button" class="ws-tab active" data-ws-tab="overview">运行概览</button>
                     <button type="button" class="ws-tab" data-ws-tab="debug">接口调试</button>
-                    <span class="ws-tabs-hint" id="wsTabsHint">连接状态 · 服务器配置 · 实时事件</span>
+                    <span class="ws-tabs-hint" id="wsTabsHint">连接状态 · 服务器配置 · 接口调试</span>
                 </div>
 
                 <!-- 面板一：运行概览 -->
@@ -199,17 +218,7 @@
                     <div id="wsClientsBlock"><p class="console-empty">暂无连接</p></div>
                 </div>
 
-                <!-- 实时事件日志 -->
-                <div class="bg-card" style="margin-top:16px;">
-                    <h3 style="font-size:15px;color:var(--ink);margin-bottom:14px;">实时事件日志</h3>
-                    <div class="ws-log-toolbar">
-                        <label class="ws-check"><input type="checkbox" id="wsAutoScroll" checked> 自动滚动到最新</label>
-                        <label class="ws-check"><input type="checkbox" id="wsShowRaw"> 显示原始 JSON</label>
-                        <label class="ws-check"><input type="checkbox" id="wsPausePoll"> 暂停刷新</label>
-                        <button id="wsClearEventsBtn" class="ws-btn ws-btn-sm">清空日志</button>
-                    </div>
-                    <div id="wsEventsBlock" class="ws-events"><p class="console-empty">等待 NapCat 连接…</p></div>
-                </div>
+                <!-- 实时事件日志已迁移到顶部「日志」视图 -->
 
                 </div><!-- /wsPaneOverview -->
 
@@ -385,7 +394,10 @@
     <script src="{{ url_for('static', filename='js/console.js', v='20260926f') }}"></script>
     <script src="{{ url_for('static', filename='js/ws.js', v='20260926c') }}"></script>
     <script src="{{ url_for('static', filename='js/bot.js', v='20260924b') }}"></script>
-    <script src="{{ url_for('static', filename='js/webchat.js', v='20260927f') }}"></script>
+    <script src="{{ url_for('static', filename='js/webchat.js', v='20261029b') }}"></script>
+    <script src="{{ url_for('static', filename='js/webqq.js', v='20261029v') }}"></script>
+    <script src="{{ url_for('static', filename='js/fastcompose.js', v='20261029h') }}"></script>
+    <script src="{{ url_for('static', filename='js/logs.js', v='20261029a') }}"></script>
     <script src="{{ url_for('static', filename='js/plugins.js', v='20260927a') }}"></script>
     <script src="{{ url_for('static', filename='js/effects.js', v='20260924b') }}"></script>
     <script>

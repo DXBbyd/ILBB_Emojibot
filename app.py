@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask import (Flask, render_template, request, jsonify, send_file,
-                   send_from_directory, redirect, session)
+                   send_from_directory, redirect, session,
+                   Response, stream_with_context)
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os
 import json
@@ -21,8 +22,18 @@ if _CORE_DIR not in sys.path:
 
 import api_key_store
 import config
+import logsys
+
+# 尽早接管标准输出：之后所有 print() 都会被收集进统一日志，
+# 并由 logsys 过滤掉 Werkzeug 的正常访问日志（GET / 200 之类）。
+logsys.install()
 
 app = Flask(__name__)
+
+# Werkzeug / Flask 的 logging 记录也接入统一日志（正常访问直接丢弃）
+import logging
+logsys.attach_logger(logging.getLogger("werkzeug"), source="http")
+logsys.attach_logger(app.logger, source="flask")
 
 # 模板自动重载：WEB_DEBUG=false 时 Jinja 会缓存已编译模板，
 # 导致改了 templates/*.html 后刷新页面看不到变化（必须重启服务）。
@@ -1789,6 +1800,18 @@ def bot_chat():
     uid = str(payload.get('uid') or '10001')
     uname = str(payload.get('uname') or '调试用户')
 
+    # Web 会话：把这个 uid 标成「网页里的假账号」，插件在指令执行期间 / 后台线程里
+    # 通过 call_api 发的消息会被 ws_server 拦进收件箱（不真的发到 QQ），这里记下
+    # 起始序号，本轮跑完后连同回复一起带回去。
+    cap_from, cap_seq = 0, 0
+    ws_srv = None
+    try:
+        import ws_server as ws_srv
+        ws_srv.register_web_uid(uid)
+        cap_from = ws_srv.web_seq(uid)
+    except Exception:
+        ws_srv = None
+
     # ---- 本轮附带图片（会作为素材被后续指令沿用，模拟引用带图消息） ----
     got = []
     for raw in (payload.get('images') or []):
@@ -1852,6 +1875,14 @@ def bot_chat():
         if t:
             replies.append({'type': 'text', 'text': str(t)})
 
+    # 指令里直接调 call_api 发出去的消息（插件常用），从收件箱取出来一起返回
+    captured = []
+    if ws_srv is not None:
+        try:
+            captured, cap_seq = ws_srv.take_web_items(uid, cap_from)
+        except Exception:
+            cap_seq = cap_from
+
     with _CHAT_LOCK:
         _CHAT_STATS['total'] += 1
         _CHAT_STATS['images'] += sum(1 for r in replies if r['type'] == 'image')
@@ -1870,8 +1901,30 @@ def bot_chat():
 
     return jsonify({'ok': True, 'cmd': body, 'cost_ms': cost_ms,
                     'replies': replies, 'count': len(replies),
+                    'captured': captured, 'capture_seq': cap_seq,
                     'session': {'images': len(s['images']), 'sid': sid},
                     'stats': dict(_CHAT_STATS)})
+
+
+@app.route('/api/bot/chat/capture', methods=['GET'])
+def bot_chat_capture():
+    """Web 会话的增量收件箱：插件后台任务（如小说下载完成）发的东西在这里。
+
+    请求：?uid=10001&since=<上次的 seq>
+    响应：{ok, items:[...], seq:<下次从这里取>}
+    """
+    uid = str(request.args.get('uid') or '10001')
+    try:
+        since = int(request.args.get('since') or 0)
+    except (TypeError, ValueError):
+        since = 0
+    try:
+        import ws_server
+        ws_server.register_web_uid(uid)
+        items, seq = ws_server.take_web_items(uid, since)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '收件箱不可用：%s' % e}), 500
+    return jsonify({'ok': True, 'items': items, 'seq': seq})
 
 
 @app.route('/api/bot/chat/stats', methods=['GET'])
@@ -1882,6 +1935,410 @@ def bot_chat_stats():
         sessions = len(_CHAT_SESSIONS)
     st['sessions'] = sessions
     return jsonify({'ok': True, 'stats': st})
+
+
+# ==================== WebQQ（真实 QQ 好友 / 群会话） ====================
+def _webqq_mod():
+    try:
+        import webqq
+        return webqq
+    except Exception as e:
+        print('[webqq] 模块不可用: %s' % e, flush=True)
+        return None
+
+
+@app.route('/api/webqq/bootstrap', methods=['GET'])
+def webqq_bootstrap():
+    """页面初始化：登录账号、好友、群、最近会话摘要。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    force = request.args.get('force') in ('1', 'true', 'yes')
+    try:
+        return jsonify(m.bootstrap(force))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '读取联系人失败：%s' % e}), 500
+
+
+@app.route('/api/webqq/poll', methods=['GET'])
+def webqq_poll():
+    """增量拉取新消息 / 系统提示（戳一戳、撤回）。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    try:
+        since = int(request.args.get('since') or 0)
+    except (TypeError, ValueError):
+        since = 0
+    try:
+        return jsonify(m.poll(since))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/webqq/notices', methods=['GET'])
+def webqq_notices():
+    """通知中心：加群 / 退群 / 好友申请（?since=上次拿到的 seq）。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    try:
+        since = int(request.args.get('since') or 0)
+    except (TypeError, ValueError):
+        since = 0
+    try:
+        return jsonify(m.notices(since))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/webqq/request', methods=['POST'])
+def webqq_request():
+    """同意 / 拒绝好友申请或入群申请。请求：{kind, flag, approve, reason}"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        r = m.handle_request(data.get('kind') or 'friend',
+                             data.get('flag') or '',
+                             bool(data.get('approve')),
+                             data.get('reason') or '')
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '处理申请失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/group/role', methods=['GET'])
+def webqq_group_role():
+    """自己在群里的身份（群主 / 管理员 / 成员），前端据此显示禁言、踢人、公告入口。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    try:
+        r = m.group_role(request.args.get('gid') or '',
+                         request.args.get('force') in ('1', 'true', 'yes'))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/group/ban', methods=['POST'])
+def webqq_group_ban():
+    """禁言 / 解除禁言。请求：{gid, uid, duration}（秒，0 = 解除）"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        r = m.ban_member(data.get('gid') or '', data.get('uid') or '',
+                         data.get('duration', 600))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '禁言失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/group/kick', methods=['POST'])
+def webqq_group_kick():
+    """踢人。请求：{gid, uid, reject}"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        r = m.kick_member(data.get('gid') or '', data.get('uid') or '',
+                          bool(data.get('reject')))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '踢人失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/group/notice', methods=['GET', 'POST'])
+def webqq_group_notice():
+    """GET 读群公告；POST 发布 / 覆盖群公告（请求：{gid, content}）。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    try:
+        if request.method == 'GET':
+            r = m.group_notices(request.args.get('gid') or '')
+        else:
+            data = request.get_json(silent=True) or {}
+            r = m.publish_notice(data.get('gid') or '', data.get('content') or '',
+                                 data.get('image') or '',
+                                 bool(data.get('pinned')),
+                                 data.get('type') or 1)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '群公告操作失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/history', methods=['GET'])
+def webqq_history():
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    ctype = (request.args.get('type') or 'private').strip().lower()
+    cid = (request.args.get('id') or '').strip()
+    try:
+        limit = int(request.args.get('limit') or 80)
+    except (TypeError, ValueError):
+        limit = 80
+    # sync=1：先从 QQ 侧拉一次最近历史并合并（失败不影响本地历史返回）
+    sync = request.args.get('sync') in ('1', 'true', 'yes')
+    force = request.args.get('force') in ('1', 'true', 'yes')
+    try:
+        return jsonify(m.history(ctype, cid, limit, sync=sync, force=force))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/webqq/send', methods=['POST'])
+def webqq_send():
+    """发送消息。请求：{type, id, segments:[OneBot 消息段]}"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    ctype = str(data.get('type') or 'private').strip().lower()
+    cid = str(data.get('id') or '').strip()
+    segs = data.get('segments')
+    if segs is None:
+        segs = data.get('message') or []
+    if not isinstance(segs, list):
+        return jsonify({'ok': False, 'error': 'segments 必须是数组'}), 400
+    try:
+        r = m.send(ctype, cid, segs)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '发送失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/poke', methods=['POST'])
+def webqq_poke():
+    """戳一戳。请求：{type, id, user_id, name}"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    ctype = str(data.get('type') or 'private').strip().lower()
+    cid = str(data.get('id') or '').strip()
+    uid = str(data.get('user_id') or '').strip()
+    name = str(data.get('name') or '').strip()
+    try:
+        r = m.poke(ctype, cid, uid, name)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '戳一戳失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/members', methods=['GET'])
+def webqq_members():
+    """群成员列表。请求：?gid=群号&force=1"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    gid = (request.args.get('gid') or '').strip()
+    force = request.args.get('force') in ('1', 'true', 'yes')
+    try:
+        return jsonify(m.members(gid, force))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '读取群成员失败：%s' % e}), 500
+
+
+@app.route('/api/webqq/media/<path:name>', methods=['GET'])
+def webqq_media(name):
+    """WebQQ 发送图片的本地缓存（历史记录不存 base64，只存这里的 URL）。"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    path = m.media_path(name)
+    if not path:
+        return jsonify({'ok': False, 'error': '文件不存在'}), 404
+    return send_file(path, max_age=86400)
+
+
+@app.route('/api/webqq/img', methods=['GET'])
+def webqq_img():
+    """代理 QQ 图床图片（下载时去掉 Referer，规避「此图片来自QQ空间」防盗链）。"""
+    m = _webqq_mod()
+    if m is None:
+        return '', 500
+    url = request.args.get('u', '')
+    name, err = m.remote_image(url, request.args.get('file', ''),
+                               request.args.get('fid', ''),
+                               request.args.get('mid', ''))
+    if not name:
+        # 排障用：/api/webqq/img?u=...&json=1 直接返回失败原因
+        if request.args.get('json'):
+            return jsonify({'ok': False, 'error': err or '读取失败'}), 200
+        return '', 404
+    path = m.media_path(name)
+    if not path:
+        return '', 404
+    return send_file(path, max_age=86400)
+
+
+@app.route('/api/webqq/face', methods=['GET'])
+def webqq_face():
+    """QQ 官方表情图（?id=表情编号）。
+
+    新版 QQ 的表情 id 和 qzone 图床编号是两套，图号映射放在 core/qq_faces.json；
+    这里按 id 取图并落盘缓存，前端只认 id，不用再自己拼外链。
+    """
+    m = _webqq_mod()
+    if m is None:
+        return '', 500
+    name, err = m.face_file(request.args.get('id') or '')
+    if not name:
+        if request.args.get('json'):
+            return jsonify({'ok': False, 'error': err or '读取失败'}), 200
+        return '', 404
+    path = m.face_path(name)
+    if not path:
+        return '', 404
+    return send_file(path, max_age=31536000)
+
+
+@app.route('/api/webqq/faces', methods=['GET'])
+def webqq_faces():
+    """表情面板清单：[{id, name}]"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    try:
+        return jsonify({'ok': True, 'items': m.face_list()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/webqq/forward', methods=['GET'])
+def webqq_forward():
+    """读取合并转发内容。请求：/api/webqq/forward?id=<forward_id>&mid=<message_id>"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    fid = (request.args.get('id') or '').strip()
+    mid = (request.args.get('mid') or '').strip()
+    try:
+        return jsonify(m.forward(fid, mid))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '读取合并转发失败：%s' % e}), 500
+
+
+@app.route('/api/webqq/recall', methods=['POST'])
+def webqq_recall():
+    """撤回消息。请求：{mid, type, id}（type/id 用来按群成员身份判权限）"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        r = m.recall(data.get('mid') or '', data.get('type') or '',
+                     data.get('id') or '')
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '撤回失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/forward/send', methods=['POST'])
+def webqq_forward_send():
+    """转发选中消息。请求：{type,id,mode:'merge'|'each',nodes:[{name,time,segs,text}]}"""
+    m = _webqq_mod()
+    if m is None:
+        return jsonify({'ok': False, 'error': 'webqq 模块不可用'}), 500
+    data = request.get_json(silent=True) or {}
+    ctype = str(data.get('type') or 'private').strip().lower()
+    cid = str(data.get('id') or '').strip()
+    mode = str(data.get('mode') or 'merge').strip().lower()
+    nodes = data.get('nodes')
+    if not isinstance(nodes, list):
+        return jsonify({'ok': False, 'error': 'nodes 必须是数组'}), 400
+    try:
+        r = m.forward_send(ctype, cid, nodes, mode)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': '转发失败：%s' % e}), 500
+    return jsonify(r), (200 if r.get('ok') else 400)
+
+
+@app.route('/api/webqq/raw', methods=['GET'])
+def webqq_raw():
+    """流媒体代理：消息里的视频 / 语音。
+
+    QQ 的媒体地址（multimedia.nt.qq.com.cn 等）带时效签名，且不允许带 Referer，
+    浏览器直接引用经常 403；这里后端代取并支持 Range，视频能拖动进度条。
+    """
+    m = _webqq_mod()
+    if m is None:
+        return '', 500
+    url = (request.args.get('u') or '').strip()
+    file = (request.args.get('file') or '').strip()
+    fid = (request.args.get('fid') or '').strip()
+    mid = (request.args.get('mid') or '').strip()
+    if not url and not (file or fid or mid):
+        return '', 404
+    if url and not m.remote_allowed(url):
+        return '', 403
+    headers = {
+        'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'),
+        'Referer': '',
+        'Accept': '*/*',
+    }
+    rng = request.headers.get('Range')
+    if rng:
+        headers['Range'] = rng
+
+    def attempt(u):
+        if not u:
+            return None
+        try:
+            return requests.get(u, headers=headers, stream=True, timeout=(8, 30))
+        except Exception:
+            return None
+
+    r = attempt(url)
+    if r is None or r.status_code >= 400:
+        # 视频 / 语音地址带时效签名，过期后让 NapCat 重新给一条
+        fresh = m.refresh_media(file, fid, mid)
+        if fresh and fresh != url:
+            if r is not None:
+                r.close()
+            r = attempt(fresh)
+    if r is None:
+        return '', 502
+    if r.status_code >= 400:
+        code = r.status_code
+        r.close()
+        return '', code
+
+    def _chunks():
+        try:
+            for chunk in r.iter_content(64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            r.close()
+
+    ctype = r.headers.get('Content-Type') or ''
+    if not ctype or 'octet-stream' in ctype.lower():
+        probe = (url + ' ' + file).lower()
+        for ext, mime in (('.mp4', 'video/mp4'), ('.m4v', 'video/mp4'),
+                          ('.mov', 'video/quicktime'), ('.webm', 'video/webm'),
+                          ('.mp3', 'audio/mpeg'), ('.m4a', 'audio/mp4'),
+                          ('.amr', 'audio/amr'), ('.wav', 'audio/wav'),
+                          ('.ogg', 'audio/ogg')):
+            if ext in probe:
+                ctype = mime
+                break
+    resp = Response(stream_with_context(_chunks()),
+                    status=206 if r.status_code == 206 else 200,
+                    content_type=(ctype or 'application/octet-stream'))
+    for h in ('Content-Length', 'Content-Range', 'Accept-Ranges'):
+        if h in r.headers:
+            resp.headers[h] = r.headers[h]
+    resp.headers['Cache-Control'] = 'private, max-age=1800'
+    return resp
 
 
 def _bot_setup():
@@ -1901,6 +2358,35 @@ def _bot_setup():
         print(f"[bot] 指令框架启动失败: {e}", flush=True)
 
 
+def _webqq_setup():
+    """启动 WebQQ：加载历史 + 注册消息事件钩子（幂等）。"""
+    try:
+        import webqq
+        import ws_server as _ws_srv
+        webqq.start()
+        _ws_srv.add_event_handler(webqq.on_event)
+        print("[webqq] 已启动：好友 / 群消息会实时进入 WebQQ", flush=True)
+    except Exception as e:
+        print("[webqq] 初始化失败: %s" % e, flush=True)
+
+
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    """全局日志：since=0 取最近 N 条，否则取 id 之后的新日志。"""
+    return jsonify(logsys.tail(
+        since=request.args.get('since', 0),
+        limit=request.args.get('limit', 300),
+        levels=request.args.get('levels', ''),
+        q=request.args.get('q', ''),
+    ))
+
+
+@app.route('/api/logs/clear', methods=['POST'])
+def api_logs_clear():
+    logsys.clear()
+    return jsonify({'ok': True})
+
+
 @app.route('/api/ws/status', methods=['GET'])
 def ws_status():
     if not _ws_ok():
@@ -1909,7 +2395,8 @@ def ws_status():
         limit = int(request.args.get('limit', 120))
     except (TypeError, ValueError):
         limit = 120
-    with_events = request.args.get('events', '1') not in ('0', 'false', 'no')
+    # 事件日志已迁移到独立的「日志」视图，默认不再随状态轮询下发（需要时传 events=1）
+    with_events = request.args.get('events', '0') in ('1', 'true', 'yes')
     # 默认不下发原始 JSON（日志只展示可读内容），勾选「显示原始 JSON」时才带 raw=1
     with_raw = request.args.get('raw', '0') in ('1', 'true', 'yes')
     return jsonify(ws_server.status(include_events=with_events,
@@ -2751,6 +3238,7 @@ def env_config_save():
 _ws_autostart()
 _bot_setup()
 _plugin_setup()
+_webqq_setup()
 
 
 if __name__ == '__main__':

@@ -60,7 +60,10 @@ W = 960                       # 统一画布宽度
 SIDE = 28                     # 左右留白
 
 # 渲染版本号：改动版式/预览后 +1，会让 run_command 里的图片缓存自动失效重绘
-RENDER_VERSION = 9
+RENDER_VERSION = 10
+
+# /meme help 里预设样式预览的最多条数（每条至少 104px 高，画布高度有限）
+MAX_PRESET_PREVIEWS = 24
 
 _CACHE_DIR = os.path.join(config.CACHE_DIR, "bot")   # 渲染结果缓存目录
 
@@ -958,16 +961,45 @@ def render_meme_detail(token) -> bytes:
     cv.y = top + card_h
 
     # ---------- 预设参数（每一项都配一张真实渲染的预览小图） ----------
+    # choose 类型会逐项展开：每个可选样式各渲染一张预览，帮助图里直接能看到
+    # 「不同样式长什么样」，而不是只给第一个取值。
     opts = m["options"] or []
     if opts:
         items = []
+        styles = 0                       # 展开后的样式预览总数，用于标题文案
         for o in opts:
+            name = o["name"]
+            choices = list(o.get("choices") or [])
+            if o.get("type") == "choose" and choices:
+                shown = 0
+                for c in choices:
+                    if len(items) >= MAX_PRESET_PREVIEWS:
+                        break
+                    dft = "（默认）" if c == o.get("default") else ""
+                    items.append(("preset:%s=%s" % (name, c),
+                                  "%s = %s%s　—　%s" % (
+                                      name, c, dft, o.get("help") or "预设样式"),
+                                  _thumb(m["key"], {name: c})))
+                    shown += 1
+                styles += shown
+                rest = choices[shown:]
+                if rest:
+                    more = ("还有 %d 种样式未展开（%s 可选：%s），"
+                            "用 %smeme help %d 后按 %s=<样式> 传入即可。") % (
+                        len(rest), name, " / ".join(rest[:8]),
+                        p, idx, name)
+                    items.append(("preset:%s=more" % name, more, None))
+                continue
             val, vtxt = _opt_sample(o)
             desc = "%s　—　%s" % (o.get("help") or "无说明", _opt_line(o))
             if val is not None:
-                desc += "　（此项预览用 %s=%s）" % (o["name"], vtxt)
-            items.append(("preset:%s" % o["name"], desc, _thumb(m["key"], {o["name"]: val})))
-        _group_media(cv, "支持的预设参数（%d 项 · 左侧为该取值的效果预览）" % len(opts), items)
+                desc += "　（此项预览用 %s=%s）" % (name, vtxt)
+            items.append(("preset:%s" % name, desc, _thumb(m["key"], {name: val})))
+        if styles:
+            title = "支持的预设参数（%d 项 · 含 %d 张样式预览）" % (len(opts), styles)
+        else:
+            title = "支持的预设参数（%d 项 · 左侧为该取值的效果预览）" % len(opts)
+        _group_media(cv, title, items)
     else:
         _group(cv, "支持的预设参数", [
             ("无预设", "这个表情没有可选参数，直接按格式给图和文本即可。")])

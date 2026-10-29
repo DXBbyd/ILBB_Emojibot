@@ -1,6 +1,7 @@
 /* ws.js
  * WS 服务器面板：OneBot V11（NapCat 反向 WebSocket）
- * 负责配置读写、启停控制、状态总览、连接列表、实时事件日志、接口调用测试。
+ * 负责配置读写、启停控制、状态总览、连接列表、接口调用测试。
+ * （实时事件日志已迁移到独立的「日志」视图）
  * 后端接口全部位于 /api/ws/*（app.py 转发到 ws_server.py）。
  * 本文件自带 tab 切换钩子，进入「WS 服务器」视图时开始轮询，离开即停止。
  */
@@ -11,9 +12,7 @@
     var inited = false;
     var cfgFilled = false;
     // 增量渲染状态：整块 innerHTML 重建会让动画与滚动位置反复重置，
-    // 因此状态卡 / 客户端卡 / 事件日志都改按「行」就地更新。
-    var lastEvtSig = '';          // '' = 需要整块重建（清空日志 / 切换原始 JSON 时置空）
-    var lastEvtIds = {};          // 事件 id -> 已渲染的 DOM 行
+    // 因此状态卡 / 客户端卡改按「行」就地更新。
     var lastCliSig = '';
     var lastCliIdSig = '';        // 客户端「身份」指纹：仅增删时触发入场动画
     var lastClientCount = null;   // 在线客户端数：变化时数字跳动
@@ -425,150 +424,12 @@
         lastCliSig = cl.map(function (c) { return c.id + '|' + c.recv + '|' + c.sent; }).join(',');
     }
 
-    var KIND_LABEL = {
-        message: '消息', notice: '通知', request: '请求', meta: '元事件',
-        api: 'API', binary: '二进制', raw: '原始', system: '系统'
-    };
-
-    // ---------- 实时事件日志：可读卡片（谁 · 在哪个群 · 做了什么 / 发了什么） ----------
-    // 服务端把事件解析成 extra（uid/uname/gid/gname/content 等），前端只渲染人话，
-    // 原始 JSON 仅在勾选「显示原始 JSON」时才附加，默认不展示。
-
-    function evAvatar(ex) {
-        if (ex.uid) return { kind: 'user', id: ex.uid };
-        if (ex.gid) return { kind: 'group', id: ex.gid };
-        return null;
-    }
-
-    // 卡片内部结构。e.extra 缺失时（旧数据 / 未知事件）退回纯文字行。
-    function evCardHtml(e, showRaw) {
-        var ex = e.extra || {};
-        var kind = e.kind || 'system';
-        var av = evAvatar(ex);
-        var h = '';
-        if (av) {
-            h += '<span class="ws-ev-avwrap">'
-                + '<img class="ws-ev-av" alt="" width="38" height="38" loading="lazy" src="'
-                + esc(dynAvUrl(av.kind, av.id)) + '">'
-                + (ex.gid && ex.uid
-                    ? '<img class="ws-ev-av-mini" alt="" width="18" height="18" loading="lazy" src="'
-                      + esc(dynAvUrl('group', ex.gid)) + '">'
-                    : '')
-                + '</span>';
-        } else {
-            h += '<span class="ws-ev-avwrap"><span class="ws-ev-av ws-ev-av-bot">ILBB</span></span>';
-        }
-        h += '<div class="ws-ev-body">';
-        h += '<div class="ws-ev-top">';
-        if (ex.uname) h += '<span class="ws-ev-name">' + esc(ex.uname) + '</span>';
-        if (ex.gname || ex.gid) {
-            h += '<span class="ws-ev-where">' + esc(ex.gname || ('群 ' + ex.gid)) + '</span>';
-        } else if (!ex.uid) {
-            h += '<span class="ws-ev-where">本机</span>';
-        }
-        h += '<span class="ws-ev-spacer"></span>';
-        h += '<span class="ws-ev-kind">' + esc(KIND_LABEL[kind] || kind) + '</span>';
-        h += '<span class="ws-ev-time">' + esc(e.t || '') + '</span>';
-        h += '</div>';
-        // 正文：消息事件显示聊了什么，其余显示服务端生成的一句话
-        var body = ex.content ? ex.content : (e.text || '');
-        h += '<div class="ws-ev-text">' + esc(body) + '</div>';
-        if (ex.content && e.text) h += '<div class="ws-ev-sub">' + esc(e.text) + '</div>';
-        if (ex.message_id) {
-            h += '<div class="ws-ev-mid">消息 ID <code class="ws-code">' + esc(ex.message_id) + '</code></div>';
-        }
-        if (showRaw && e.raw) h += '<pre class="ws-ev-raw">' + esc(e.raw) + '</pre>';
-        h += '</div>';
-        return h;
-    }
-
-    function evRowClass(e) { return 'ws-event ws-ev-' + esc(e.kind || 'system'); }
-
-    function evSig(e) { return JSON.stringify(e.extra || {}) + '|' + (e.text || '') + '|' + (e.raw ? 1 : 0); }
-
-    // 逐行增量渲染：新事件只插入自己的那一行，旧行原地更新，
-    // 不再整块重建，滚动位置与正在进行动画不受影响。
-    function renderEvents(d) {
-        var evts = d.events || [];
-        var box = $('wsEventsBlock');
-        if (!box) return;
-        var showRaw = $('wsShowRaw') ? $('wsShowRaw').checked : false;
-        var autoScroll = $('wsAutoScroll') ? $('wsAutoScroll').checked : true;
-        var atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
-        var force = lastEvtSig === '';
-
-        if (!evts.length) {
-            if (lastEvtSig === 'empty') return;
-            lastEvtSig = 'empty';
-            lastEvtIds = {};
-            box.innerHTML = '<p class="console-empty">暂无事件。等待 NapCat 连接…</p>';
-            return;
-        }
-
-        if (force) {
-            box.innerHTML = '';
-            lastEvtIds = {};
-        }
-
-        // 1) 清掉已不在列表里的行（清空日志、超出缓冲被丢弃）
-        var alive = {};
-        evts.forEach(function (e) { alive[String(e.id)] = 1; });
-        Object.keys(lastEvtIds).forEach(function (id) {
-            if (alive[id]) return;
-            var n = lastEvtIds[id];
-            if (n && n.parentNode) n.parentNode.removeChild(n);
-            delete lastEvtIds[id];
-        });
-
-        // 2) 旧行：昵称 / 群名晚到（服务端自愈）时就地刷新内容
-        evts.forEach(function (e) {
-            var id = String(e.id);
-            var node = lastEvtIds[id];
-            if (!node) return;
-            var sig = evSig(e);
-            if (node.getAttribute('data-ev-sig') === sig) return;
-            node.setAttribute('data-ev-sig', sig);
-            node.className = evRowClass(e);
-            node.innerHTML = evCardHtml(e, showRaw);
-        });
-
-        // 3) 新到的事件：倒序插入，保证最新一条在最上面
-        var arrived = 0;
-        for (var i = evts.length - 1; i >= 0; i--) {
-            var e = evts[i];
-            var id = String(e.id);
-            if (lastEvtIds[id]) continue;
-            var node = document.createElement('div');
-            node.className = evRowClass(e);
-            node.setAttribute('data-ev-id', id);
-            node.setAttribute('data-ev-sig', evSig(e));
-            node.innerHTML = evCardHtml(e, showRaw);
-            // 只给「真正新到」的前 3 条播入场动画
-            if (arrived < 3) {
-                node.classList.add('is-new');
-                node.style.animationDelay = (arrived * 0.05) + 's';
-                arrived++;
-            }
-            lastEvtIds[id] = node;
-            box.insertBefore(node, box.firstChild);
-        }
-
-        var ph = box.querySelector('.console-empty');
-        if (ph) box.removeChild(ph);
-        lastEvtSig = 'ready';
-        if (autoScroll && (atBottom || arrived)) box.scrollTop = 0;
-    }
-
-    // 事件按时间倒序（最新在上），所以自动滚动是回到顶部
+    // ---------- 状态轮询 ----------
     function pollWs() {
         if (!document.getElementById('view-ws')) return;
-        if ($('wsPausePoll') && $('wsPausePoll').checked) return;
-        // 默认不下发原始 JSON，只有勾选「显示原始 JSON」时才向服务端索取
-        var raw = $('wsShowRaw') && $('wsShowRaw').checked ? '&raw=1' : '';
-        return api('/api/ws/status?limit=80' + raw).then(function (d) {
+        return api('/api/ws/status?limit=80').then(function (d) {
             renderStatus(d);
             renderClients(d);
-            renderEvents(d);
             if (!cfgFilled) fillConfig(d.config);
             window._wsUpBase = d.uptime_sec || 0;
             window._wsUpStart = Date.now();
@@ -1398,7 +1259,7 @@
         if ($('wsTabsHint')) {
             $('wsTabsHint').textContent = name === 'debug'
                 ? '选择接口 · 填参数 · 直接调用'
-                : '连接状态 · 服务器配置 · 实时事件';
+                : '连接状态 · 服务器配置';
         }
         movePill();
         if (name === 'debug') loadActions();
@@ -1411,17 +1272,6 @@
         if ($('wsStartBtn')) $('wsStartBtn').addEventListener('click', function () { ctrl('start'); });
         if ($('wsStopBtn')) $('wsStopBtn').addEventListener('click', function () { ctrl('stop'); });
         if ($('wsRestartBtn')) $('wsRestartBtn').addEventListener('click', function () { ctrl('restart'); });
-        if ($('wsClearEventsBtn')) {
-            $('wsClearEventsBtn').addEventListener('click', function () {
-                api('/api/ws/events/clear', { method: 'POST' }).then(function () {
-                    lastEvtSig = '';
-                    pollWs();
-                }).catch(function (e) { notice('清空失败：' + e.message, 'warn'); });
-            });
-        }
-        if ($('wsShowRaw')) {
-            $('wsShowRaw').addEventListener('change', function () { lastEvtSig = ''; pollWs(); });
-        }
         if ($('wsSendBtn')) $('wsSendBtn').addEventListener('click', sendApi);
         if ($('wsApiResetBtn')) $('wsApiResetBtn').addEventListener('click', resetParams);
         if ($('wsApiSearch')) {

@@ -19,6 +19,11 @@ cache/
 temp/
 *.log
 
+# ---------- 小说插件依赖的第三方 SoNovel 程序（运行时下载，180MB+，不入库）----------
+SoNovel/
+sonovel-windows.tar.gz
+*.tar.gz
+
 # ---------- 用户上传的背景图（运行时数据，目录由 app.py 自动创建）----------
 static/bg/custom_*
 

@@ -1,0 +1,240 @@
+<!-- 视图：WebQQ（真实 QQ 好友 / 群会话） -->
+<div class="wq-layout">
+    <div class="wq-app" id="wqApp">
+        <!-- 左侧功能栏 -->
+        <aside class="wq-rail">
+            <div class="wq-me" id="wqMe" title="当前登录账号">
+                <img class="wq-me-avatar" id="wqMeAvatar" src="{{ url_for('static', filename='favicon.jpg') }}" alt="">
+                <span class="wq-me-name" id="wqMeName">…</span>
+            </div>
+            <nav class="wq-rail-nav">
+                <button type="button" class="wq-rail-btn active" data-wq-nav="recent" title="最近会话">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.9 8.9 0 0 1-3.9-.9L3 21l1.9-5.4A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>
+                    <span>消息</span>
+                </button>
+                <button type="button" class="wq-rail-btn" data-wq-nav="friends" title="好友列表">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/><path d="M16.5 5.4a3.4 3.4 0 0 1 0 6.5"/><path d="M18 14.4A5.6 5.6 0 0 1 22 20"/></svg>
+                    <span>好友</span>
+                </button>
+                <button type="button" class="wq-rail-btn" data-wq-nav="groups" title="群聊列表">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M2.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M14.5 15.2a5 5 0 0 1 7 4.3"/></svg>
+                    <span>群聊</span>
+                </button>
+                <button type="button" class="wq-rail-btn" data-wq-nav="notices" title="通知中心（加群 / 退群 / 好友申请）">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                    <span>通知</span>
+                    <i class="wq-rail-badge hidden" id="wqNavNotice">0</i>
+                </button>
+                <button type="button" class="wq-rail-btn" data-wq-goto="fastcompose" title="快捷合成（名言图 / 配对卡 / Meme）">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m6.3 6.3 2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9 6.3 17.7"/></svg>
+                    <span>合成</span>
+                </button>
+            </nav>
+            <div class="wq-net" id="wqNet"><i></i><span>连接中</span></div>
+        </aside>
+
+        <!-- 联系人 / 最近会话 -->
+        <section class="wq-side">
+            <div class="wq-side-head">
+                <div class="wq-side-title" id="wqSideTitle">消息</div>
+                <button type="button" class="wq-icon-btn" id="wqRefreshBtn" title="刷新联系人与群成员">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 5v5h-5"/><path d="M4 19v-5h5"/><path d="M5.6 8.4A7.5 7.5 0 0 1 19 7"/><path d="M18.4 15.6A7.5 7.5 0 0 1 5 17"/></svg>
+                </button>
+            </div>
+            <label class="wq-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+                <input type="text" id="wqSearch" placeholder="搜索好友 / 群" autocomplete="off">
+            </label>
+            <div class="wq-tabs" id="wqTabs">
+                <button type="button" class="active" data-wq-tab="recent">最近 <b id="wqRecentCount">0</b></button>
+                <button type="button" data-wq-tab="friends">好友 <b id="wqFriendCount">0</b></button>
+                <button type="button" data-wq-tab="groups">群聊 <b id="wqGroupCount">0</b></button>
+                <button type="button" data-wq-tab="notices">通知 <b id="wqNoticeCount">0</b></button>
+            </div>
+            <div class="wq-contacts" id="wqContacts">
+                <div class="wq-empty"><span class="wq-spin"></span>正在读取联系人…</div>
+            </div>
+        </section>
+
+        <!-- 聊天区 -->
+        <section class="wq-chat">
+            <header class="wq-chat-head">
+                <img class="wq-peer-avatar" id="wqPeerAvatar" src="{{ url_for('static', filename='favicon.jpg') }}" alt="">
+                <div class="wq-peer">
+                    <b id="wqPeerName">WebQQ</b>
+                    <span id="wqPeerSub">从左侧选择一个好友或群开始聊天</span>
+                </div>
+                <div class="wq-head-actions">
+                    <button type="button" class="wq-head-btn" id="wqSyncBtn" disabled title="同步 QQ 历史消息">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg>
+                    </button>
+                    <button type="button" class="wq-head-btn" id="wqPokeBtn" disabled title="戳一戳">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5.5a1.8 1.8 0 0 1 3.6 0V11"/><path d="M12.6 11V4.6a1.7 1.7 0 0 1 3.4 0v6.7"/><path d="M16 11V6.8a1.7 1.7 0 0 1 3.4 0v7.4A7.8 7.8 0 0 1 11.6 22 7.9 7.9 0 0 1 4 14.6v-2.2a1.7 1.7 0 0 1 3.4 0V14"/></svg>
+                    </button>
+                    <button type="button" class="wq-head-btn hidden" id="wqMemberBtn" title="群成员">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/><path d="M16.5 5.4a3.4 3.4 0 0 1 0 6.5"/><path d="M18 14.4A5.6 5.6 0 0 1 22 20"/></svg>
+                    </button>
+                    <button type="button" class="wq-head-btn hidden" id="wqGroupBtn" title="群管理（群公告 / 禁言 / 踢人）">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v6c0 4.4 3.1 8 7.5 9 4.4-1 7.5-4.6 7.5-9V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <div class="wq-stream" id="wqStream">
+                <div class="wq-empty-chat">
+                    <div class="wq-empty-ico">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M42 23a17 17 0 0 1-17 16.8 18 18 0 0 1-7.8-1.8L6 42l4-10.2A16.6 16.6 0 0 1 8 23 17 17 0 0 1 25 6a17 17 0 0 1 17 17z"/><path d="M17 22h.1M25 22h.1M33 22h.1"/></svg>
+                    </div>
+                    <b>这里像 QQ 一样聊天</b>
+                    <span>支持文字、官方表情、图片、@ 群友、引用回复、戳一戳</span>
+                </div>
+            </div>
+
+            <!-- 引用回复 -->
+            <div class="wq-reply hidden" id="wqReplyBar">
+                <div class="wq-reply-main">
+                    <b>正在回复 <span id="wqReplyName"></span></b>
+                    <span id="wqReplyText"></span>
+                </div>
+                <button type="button" class="wq-reply-x" id="wqReplyClose" title="取消引用">×</button>
+            </div>
+
+            <div class="wq-compose-wrap">
+                <div class="wq-attach hidden" id="wqAttach"></div>
+                <div class="wq-compose">
+                    <div class="wq-tools">
+                        <button type="button" class="wq-tool" id="wqEmojiBtn" title="官方表情">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.1M15 9.5h.1"/></svg>
+                        </button>
+                        <button type="button" class="wq-tool" id="wqImageBtn" title="发送图片">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg>
+                        </button>
+                        <button type="button" class="wq-tool wq-at" id="wqAtBtn" title="@ 群友">@</button>
+                        <button type="button" class="wq-tool wq-cmd" id="wqCmdBtn" title="快捷指令">/</button>
+                    </div>
+                    <textarea id="wqInput" rows="3" placeholder="输入消息，Enter 发送 / Shift + Enter 换行" autocomplete="off"></textarea>
+                    <div class="wq-send-col">
+                        <span class="wq-tip" id="wqTip">Enter 发送</span>
+                        <button type="button" class="wq-send" id="wqSendBtn">发送</button>
+                    </div>
+                </div>
+                <input type="file" id="wqFile" accept="image/*" multiple class="hidden">
+                <div class="wq-popup wq-emoji hidden" id="wqEmojiPanel" role="dialog" aria-label="官方表情">
+                    <div class="wq-popup-head">
+                        <b>官方表情</b>
+                        <button type="button" class="wq-popup-x" id="wqEmojiClose">×</button>
+                    </div>
+                    <div class="wq-emoji-grid" id="wqEmojiGrid"></div>
+                </div>
+                <div class="wq-popup wq-atlist hidden" id="wqAtPanel" role="dialog" aria-label="@ 群友">
+                    <div class="wq-popup-head">
+                        <b>@ 一位群友</b>
+                        <button type="button" class="wq-popup-x" id="wqAtClose">×</button>
+                    </div>
+                    <div class="wq-at-list" id="wqAtList"></div>
+                </div>
+                <div class="wq-popup wq-cmdpanel hidden" id="wqCmdPanel" role="dialog" aria-label="快捷指令">
+                    <div class="wq-popup-head">
+                        <b>快捷指令</b>
+                        <span class="wq-popup-tip">点击插入输入框</span>
+                        <button type="button" class="wq-popup-x" id="wqCmdClose">×</button>
+                    </div>
+                    <div class="wq-cmd-list" id="wqCmdList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 群成员 -->
+        <aside class="wq-members hidden" id="wqMembers">
+            <header class="wq-members-head">
+                <b>群成员 <span id="wqMemberCount"></span></b>
+                <button type="button" class="wq-popup-x" id="wqMembersClose" title="收起">×</button>
+            </header>
+            <div class="wq-member-filter">
+                <input type="text" id="wqMemberSearch" placeholder="搜索群成员" autocomplete="off">
+            </div>
+            <div class="wq-member-list" id="wqMemberList"></div>
+        </aside>
+
+        <!-- 右键菜单（消息 / 联系人） -->
+        <div class="wq-menu hidden" id="wqMenu" role="menu"></div>
+
+        <!-- 多选操作条 -->
+        <div class="wq-multibar hidden" id="wqMultiBar">
+            <span class="wq-multibar-info" id="wqMultiInfo">已选 0 条</span>
+            <button type="button" data-mact="at">@ 选中</button>
+            <button type="button" data-mact="poke">戳一戳</button>
+            <button type="button" data-mact="forward">合并转发</button>
+            <button type="button" data-mact="each">逐条转发</button>
+            <button type="button" data-mact="recall">撤回</button>
+            <button type="button" data-mact="quote">合成名言图</button>
+            <button type="button" data-mact="copy">复制</button>
+            <button type="button" data-mact="cancel">取消</button>
+        </div>
+
+        <!-- 群管理（群公告 / 禁言 / 踢人入口说明） -->
+        <div class="wq-group-panel hidden" id="wqGroupPanel" role="dialog" aria-label="群管理">
+            <div class="wq-popup-head">
+                <b>群管理 <span class="wq-role" id="wqGroupRole"></span></b>
+                <button type="button" class="wq-popup-x" id="wqGroupClose" title="关闭">×</button>
+            </div>
+            <div class="wq-group-body">
+                <div class="wq-group-row">
+                    <b>群公告</b>
+                    <button type="button" class="wq-mini" id="wqNoticeRefresh">刷新</button>
+                </div>
+                <div class="wq-notice-list" id="wqNoticeList">
+                    <div class="wq-empty">正在读取群公告…</div>
+                </div>
+                <!-- 发布区：只有群主 / 管理员可见（普通成员连表单都不渲染出来） -->
+                <div class="wq-notice-form hidden" id="wqNoticeForm">
+                    <div class="wq-notice-opts">
+                        <label class="wq-check"><input type="checkbox" id="wqNoticePinned"> 置顶公告</label>
+                        <label class="wq-check"><input type="checkbox" id="wqNoticeNewMember"> 发送给新成员（新人公告）</label>
+                        <button type="button" class="wq-mini" id="wqNoticeImageBtn">添加图片</button>
+                    </div>
+                    <div class="wq-notice-thumb hidden" id="wqNoticeThumb">
+                        <img id="wqNoticeThumbImg" alt="公告配图" referrerpolicy="no-referrer">
+                        <button type="button" class="wq-notice-thumb-x" id="wqNoticeImgClear" title="移除图片">×</button>
+                    </div>
+                    <textarea id="wqNoticeInput" rows="4" placeholder="输入公告内容后点发布（再次发布即覆盖旧公告）"></textarea>
+                    <div class="wq-notice-actions">
+                        <span class="wq-tip" id="wqNoticeTip">发布后会覆盖该群当前公告</span>
+                        <button type="button" class="wq-send" id="wqNoticeSend">发布公告</button>
+                    </div>
+                </div>
+                <p class="wq-group-hint hidden" id="wqNoticeReadonly">
+                    当前身份是普通成员：只能查看群公告，发布入口仅群主 / 管理员可见。
+                </p>
+                <input type="file" id="wqNoticeImage" accept="image/*" class="hidden">
+                <p class="wq-group-hint">禁言 / 踢人：在右侧群成员列表里右键成员。</p>
+            </div>
+        </div>
+
+        <!-- 转发目标选择（合并转发 / 逐条转发） -->
+        <div class="wq-fwd-panel hidden" id="wqFwdPanel" role="dialog" aria-label="选择转发目标">
+            <div class="wq-popup-head">
+                <b id="wqFwdTitle">转发到</b>
+                <button type="button" class="wq-popup-x" id="wqFwdClose" title="关闭">×</button>
+            </div>
+            <div class="wq-fwd-search">
+                <input type="text" id="wqFwdSearch" placeholder="搜索群聊 / 好友…" autocomplete="off">
+            </div>
+            <div class="wq-fwd-list" id="wqFwdList"></div>
+        </div>
+
+        {% include '_fastcompose_panel.html' %}
+    </div>
+
+    <!-- 图片预览 -->
+    <div class="wq-viewer hidden" id="wqViewer" role="dialog" aria-label="图片预览">
+        <img id="wqViewerImg" alt="图片预览" referrerpolicy="no-referrer">
+        <div class="wq-viewer-bar">
+            <span id="wqViewerPct">100%</span>
+            <button type="button" id="wqViewerOut" title="缩小">−</button>
+            <button type="button" id="wqViewerIn" title="放大">＋</button>
+            <button type="button" id="wqViewerReset" title="还原">1:1</button>
+            <button type="button" id="wqViewerClose" title="关闭">×</button>
+        </div>
+    </div>
+</div>

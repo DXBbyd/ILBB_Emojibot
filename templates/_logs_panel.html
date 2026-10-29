@@ -1,0 +1,25 @@
+<div class="console-layout">
+    <h2 class="panel-title">运行日志</h2>
+    <div class="panel-sub" style="margin-bottom:16px">
+        终端、WS 事件、插件与 Web 服务的日志统一汇总在这里。不同级别用不同颜色标记，
+        正常访问日志（HTTP 2xx/3xx）已自动隐藏，只保留警告与错误。
+    </div>
+
+    <div class="lg-toolbar">
+        <div class="lg-levels" id="lgLevels">
+            <button type="button" class="lg-chip active" data-level="all">全部</button>
+            <button type="button" class="lg-chip" data-level="error">Error</button>
+            <button type="button" class="lg-chip" data-level="warn">Warn</button>
+            <button type="button" class="lg-chip" data-level="success">Success</button>
+            <button type="button" class="lg-chip" data-level="info">Info</button>
+            <button type="button" class="lg-chip" data-level="debug">Debug</button>
+        </div>
+        <input type="text" id="lgSearch" class="lg-search" autocomplete="off" placeholder="搜索日志内容 / 来源">
+        <label class="ws-check"><input type="checkbox" id="lgAutoScroll" checked> 自动滚动</label>
+        <label class="ws-check"><input type="checkbox" id="lgPause"> 暂停</label>
+        <button type="button" id="lgClearBtn" class="ws-btn ws-btn-sm">清空</button>
+        <span class="lg-count" id="lgCount">0 条</span>
+    </div>
+
+    <div id="lgList" class="lg-list"><p class="console-empty">加载中…</p></div>
+</div>

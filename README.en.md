@@ -165,9 +165,9 @@ def setup(ctx):
 
 Config fields support 8 types (`text` / `textarea` / `int` / `bool` / `enum` / `friend` / `group` / `group_member`), rendered as a form in the admin panel and applied live.
 
-The repo ships two working examples: `plugins/example` (minimal plugin with its own web page) and `plugins/ilbb_plugin_SoNovel` (multi-source novel search / download — it interprets SoNovel's `rules/main.json` source rules in Python, so no Java and no `app.jar` is required, and it also has its own web page).
+The repo ships one working example: `plugins/example` (minimal plugin with its own web page). Other plugins are locally installed and are not part of this repository.
 
-Full API reference, manifest field table, web-page integration and two copyable examples are in the **[Plugin Development Guide](docs/en/plugin-dev.md)**.
+Full API reference, manifest field table, web-page integration and a copyable example are in the **[Plugin Development Guide](docs/en/plugin-dev.md)**.
 
 ---
 

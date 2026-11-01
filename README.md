@@ -165,9 +165,9 @@ def setup(ctx):
 
 插件配置字段支持 8 种类型（`text` / `textarea` / `int` / `bool` / `enum` / `friend` / `group` / `group_member`），在后台面板里直接渲染成表单，改完热生效。
 
-仓库自带两个可直接用的例子：`plugins/example`（最小示例 + 独立 Web 页面）与 `plugins/ilbb_plugin_SoNovel`（跨书源搜书 / 下书：把 SoNovel 的 `rules/main.json` 书源规则翻译成 Python 执行，不跑 Java、不需要 `app.jar`，也能在插件自带的网页里搜书）。
+仓库自带一个可直接用的例子：`plugins/example`（最小示例 + 独立 Web 页面）。其余插件属于本机自行安装的内容，不在仓库内。
 
-完整 API 参考、清单字段表、Web 页面接入与两个可抄的示例见 **[插件开发指南](docs/zh/plugin-dev.md)**。
+完整 API 参考、清单字段表、Web 页面接入与可抄的示例见 **[插件开发指南](docs/zh/plugin-dev.md)**。
 
 ---
 
